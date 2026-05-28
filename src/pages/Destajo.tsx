@@ -34,6 +34,7 @@ export function Destajo() {
   // Líneas del modal multi-fila
   type DraftLinea = { id: string; corteId: string; tarifaId: string; cantPrendas: string };
   const [draftLineas, setDraftLineas] = useState<DraftLinea[]>([{ id: uid(), corteId: '', tarifaId: '', cantPrendas: '' }]);
+  const [extraOperarioId, setExtraOperarioId] = useState('');
 
   const addDraftRow = () => setDraftLineas(prev => [...prev, { id: uid(), corteId: '', tarifaId: '', cantPrendas: '' }]);
   const removeDraftRow = (id: string) => setDraftLineas(prev => prev.filter(r => r.id !== id));
@@ -65,22 +66,16 @@ export function Destajo() {
   const pendientes = lineasFiltradas.filter(b => b.estadoPago === 'PENDIENTE');
   const pagadas = lineasFiltradas.filter(b => b.estadoPago === 'PAGADO');
 
-  const handleAddLineas = (e: React.FormEvent) => {
-    e.preventDefault();
-    const validas = draftLineas.filter(r => r.corteId && r.tarifaId && r.cantPrendas);
-    if (validas.length === 0) {
-      addToast('Completa al menos una línea con corte, operación y cantidad', 'error');
-      return;
-    }
-    const nuevas: BoletaLinea[] = [];
+  const buildLineasParaOperario = (opId: string, validas: DraftLinea[]): BoletaLinea[] => {
+    const result: BoletaLinea[] = [];
     for (const r of validas) {
       const tarifa = tarifasOperaciones.find(t => t.id === r.tarifaId);
       const corte = corteMap.get(r.corteId);
       if (!tarifa || !corte) continue;
       const cant = parseInt(r.cantPrendas) || 0;
-      nuevas.push({
+      result.push({
         id: uid(),
-        operarioId: selectedOperario,
+        operarioId: opId,
         corteId: r.corteId,
         nCorte: corte.nCorte,
         productoId: corte.productoId,
@@ -94,10 +89,26 @@ export function Destajo() {
         estadoPago: 'PENDIENTE',
       });
     }
+    return result;
+  };
+
+  const handleAddLineas = (e: React.FormEvent) => {
+    e.preventDefault();
+    const validas = draftLineas.filter(r => r.corteId && r.tarifaId && r.cantPrendas);
+    if (validas.length === 0) {
+      addToast('Completa al menos una línea con corte, operación y cantidad', 'error');
+      return;
+    }
+    const nuevas: BoletaLinea[] = [
+      ...buildLineasParaOperario(selectedOperario, validas),
+      ...(extraOperarioId ? buildLineasParaOperario(extraOperarioId, validas) : []),
+    ];
     addBoletaLineas(nuevas);
-    addToast(`${nuevas.length} línea${nuevas.length !== 1 ? 's' : ''} agregada${nuevas.length !== 1 ? 's' : ''}`, 'success');
+    const ops = extraOperarioId ? 2 : 1;
+    addToast(`${validas.length} línea${validas.length !== 1 ? 's' : ''} agregada${validas.length !== 1 ? 's' : ''} para ${ops} operario${ops > 1 ? 's' : ''}`, 'success');
     setShowForm(false);
     setDraftLineas([{ id: uid(), corteId: '', tarifaId: '', cantPrendas: '' }]);
+    setExtraOperarioId('');
   };
 
   const handleBulkAdd = () => {
@@ -352,7 +363,7 @@ export function Destajo() {
                   {operarioMap.get(selectedOperario)?.nombre} — {selectedPeriodo}
                 </p>
               </div>
-              <button onClick={() => { setShowForm(false); setDraftLineas([{ id: uid(), corteId: '', tarifaId: '', cantPrendas: '' }]); }}>
+              <button onClick={() => { setShowForm(false); setDraftLineas([{ id: uid(), corteId: '', tarifaId: '', cantPrendas: '' }]); setExtraOperarioId(''); }}>
                 <X className="h-4 w-4" />
               </button>
             </div>
@@ -425,12 +436,36 @@ export function Destajo() {
                 >
                   <Plus className="h-3 w-3" /> Agregar otra línea
                 </button>
+
+                {/* Segundo operario opcional */}
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
+                    Agregar también a otro operario (opcional)
+                  </p>
+                  <select
+                    value={extraOperarioId}
+                    onChange={e => setExtraOperarioId(e.target.value)}
+                    className="input-base text-xs w-64"
+                  >
+                    <option value="">— Ninguno —</option>
+                    {operarios
+                      .filter(o => o.estado === 'ACTIVO' && o.id !== selectedOperario)
+                      .map(o => (
+                        <option key={o.id} value={o.id}>{o.codigo} — {o.nombre}</option>
+                      ))}
+                  </select>
+                  {extraOperarioId && (
+                    <p className="text-[10px] text-[#B66F35] font-bold mt-1 uppercase tracking-widest">
+                      Las mismas líneas se guardarán también para {operarioMap.get(extraOperarioId)?.nombre}
+                    </p>
+                  )}
+                </div>
               </div>
 
               <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 shrink-0">
                 <button
                   type="button"
-                  onClick={() => { setShowForm(false); setDraftLineas([{ id: uid(), corteId: '', tarifaId: '', cantPrendas: '' }]); }}
+                  onClick={() => { setShowForm(false); setDraftLineas([{ id: uid(), corteId: '', tarifaId: '', cantPrendas: '' }]); setExtraOperarioId(''); }}
                   className="btn-secondary"
                 >Cancelar</button>
                 <button type="submit" className="btn-primary">

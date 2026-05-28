@@ -25,6 +25,8 @@ const emptyForm = (): MovForm => ({
   responsable: '', proveedorId: '', nFactura: '', notas: '',
 });
 
+type SegmentMode = 'ninguno' | 'tipo' | 'tela';
+
 export function InventarioTelas() {
   const { movimientosTela, telas, colores, clientes, proveedores, config, addMovimientoTela } = useAppContext();
   const { addToast } = useToast();
@@ -32,6 +34,7 @@ export function InventarioTelas() {
   const [form, setForm] = useState<MovForm>(emptyForm());
   const [filterTela, setFilterTela] = useState('');
   const [filterColor, setFilterColor] = useState('');
+  const [segmentMode, setSegmentMode] = useState<SegmentMode>('ninguno');
 
   const telaMap = useMemo(() => new Map(telas.map(t => [t.id, t])), [telas]);
   const colorMap = useMemo(() => new Map(colores.map(c => [c.id, c])), [colores]);
@@ -54,6 +57,33 @@ export function InventarioTelas() {
       .filter(m => (!filterTela || m.telaId === filterTela) && (!filterColor || m.colorId === filterColor))
       .sort((a, b) => b.fecha.localeCompare(a.fecha));
   }, [movimientosTela, filterTela, filterColor]);
+
+  // Segmentación: agrupa movsFiltrados por tipo o por tela
+  const segmentGroups = useMemo(() => {
+    if (segmentMode === 'tipo') {
+      const order = TIPOS;
+      const map = new Map<string, typeof movsFiltrados>();
+      order.forEach(t => map.set(t, []));
+      movsFiltrados.forEach(m => {
+        if (!map.has(m.tipo)) map.set(m.tipo, []);
+        map.get(m.tipo)!.push(m);
+      });
+      return Array.from(map.entries())
+        .filter(([, rows]) => rows.length > 0)
+        .map(([key, rows]) => ({ key, label: TIPO_LABEL[key] ?? key, rows }));
+    }
+    if (segmentMode === 'tela') {
+      const map = new Map<string, typeof movsFiltrados>();
+      movsFiltrados.forEach(m => {
+        if (!map.has(m.telaId)) map.set(m.telaId, []);
+        map.get(m.telaId)!.push(m);
+      });
+      return Array.from(map.entries())
+        .map(([key, rows]) => ({ key, label: telaMap.get(key)?.nombre ?? key, rows }))
+        .sort((a, b) => a.label.localeCompare(b.label));
+    }
+    return [{ key: 'all', label: 'Historial de Movimientos', rows: movsFiltrados }];
+  }, [segmentMode, movsFiltrados, telaMap]);
 
   const set = (field: keyof MovForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, [field]: e.target.value }));
@@ -197,9 +227,10 @@ export function InventarioTelas() {
         )}
       </div>
 
-      {/* Filtros + tabla */}
-      <div>
-        <div className="flex gap-3 mb-3">
+      {/* Filtros + segmentación + tabla */}
+      <div className="space-y-4">
+        {/* Fila de controles */}
+        <div className="flex flex-wrap items-end gap-3">
           <select value={filterTela} onChange={e => setFilterTela(e.target.value)} className="input-base text-xs w-40">
             <option value="">Todas las telas</option>
             {telas.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
@@ -208,47 +239,83 @@ export function InventarioTelas() {
             <option value="">Todos los colores</option>
             {colores.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
           </select>
+
+          {/* Botones de segmentación */}
+          <div className="flex items-center gap-1 ml-auto">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mr-1">Segmentar:</span>
+            {(['ninguno', 'tipo', 'tela'] as SegmentMode[]).map(mode => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setSegmentMode(mode)}
+                className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 border transition-colors ${
+                  segmentMode === mode
+                    ? 'bg-[#1a1a1a] text-[#f9f7f2] border-[#1a1a1a]'
+                    : 'bg-white text-gray-600 border-gray-300 hover:border-gray-500'
+                }`}
+              >
+                {mode === 'ninguno' ? 'Ninguno' : mode === 'tipo' ? 'Tipo Mov.' : 'Tipo Tela'}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <h3 className="text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-3">Historial de Movimientos</h3>
         {movsFiltrados.length === 0 ? (
           <p className="text-sm text-gray-400 italic">Sin movimientos.</p>
         ) : (
-          <div className="bg-white border border-gray-200 overflow-x-auto">
-            <table className="min-w-full text-xs">
-              <thead>
-                <tr className="border-b border-gray-200 bg-gray-50">
-                  {['Fecha', 'Tipo', 'Tela', 'Color', 'Cat.', 'Rollos', 'Kg', 'S/. Kg', 'Total S/.', 'Stock Post', 'Responsable', 'Notas'].map(h => (
-                    <th key={h} className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500 whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {movsFiltrados.map(m => (
-                  <tr key={m.id} className="hover:bg-gray-50">
-                    <td className="px-3 py-2 font-mono whitespace-nowrap">{m.fecha}</td>
-                    <td className="px-3 py-2">
-                      <span className={`inline-block px-2 py-0.5 text-[10px] font-bold uppercase whitespace-nowrap ${
-                        m.tipo === 'INGRESO' ? 'bg-green-100 text-green-800' :
-                        m.tipo === 'A_CORTE' ? 'bg-blue-100 text-blue-800' :
-                        m.tipo.startsWith('AJUSTE') ? 'bg-purple-100 text-purple-800' :
-                        'bg-gray-100 text-gray-700'
-                      }`}>{TIPO_LABEL[m.tipo] ?? m.tipo}</span>
-                    </td>
-                    <td className="px-3 py-2 whitespace-nowrap">{telaMap.get(m.telaId)?.nombre ?? m.telaId}</td>
-                    <td className="px-3 py-2 whitespace-nowrap">{colorMap.get(m.colorId)?.nombre ?? m.colorId}</td>
-                    <td className="px-3 py-2 text-[10px]">{m.categoriaColor}</td>
-                    <td className="px-3 py-2 font-mono text-right">{m.rollos}</td>
-                    <td className="px-3 py-2 font-mono text-right">{m.kgTotal.toFixed(1)}</td>
-                    <td className="px-3 py-2 font-mono text-right">{m.precioKg.toFixed(2)}</td>
-                    <td className="px-3 py-2 font-mono text-right">{m.totalSoles.toFixed(2)}</td>
-                    <td className="px-3 py-2 font-mono text-right font-bold">{m.stockRollosDespues}</td>
-                    <td className="px-3 py-2 whitespace-nowrap">{m.responsable}</td>
-                    <td className="px-3 py-2 text-gray-500 max-w-[12rem] truncate">{m.notas}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="space-y-6">
+            {segmentGroups.map(group => (
+              <div key={group.key}>
+                {segmentMode !== 'ninguno' && (
+                  <h3 className="text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-2 flex items-center gap-2">
+                    <span className="inline-block w-2 h-2 bg-[#B66F35]" />
+                    {group.label}
+                    <span className="text-gray-300 font-normal">({group.rows.length})</span>
+                  </h3>
+                )}
+                {segmentMode === 'ninguno' && (
+                  <h3 className="text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-2">Historial de Movimientos</h3>
+                )}
+                <div className="texajo-table-shell">
+                  <div className="texajo-table-scroll">
+                    <table className="texajo-table">
+                      <thead>
+                        <tr>
+                          {['Fecha', 'Tipo', 'Tela', 'Color', 'Cat.', 'Rollos', 'Kg', 'S/. Kg', 'Total S/.', 'Stock Post', 'Responsable', 'Notas'].map(h => (
+                            <th key={h}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {group.rows.map(m => (
+                          <tr key={m.id}>
+                            <td className="font-mono whitespace-nowrap">{m.fecha}</td>
+                            <td>
+                              <span className={`inline-block px-2 py-0.5 text-[10px] font-bold uppercase whitespace-nowrap ${
+                                m.tipo === 'INGRESO' ? 'bg-green-100 text-green-800' :
+                                m.tipo === 'A_CORTE' ? 'bg-blue-100 text-blue-800' :
+                                m.tipo.startsWith('AJUSTE') ? 'bg-purple-100 text-purple-800' :
+                                'bg-gray-100 text-gray-700'
+                              }`}>{TIPO_LABEL[m.tipo] ?? m.tipo}</span>
+                            </td>
+                            <td className="whitespace-nowrap">{telaMap.get(m.telaId)?.nombre ?? m.telaId}</td>
+                            <td className="whitespace-nowrap">{colorMap.get(m.colorId)?.nombre ?? m.colorId}</td>
+                            <td className="text-[10px]">{m.categoriaColor}</td>
+                            <td className="font-mono text-right">{m.rollos}</td>
+                            <td className="font-mono text-right">{m.kgTotal.toFixed(1)}</td>
+                            <td className="font-mono text-right">{m.precioKg.toFixed(2)}</td>
+                            <td className="font-mono text-right">{m.totalSoles.toFixed(2)}</td>
+                            <td className="font-mono text-right font-bold">{m.stockRollosDespues}</td>
+                            <td className="whitespace-nowrap">{m.responsable}</td>
+                            <td className="text-gray-500 max-w-[12rem] truncate">{m.notas}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
