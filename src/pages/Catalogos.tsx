@@ -103,114 +103,120 @@ export function Catalogos() {
 
       {/* PRODUCTOS */}
       {tab === 'productos' && (
-        <div className="bg-white border border-gray-200 overflow-x-auto">
-          <table className="min-w-full text-xs">
-            <thead>
-              <tr className="border-b border-gray-200 bg-gray-50">
-                {['Producto', 'Costo MO Total', 'Precio Servicio', 'Notas'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {productos.map(p => (
-                <tr key={p.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-2 font-bold">{p.nombre}</td>
-                  <td className="px-4 py-2">
-                    <input type="number" min={0} step={0.01} value={p.costoMoTotal}
-                      onChange={e => updateProducto(p.id, { costoMoTotal: parseFloat(e.target.value) || 0 })}
-                      className="w-24 input-base text-right text-xs py-0.5" />
-                  </td>
-                  <td className="px-4 py-2">
-                    <input type="number" min={0} step={0.01} value={p.precioServicio}
-                      onChange={e => updateProducto(p.id, { precioServicio: parseFloat(e.target.value) || 0 })}
-                      className="w-24 input-base text-right text-xs py-0.5" />
-                  </td>
-                  <td className="px-4 py-2">
-                    <input type="text" value={p.notas}
-                      onChange={e => updateProducto(p.id, { notas: e.target.value })}
-                      className="w-48 input-base text-xs py-0.5" />
-                  </td>
+        <div className="texajo-table-shell">
+          <div className="texajo-table-scroll">
+            <table className="texajo-table">
+              <thead>
+                <tr>
+                  {['Producto', 'Costo MO Total', 'Precio Servicio', 'Notas'].map(h => (
+                    <th key={h}>{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {productos.map(p => (
+                  <tr key={p.id}>
+                    <td className="font-bold">{p.nombre}</td>
+                    <td>
+                      <input type="number" min={0} step={0.01} value={p.costoMoTotal}
+                        onChange={e => updateProducto(p.id, { costoMoTotal: parseFloat(e.target.value) || 0 })}
+                        className="w-24 input-base text-right text-xs py-0.5" />
+                    </td>
+                    <td>
+                      <input type="number" min={0} step={0.01} value={p.precioServicio}
+                        onChange={e => updateProducto(p.id, { precioServicio: parseFloat(e.target.value) || 0 })}
+                        className="w-24 input-base text-right text-xs py-0.5" />
+                    </td>
+                    <td>
+                      <input type="text" value={p.notas}
+                        onChange={e => updateProducto(p.id, { notas: e.target.value })}
+                        className="w-48 input-base text-xs py-0.5" />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
       {/* TELAS */}
       {tab === 'telas' && (
-        <div className="bg-white border border-gray-200 overflow-x-auto">
-          <table className="min-w-full text-xs">
-            <thead>
-              <tr className="border-b border-gray-200 bg-gray-50">
-                {['Tela', 'Composición', 'Kg/Rollo', 'Notas'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {telas.map(t => (
-                <tr key={t.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-2 font-bold">{t.nombre}</td>
-                  <td className="px-4 py-2">
-                    <input type="text" value={t.composicion}
-                      onChange={e => updateTela(t.id, { composicion: e.target.value })}
-                      className="w-40 input-base text-xs py-0.5" />
-                  </td>
-                  <td className="px-4 py-2">
-                    <input type="number" min={0} step={0.5} value={t.kgPorRollo}
-                      onChange={e => updateTela(t.id, { kgPorRollo: parseFloat(e.target.value) || 20 })}
-                      className="w-20 input-base text-right text-xs py-0.5" />
-                  </td>
-                  <td className="px-4 py-2">
-                    <input type="text" value={t.notas}
-                      onChange={e => updateTela(t.id, { notas: e.target.value })}
-                      className="w-48 input-base text-xs py-0.5" />
-                  </td>
+        <div className="texajo-table-shell">
+          <div className="texajo-table-scroll">
+            <table className="texajo-table">
+              <thead>
+                <tr>
+                  {['Tela', 'Composición', 'Kg/Rollo', 'Notas'].map(h => (
+                    <th key={h}>{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {telas.map(t => (
+                  <tr key={t.id}>
+                    <td className="font-bold">{t.nombre}</td>
+                    <td>
+                      <input type="text" value={t.composicion}
+                        onChange={e => updateTela(t.id, { composicion: e.target.value })}
+                        className="w-40 input-base text-xs py-0.5" />
+                    </td>
+                    <td>
+                      <input type="number" min={0} step={0.5} value={t.kgPorRollo}
+                        onChange={e => updateTela(t.id, { kgPorRollo: parseFloat(e.target.value) || 20 })}
+                        className="w-20 input-base text-right text-xs py-0.5" />
+                    </td>
+                    <td>
+                      <input type="text" value={t.notas}
+                        onChange={e => updateTela(t.id, { notas: e.target.value })}
+                        className="w-48 input-base text-xs py-0.5" />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
       {/* COLORES */}
       {tab === 'colores' && (
-        <div className="bg-white border border-gray-200 overflow-x-auto">
-          <table className="min-w-full text-xs">
-            <thead>
-              <tr className="border-b border-gray-200 bg-gray-50">
-                {['Color', 'Categoría', 'Prioridad', 'Notas'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {[...colores].sort((a, b) => a.prioridad - b.prioridad).map(c => (
-                <tr key={c.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-2 font-bold">{c.nombre}</td>
-                  <td className="px-4 py-2">
-                    <select value={c.categoria}
-                      onChange={e => updateColor(c.id, { categoria: e.target.value as any })}
-                      className="input-base text-xs py-0.5">
-                      {['OSCURO','CLARO','MELANGE','PPT'].map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                    </select>
-                  </td>
-                  <td className="px-4 py-2">
-                    <input type="number" min={1} value={c.prioridad}
-                      onChange={e => updateColor(c.id, { prioridad: parseInt(e.target.value) || 1 })}
-                      className="w-16 input-base text-right text-xs py-0.5" />
-                  </td>
-                  <td className="px-4 py-2">
-                    <input type="text" value={c.notas}
-                      onChange={e => updateColor(c.id, { notas: e.target.value })}
-                      className="w-48 input-base text-xs py-0.5" />
-                  </td>
+        <div className="texajo-table-shell">
+          <div className="texajo-table-scroll">
+            <table className="texajo-table">
+              <thead>
+                <tr>
+                  {['Color', 'Categoría', 'Prioridad', 'Notas'].map(h => (
+                    <th key={h}>{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {[...colores].sort((a, b) => a.prioridad - b.prioridad).map(c => (
+                  <tr key={c.id}>
+                    <td className="font-bold">{c.nombre}</td>
+                    <td>
+                      <select value={c.categoria}
+                        onChange={e => updateColor(c.id, { categoria: e.target.value as any })}
+                        className="input-base text-xs py-0.5">
+                        {['OSCURO','CLARO','MELANGE','PPT'].map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                      </select>
+                    </td>
+                    <td>
+                      <input type="number" min={1} value={c.prioridad}
+                        onChange={e => updateColor(c.id, { prioridad: parseInt(e.target.value) || 1 })}
+                        className="w-16 input-base text-right text-xs py-0.5" />
+                    </td>
+                    <td>
+                      <input type="text" value={c.notas}
+                        onChange={e => updateColor(c.id, { notas: e.target.value })}
+                        className="w-48 input-base text-xs py-0.5" />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -222,36 +228,38 @@ export function Catalogos() {
               <Plus className="h-3 w-3" /> Agregar Operario
             </button>
           </div>
-          <div className="bg-white border border-gray-200 overflow-x-auto">
-            <table className="min-w-full text-xs">
-              <thead>
-                <tr className="border-b border-gray-200 bg-gray-50">
-                  {['Código', 'Nombre', 'Estado'].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {[...operarios].sort((a, b) => a.codigo.localeCompare(b.codigo)).map(o => (
-                  <tr key={o.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-2 font-mono font-bold">{o.codigo}</td>
-                    <td className="px-4 py-2">
-                      <input type="text" value={o.nombre}
-                        onChange={e => updateOperario(o.id, { nombre: e.target.value })}
-                        className="w-64 input-base text-xs py-0.5" />
-                    </td>
-                    <td className="px-4 py-2">
-                      <select value={o.estado}
-                        onChange={e => updateOperario(o.id, { estado: e.target.value as Operario['estado'] })}
-                        className={`input-base text-xs py-0.5 font-bold uppercase ${o.estado === 'ACTIVO' ? 'text-green-700' : 'text-gray-400'}`}>
-                        <option value="ACTIVO">ACTIVO</option>
-                        <option value="INACTIVO">INACTIVO</option>
-                      </select>
-                    </td>
+          <div className="texajo-table-shell">
+            <div className="texajo-table-scroll">
+              <table className="texajo-table">
+                <thead>
+                  <tr>
+                    {['Código', 'Nombre', 'Estado'].map(h => (
+                      <th key={h}>{h}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {[...operarios].sort((a, b) => a.codigo.localeCompare(b.codigo)).map(o => (
+                    <tr key={o.id}>
+                      <td className="font-mono font-bold">{o.codigo}</td>
+                      <td>
+                        <input type="text" value={o.nombre}
+                          onChange={e => updateOperario(o.id, { nombre: e.target.value })}
+                          className="w-64 input-base text-xs py-0.5" />
+                      </td>
+                      <td>
+                        <select value={o.estado}
+                          onChange={e => updateOperario(o.id, { estado: e.target.value as Operario['estado'] })}
+                          className={`input-base text-xs py-0.5 font-bold uppercase ${o.estado === 'ACTIVO' ? 'text-green-700' : 'text-gray-400'}`}>
+                          <option value="ACTIVO">ACTIVO</option>
+                          <option value="INACTIVO">INACTIVO</option>
+                        </select>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {showOpForm && (
@@ -274,37 +282,39 @@ export function Catalogos() {
 
       {/* TARIFAS */}
       {tab === 'tarifas' && (
-        <div className="bg-white border border-gray-200 overflow-x-auto">
-          <table className="min-w-full text-xs">
-            <thead>
-              <tr className="border-b border-gray-200 bg-gray-50">
-                {['Producto', 'Orden', 'Operación', 'Tarifa S/.', 'Notas'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {[...tarifasOperaciones]
-                .sort((a, b) => (productoMap.get(a.productoId) ?? '').localeCompare(productoMap.get(b.productoId) ?? '') || a.orden - b.orden)
-                .map(t => (
-                  <tr key={t.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-2 text-gray-500">{productoMap.get(t.productoId)}</td>
-                    <td className="px-4 py-2 font-mono text-center">{t.orden}</td>
-                    <td className="px-4 py-2 font-bold">{t.operacion}</td>
-                    <td className="px-4 py-2">
-                      <input type="number" min={0} step={0.001} value={t.tarifa}
-                        onChange={e => updateTarifaOperacion(t.id, { tarifa: parseFloat(e.target.value) || 0 })}
-                        className="w-24 input-base text-right text-xs py-0.5" />
-                    </td>
-                    <td className="px-4 py-2">
-                      <input type="text" value={t.notas}
-                        onChange={e => updateTarifaOperacion(t.id, { notas: e.target.value })}
-                        className="w-40 input-base text-xs py-0.5" />
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
+        <div className="texajo-table-shell">
+          <div className="texajo-table-scroll">
+            <table className="texajo-table">
+              <thead>
+                <tr>
+                  {['Producto', 'Orden', 'Operación', 'Tarifa S/.', 'Notas'].map(h => (
+                    <th key={h}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {[...tarifasOperaciones]
+                  .sort((a, b) => (productoMap.get(a.productoId) ?? '').localeCompare(productoMap.get(b.productoId) ?? '') || a.orden - b.orden)
+                  .map(t => (
+                    <tr key={t.id}>
+                      <td className="text-gray-500">{productoMap.get(t.productoId)}</td>
+                      <td className="font-mono text-center">{t.orden}</td>
+                      <td className="font-bold">{t.operacion}</td>
+                      <td>
+                        <input type="number" min={0} step={0.001} value={t.tarifa}
+                          onChange={e => updateTarifaOperacion(t.id, { tarifa: parseFloat(e.target.value) || 0 })}
+                          className="w-24 input-base text-right text-xs py-0.5" />
+                      </td>
+                      <td>
+                        <input type="text" value={t.notas}
+                          onChange={e => updateTarifaOperacion(t.id, { notas: e.target.value })}
+                          className="w-40 input-base text-xs py-0.5" />
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -316,37 +326,39 @@ export function Catalogos() {
               <Plus className="h-3 w-3" /> Agregar Cliente
             </button>
           </div>
-          <div className="bg-white border border-gray-200 overflow-x-auto">
-            <table className="min-w-full text-xs">
-              <thead>
-                <tr className="border-b border-gray-200 bg-gray-50">
-                  {['Nombre', 'Contacto', 'Notas'].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {clientes.map(c => (
-                  <tr key={c.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-2">
-                      <input type="text" value={c.nombre}
-                        onChange={e => updateCliente(c.id, { nombre: e.target.value })}
-                        className="w-40 input-base text-xs py-0.5 font-bold" />
-                    </td>
-                    <td className="px-4 py-2">
-                      <input type="text" value={c.contacto}
-                        onChange={e => updateCliente(c.id, { contacto: e.target.value })}
-                        className="w-48 input-base text-xs py-0.5" />
-                    </td>
-                    <td className="px-4 py-2">
-                      <input type="text" value={c.notas}
-                        onChange={e => updateCliente(c.id, { notas: e.target.value })}
-                        className="w-48 input-base text-xs py-0.5" />
-                    </td>
+          <div className="texajo-table-shell">
+            <div className="texajo-table-scroll">
+              <table className="texajo-table">
+                <thead>
+                  <tr>
+                    {['Nombre', 'Contacto', 'Notas'].map(h => (
+                      <th key={h}>{h}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {clientes.map(c => (
+                    <tr key={c.id}>
+                      <td>
+                        <input type="text" value={c.nombre}
+                          onChange={e => updateCliente(c.id, { nombre: e.target.value })}
+                          className="w-40 input-base text-xs py-0.5 font-bold" />
+                      </td>
+                      <td>
+                        <input type="text" value={c.contacto}
+                          onChange={e => updateCliente(c.id, { contacto: e.target.value })}
+                          className="w-48 input-base text-xs py-0.5" />
+                      </td>
+                      <td>
+                        <input type="text" value={c.notas}
+                          onChange={e => updateCliente(c.id, { notas: e.target.value })}
+                          className="w-48 input-base text-xs py-0.5" />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {showCliForm && (
@@ -376,44 +388,46 @@ export function Catalogos() {
               <Plus className="h-3 w-3" /> Agregar Proveedor
             </button>
           </div>
-          <div className="bg-white border border-gray-200 overflow-x-auto">
-            <table className="min-w-full text-xs">
-              <thead>
-                <tr className="border-b border-gray-200 bg-gray-50">
-                  {['Nombre', 'RUC', 'Contacto', 'Tipo'].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {proveedores.map(p => (
-                  <tr key={p.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-2">
-                      <input type="text" value={p.nombre}
-                        onChange={e => updateProveedor(p.id, { nombre: e.target.value })}
-                        className="w-40 input-base text-xs py-0.5 font-bold" />
-                    </td>
-                    <td className="px-4 py-2">
-                      <input type="text" value={p.ruc}
-                        onChange={e => updateProveedor(p.id, { ruc: e.target.value })}
-                        className="w-28 input-base text-xs py-0.5 font-mono" />
-                    </td>
-                    <td className="px-4 py-2">
-                      <input type="text" value={p.contacto}
-                        onChange={e => updateProveedor(p.id, { contacto: e.target.value })}
-                        className="w-40 input-base text-xs py-0.5" />
-                    </td>
-                    <td className="px-4 py-2">
-                      <select value={p.tipo}
-                        onChange={e => updateProveedor(p.id, { tipo: e.target.value as any })}
-                        className="input-base text-xs py-0.5">
-                        {['TELA','COMPLEMENTO','HILO','SERVICIO','ZURZAM'].map(t => <option key={t} value={t}>{t}</option>)}
-                      </select>
-                    </td>
+          <div className="texajo-table-shell">
+            <div className="texajo-table-scroll">
+              <table className="texajo-table">
+                <thead>
+                  <tr>
+                    {['Nombre', 'RUC', 'Contacto', 'Tipo'].map(h => (
+                      <th key={h}>{h}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {proveedores.map(p => (
+                    <tr key={p.id}>
+                      <td>
+                        <input type="text" value={p.nombre}
+                          onChange={e => updateProveedor(p.id, { nombre: e.target.value })}
+                          className="w-40 input-base text-xs py-0.5 font-bold" />
+                      </td>
+                      <td>
+                        <input type="text" value={p.ruc}
+                          onChange={e => updateProveedor(p.id, { ruc: e.target.value })}
+                          className="w-28 input-base text-xs py-0.5 font-mono" />
+                      </td>
+                      <td>
+                        <input type="text" value={p.contacto}
+                          onChange={e => updateProveedor(p.id, { contacto: e.target.value })}
+                          className="w-44 input-base text-xs py-0.5" />
+                      </td>
+                      <td>
+                        <select value={p.tipo}
+                          onChange={e => updateProveedor(p.id, { tipo: e.target.value as any })}
+                          className="input-base text-xs py-0.5">
+                          {['TELA','COMPLEMENTO','HILO','SERVICIO','ZURZAM'].map(t => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {showProvForm && (
