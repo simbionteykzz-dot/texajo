@@ -1,0 +1,6 @@
+{
+  "name": "Modulo Texajo",
+  "description": "Sistema integral de gestión para el taller textil Modulo Texajo, incluyendo inventario de telas, cobros, programas de producción y seguimiento de confección.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

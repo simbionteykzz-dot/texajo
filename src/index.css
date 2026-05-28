@@ -1,0 +1,303 @@
+@import url('https://fonts.cdnfonts.com/css/cabinet-grotesk');
+@import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700;1,900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Rajdhani:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Cabinet Grotesk", "SF Pro Text", -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-serif: "Playfair Display", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+
+  /* Paleta oficial Texajo */
+  --color-editorial-cream: #F5F2EA;
+  --color-editorial-black: #1A1A1A;
+  --color-green:           #173A25;
+  --color-green-deep:      #0F2418;
+  --color-copper:          #B66F35;
+  --color-accent:          #B66F35;
+  --color-accent-gold:     #B89B5E;
+  --color-sidebar-bg:      #0F2418;
+  --color-border:          #DDD8CF;
+  --color-muted:           #7A6F67;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-editorial-cream);
+    color: var(--color-editorial-black);
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-serif);
+    letter-spacing: -0.025em;
+    line-height: 1.1;
+  }
+}
+
+@layer components {
+
+  /* ── Sidebar ── */
+  .sidebar-root {
+    background-color: #F5F2EA;
+    background-image: none;
+  }
+
+  .sidebar-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 14px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border-left: 2px solid transparent;
+    color: #6B6058;
+    text-decoration: none;
+    transition: color 120ms ease, background-color 120ms ease, border-color 120ms ease;
+  }
+
+  .sidebar-link:hover {
+    color: #C4B39A;
+    background-color: rgba(255,255,255,0.04);
+  }
+
+  .sidebar-link--active {
+    border-left-color: #B66F35;
+    background-color: rgba(182, 111, 53, 0.12);
+    color: #F5F2EA;
+  }
+
+  /* ── Module buttons (Dashboard) ── */
+  .module-btn {
+    position: relative;
+    background: #FFFFFF;
+    border: 1px solid #DDD8CF;
+    padding: 1.25rem;
+    transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+    text-align: left;
+  }
+
+  .module-btn:hover {
+    background-color: #173A25;
+    border-color: #173A25;
+    box-shadow: 0 8px 28px -6px rgba(15, 36, 24, 0.45);
+  }
+
+  /* ── Section divider ── */
+  .section-rule {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .section-rule span {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: #9A8F87;
+    white-space: nowrap;
+  }
+
+  .section-rule::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: #DDD8CF;
+  }
+
+  /* ── Tables ── */
+  .texajo-table-shell {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid #DDD8CF;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.72), rgba(247,244,239,0.96)),
+      var(--color-editorial-cream);
+    box-shadow: 0 18px 50px -42px rgba(26,26,26,0.45);
+  }
+
+  .texajo-table-scroll {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+
+  .texajo-table-scroll::-webkit-scrollbar { height: 10px; }
+  .texajo-table-scroll::-webkit-scrollbar-track { background: #ede9df; }
+  .texajo-table-scroll::-webkit-scrollbar-thumb {
+    background: #1a1a1a;
+    border: 3px solid #ede9df;
+  }
+
+  .texajo-table {
+    width: 100%;
+    min-width: 760px;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.75rem;
+    line-height: 1.35;
+  }
+
+  .texajo-table--wide   { min-width: 1040px; }
+  .texajo-table--matrix { min-width: max-content; }
+
+  .texajo-table thead tr { background: #1a1a1a; color: #f9f7f2; }
+
+  .texajo-table th {
+    padding: 0.95rem 1rem;
+    border-bottom: 1px solid #1a1a1a;
+    border-right: 1px solid rgba(249,247,242,0.12);
+    color: inherit !important;
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+
+  .texajo-table th:last-child { border-right: 0; }
+
+  .texajo-table td {
+    padding: 0.9rem 1rem;
+    border-bottom: 1px solid rgba(221,216,207,0.78);
+    vertical-align: middle;
+  }
+
+  .texajo-table tbody tr {
+    background: rgba(247,244,239,0.72);
+    transition: background-color 160ms ease, box-shadow 160ms ease;
+  }
+
+  .texajo-table tbody tr:nth-child(even) { background: rgba(255,255,255,0.52); }
+
+  .texajo-table tbody tr:hover {
+    background: #ffffff;
+    box-shadow: inset 4px 0 0 #C4612A;
+  }
+
+  .texajo-table tfoot tr { background: #e5e2da; }
+
+  .texajo-table tfoot td {
+    border-top: 2px solid #1a1a1a;
+    border-bottom: 0;
+  }
+
+  .texajo-table .sticky-left {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: inherit;
+    box-shadow: 1px 0 0 rgba(209,213,219,0.95);
+  }
+
+  /* ── Buttons ── */
+  .btn-primary {
+    background: #1a1a1a;
+    color: #f9f7f2;
+    padding: 0.4rem 0.9rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border: 1px solid #1a1a1a;
+    cursor: pointer;
+    transition: opacity 120ms ease;
+  }
+  .btn-primary:hover    { opacity: 0.85; }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .btn-secondary {
+    background: transparent;
+    color: #1a1a1a;
+    padding: 0.4rem 0.9rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border: 1px solid #DDD8CF;
+    cursor: pointer;
+    transition: background-color 120ms ease;
+  }
+  .btn-secondary:hover { background: #e5e2da; }
+
+  /* ── Inputs ── */
+  .input-base {
+    display: block;
+    width: 100%;
+    background: #fff;
+    border: 1px solid #DDD8CF;
+    padding: 0.35rem 0.5rem;
+    font-size: 0.75rem;
+    color: #1a1a1a;
+    outline: none;
+    transition: border-color 120ms ease;
+  }
+  .input-base:focus { border-color: #C4612A; }
+
+  /* ── Empty state ── */
+  .texajo-empty-row {
+    padding: 4rem 2rem !important;
+    color: #9A8F87;
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+}
+
+/* ── Print ── */
+@media print {
+  @page { margin: 14mm 12mm; size: A4 portrait; }
+
+  * {
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  body { background: white !important; font-size: 10pt; }
+
+  .no-print, nav, header, aside { display: none !important; }
+
+  body.boleta-open #root { display: none !important; }
+
+  body.boleta-open > .boleta-portal {
+    display: block !important;
+    position: static !important;
+    background: none !important;
+    backdrop-filter: none !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    inset: auto !important;
+    z-index: auto !important;
+  }
+
+  body.boleta-open > .boleta-portal .no-print { display: none !important; }
+
+  .boleta-print-wrapper { max-width: 100% !important; width: 100% !important; margin: 0 !important; padding: 0 !important; }
+
+  .boleta-print-root {
+    box-shadow: none !important;
+    border: 1.5pt solid #1a1a1a !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+  }
+
+  .boleta-stat-dark { background: #1a1a1a !important; color: #ffffff !important; }
+
+  .texajo-table-shell { overflow: visible !important; box-shadow: none !important; background: white !important; border: 0.75pt solid #ccc !important; }
+  .texajo-table-scroll { overflow: visible !important; }
+  .texajo-table { min-width: 0 !important; width: 100% !important; font-size: 7.5pt !important; }
+  .texajo-table--wide, .texajo-table--matrix { min-width: 0 !important; }
+  .texajo-table thead tr { background: #1a1a1a !important; color: #f9f7f2 !important; }
+  .texajo-table th { font-size: 6.5pt !important; padding: 4.5pt 6pt !important; border-right: 0.5pt solid rgba(249,247,242,0.2) !important; }
+  .texajo-table td { padding: 4pt 6pt !important; border-bottom: 0.5pt solid #e0ddd6 !important; }
+  .texajo-table tbody tr { break-inside: avoid; }
+  .texajo-table tbody tr:nth-child(even) { background: #f5f4f0 !important; }
+  .texajo-table tfoot tr { background: #e5e2da !important; }
+  .texajo-table tfoot td { border-top: 1.5pt solid #1a1a1a !important; }
+}
