@@ -1,10 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Bell, UserCircle, Search, X } from 'lucide-react';
+import { Bell, UserCircle, Search, X, Menu } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { cn } from '../lib/utils';
 import { useNavigate } from 'react-router-dom';
 
-export function Header() {
+interface HeaderProps {
+  onMenuClick?: () => void;
+}
+
+export function Header({ onMenuClick }: HeaderProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const { cortes, programasZurzam, telas, movimientosTela, config, cobrosDiarios } = useAppContext();
@@ -62,10 +66,21 @@ export function Header() {
   }
 
   return (
-    <header className="flex h-20 items-end justify-between pb-5 px-10 shrink-0 relative z-50 no-print" style={{ background: '#F7F4EF', borderBottom: '1px solid #DDD8CF' }}>
-      <div className="flex flex-1 items-end gap-10">
+    <header className="flex h-14 md:h-20 items-center md:items-end justify-between pb-0 md:pb-5 px-4 md:px-10 shrink-0 relative z-50 no-print" style={{ background: '#F7F4EF', borderBottom: '1px solid #DDD8CF' }}>
+      <div className="flex flex-1 items-center md:items-end gap-3 md:gap-10">
+
+        {/* Hamburguesa — solo en movil */}
+        <button
+          type="button"
+          onClick={onMenuClick}
+          className="md:hidden p-1 text-[#6B6058] hover:text-[#1A1A1A] transition-colors"
+          aria-label="Abrir menu"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+
         {/* Search Bar */}
-        <div className="relative w-72">
+        <div className="relative w-40 sm:w-64 md:w-72">
           <div className="flex items-center border-b border-gray-400 pb-1 focus-within:border-black transition-colors">
             <Search className="h-4 w-4 text-gray-400 mr-2" />
             <input 
@@ -114,8 +129,8 @@ export function Header() {
           )}
         </div>
       </div>
-      <div className="flex flex-shrink-0 items-center gap-6">
-        <div className="text-right border-r pr-6 mr-2" style={{ borderColor: '#DDD8CF' }}>
+      <div className="flex flex-shrink-0 items-center gap-3 md:gap-6">
+        <div className="hidden sm:block text-right border-r pr-6 mr-2" style={{ borderColor: '#DDD8CF' }}>
           <div className="font-mono font-bold uppercase" style={{ fontSize: '9px', letterSpacing: '0.18em', color: '#9A8F87' }}>Mes Activo</div>
           <div className="font-serif italic leading-none mt-1" style={{ fontSize: '1rem', color: '#1A1A1A' }}>
             {new Date().toLocaleDateString('es-PE', { month: 'long', year: 'numeric' })}
@@ -163,8 +178,8 @@ export function Header() {
           )}
         </div>
         <div className="flex items-center gap-2">
-          <UserCircle className="h-7 w-7 text-black" />
-          <span className="text-xs font-bold uppercase tracking-wider text-black">Admin</span>
+          <UserCircle className="h-6 w-6 md:h-7 md:w-7 text-black" />
+          <span className="hidden sm:inline text-xs font-bold uppercase tracking-wider text-black">Admin</span>
         </div>
       </div>
     </header>

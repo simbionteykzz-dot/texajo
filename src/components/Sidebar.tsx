@@ -1,7 +1,8 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, PackageSearch, Receipt, Factory,
-  Scissors, Settings, Tag, CreditCard, ClipboardList, PanelLeftClose, PanelLeftOpen, LogOut,
+  Scissors, Settings, Tag, CreditCard, ClipboardList,
+  PanelLeftClose, PanelLeftOpen, LogOut, X,
 } from 'lucide-react';
 import logoDashboard from '../assets/branding/logo-dashboard.png';
 
@@ -20,9 +21,10 @@ interface SidebarProps {
   colapsado: boolean;
   onToggle: () => void;
   onLogout: () => void;
+  onMobileClose?: () => void;
 }
 
-export function Sidebar({ colapsado, onToggle, onLogout }: SidebarProps) {
+export function Sidebar({ colapsado, onToggle, onLogout, onMobileClose }: SidebarProps) {
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -30,19 +32,38 @@ export function Sidebar({ colapsado, onToggle, onLogout }: SidebarProps) {
     onLogout();
   };
 
+  const handleNavClick = () => {
+    onMobileClose?.();
+  };
+
   return (
     <div className={`sidebar-root no-print flex h-full shrink-0 flex-col transition-all duration-200 ${colapsado ? 'w-20' : 'w-60'}`}>
       <div className={`${colapsado ? 'px-3' : 'px-5'} pt-3 pb-3`} style={{ borderBottom: '1px solid rgba(182,111,53,0.12)' }}>
-        <div className="mb-2 flex justify-end">
-          <button
-            type="button"
-            onClick={onToggle}
-            className="p-1 transition-colors"
-            style={{ color: '#6B6058' }}
-            aria-label={colapsado ? 'Expandir sidebar' : 'Colapsar sidebar'}
-          >
-            {colapsado ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
-          </button>
+        <div className="mb-2 flex items-center justify-between">
+          {/* Botón cerrar — solo visible en móvil */}
+          {onMobileClose && (
+            <button
+              type="button"
+              onClick={onMobileClose}
+              className="p-1 transition-colors md:hidden"
+              style={{ color: '#6B6058' }}
+              aria-label="Cerrar menú"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+          <div className="ml-auto">
+            {/* Botón colapsar — solo visible en desktop */}
+            <button
+              type="button"
+              onClick={onToggle}
+              className="hidden md:block p-1 transition-colors"
+              style={{ color: '#6B6058' }}
+              aria-label={colapsado ? 'Expandir sidebar' : 'Colapsar sidebar'}
+            >
+              {colapsado ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+            </button>
+          </div>
         </div>
 
         {colapsado ? (
@@ -60,6 +81,7 @@ export function Sidebar({ colapsado, onToggle, onLogout }: SidebarProps) {
             key={href}
             to={href}
             end={href === '/'}
+            onClick={handleNavClick}
             className={({ isActive }) => `sidebar-link${isActive ? ' sidebar-link--active' : ''}`}
           >
             <span className="font-mono font-medium flex-shrink-0" style={{ fontSize: '9px', color: '#3A342E', minWidth: '18px' }}>
@@ -74,6 +96,7 @@ export function Sidebar({ colapsado, onToggle, onLogout }: SidebarProps) {
       <div className="px-3 pb-5" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '12px' }}>
         <NavLink
           to="/configuracion"
+          onClick={handleNavClick}
           className={({ isActive }) => `sidebar-link${isActive ? ' sidebar-link--active' : ''}`}
         >
           <span className="font-mono font-medium flex-shrink-0" style={{ fontSize: '9px', color: '#3A342E', minWidth: '18px' }}>›</span>
@@ -86,7 +109,6 @@ export function Sidebar({ colapsado, onToggle, onLogout }: SidebarProps) {
           <LogOut className="h-3.5 w-3.5 flex-shrink-0" />
           {!colapsado && <span>Cerrar sesion</span>}
         </button>
-
       </div>
     </div>
   );

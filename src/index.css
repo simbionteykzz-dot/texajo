@@ -249,6 +249,40 @@
   }
 }
 
+/* ── Responsive ── */
+@media (max-width: 767px) {
+  /* Sidebar siempre expandido cuando es drawer movil */
+  .sidebar-root {
+    width: 240px !important;
+    height: 100dvh;
+    box-shadow: 4px 0 24px rgba(0,0,0,0.18);
+  }
+
+  /* Tablas: scroll horizontal con borde visual */
+  .texajo-table-scroll {
+    -webkit-overflow-scrolling: touch;
+    border-bottom: 2px solid #DDD8CF;
+  }
+
+  /* Inputs y botones mas grandes para touch */
+  .input-base {
+    padding: 0.55rem 0.6rem;
+    font-size: 0.8125rem;
+  }
+
+  .btn-primary,
+  .btn-secondary {
+    padding: 0.55rem 1rem;
+    font-size: 0.7rem;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Reducir padding interno de celdas en pantallas muy pequenas */
+  .texajo-table th { padding: 0.7rem 0.6rem; }
+  .texajo-table td { padding: 0.65rem 0.6rem; }
+}
+
 /* ── Print ── */
 @media print {
   @page { margin: 14mm 12mm; size: A4 portrait; }
