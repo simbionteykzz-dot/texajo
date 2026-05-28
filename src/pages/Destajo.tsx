@@ -31,19 +31,26 @@ export function Destajo() {
   const [bulkCorteId, setBulkCorteId] = useState('');
   const [showBoleta, setShowBoleta] = useState(false);
 
-  // Form para línea individual
-  const [lineForm, setLineForm] = useState({ corteId: '', tarifaId: '', cantPrendas: '' });
+  // Líneas del modal multi-fila
+  type DraftLinea = { id: string; corteId: string; tarifaId: string; cantPrendas: string };
+  const [draftLineas, setDraftLineas] = useState<DraftLinea[]>([{ id: uid(), corteId: '', tarifaId: '', cantPrendas: '' }]);
+
+  const addDraftRow = () => setDraftLineas(prev => [...prev, { id: uid(), corteId: '', tarifaId: '', cantPrendas: '' }]);
+  const removeDraftRow = (id: string) => setDraftLineas(prev => prev.filter(r => r.id !== id));
+  const updateDraftRow = (id: string, patch: Partial<DraftLinea>) =>
+    setDraftLineas(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r));
 
   const operarioMap = useMemo(() => new Map(operarios.map(o => [o.id, o])), [operarios]);
   const productoMap = useMemo(() => new Map(productos.map(p => [p.id, p])), [productos]);
   const corteMap = useMemo(() => new Map(cortes.map(c => [c.id, c])), [cortes]);
 
-  const tarifasDelCorte = useMemo(() => {
-    if (!lineForm.corteId) return [];
-    const corte = corteMap.get(lineForm.corteId);
-    if (!corte) return [];
-    return tarifasOperaciones.filter(t => t.productoId === corte.productoId).sort((a, b) => a.orden - b.orden);
-  }, [lineForm.corteId, corteMap, tarifasOperaciones]);
+  const tarifasPorCorte = useMemo(() => {
+    const map = new Map<string, typeof tarifasOperaciones>();
+    cortes.forEach(c => {
+      map.set(c.id, tarifasOperaciones.filter(t => t.productoId === c.productoId).sort((a, b) => a.orden - b.orden));
+    });
+    return map;
+  }, [cortes, tarifasOperaciones]);
 
   const lineasFiltradas = useMemo(() =>
     boletaLineas
@@ -58,35 +65,39 @@ export function Destajo() {
   const pendientes = lineasFiltradas.filter(b => b.estadoPago === 'PENDIENTE');
   const pagadas = lineasFiltradas.filter(b => b.estadoPago === 'PAGADO');
 
-  const handleAddLinea = (e: React.FormEvent) => {
+  const handleAddLineas = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedOperario || !lineForm.corteId || !lineForm.tarifaId || !lineForm.cantPrendas) {
-      addToast('Selecciona operario, corte, operación y cantidad', 'error');
+    const validas = draftLineas.filter(r => r.corteId && r.tarifaId && r.cantPrendas);
+    if (validas.length === 0) {
+      addToast('Completa al menos una línea con corte, operación y cantidad', 'error');
       return;
     }
-    const tarifa = tarifasOperaciones.find(t => t.id === lineForm.tarifaId);
-    const corte = corteMap.get(lineForm.corteId);
-    if (!tarifa || !corte) return;
-    const cant = parseInt(lineForm.cantPrendas);
-    const linea: BoletaLinea = {
-      id: uid(),
-      operarioId: selectedOperario,
-      corteId: lineForm.corteId,
-      nCorte: corte.nCorte,
-      productoId: corte.productoId,
-      tarifaId: tarifa.id,
-      operacion: tarifa.operacion,
-      orden: tarifa.orden,
-      tarifa: tarifa.tarifa,
-      cantPrendas: cant,
-      importe: cant * tarifa.tarifa,
-      periodo: selectedPeriodo,
-      estadoPago: 'PENDIENTE',
-    };
-    addBoletaLinea(linea);
-    addToast('Línea agregada', 'success');
+    const nuevas: BoletaLinea[] = [];
+    for (const r of validas) {
+      const tarifa = tarifasOperaciones.find(t => t.id === r.tarifaId);
+      const corte = corteMap.get(r.corteId);
+      if (!tarifa || !corte) continue;
+      const cant = parseInt(r.cantPrendas) || 0;
+      nuevas.push({
+        id: uid(),
+        operarioId: selectedOperario,
+        corteId: r.corteId,
+        nCorte: corte.nCorte,
+        productoId: corte.productoId,
+        tarifaId: tarifa.id,
+        operacion: tarifa.operacion,
+        orden: tarifa.orden,
+        tarifa: tarifa.tarifa,
+        cantPrendas: cant,
+        importe: cant * tarifa.tarifa,
+        periodo: selectedPeriodo,
+        estadoPago: 'PENDIENTE',
+      });
+    }
+    addBoletaLineas(nuevas);
+    addToast(`${nuevas.length} línea${nuevas.length !== 1 ? 's' : ''} agregada${nuevas.length !== 1 ? 's' : ''}`, 'success');
     setShowForm(false);
-    setLineForm({ corteId: '', tarifaId: '', cantPrendas: '' });
+    setDraftLineas([{ id: uid(), corteId: '', tarifaId: '', cantPrendas: '' }]);
   };
 
   const handleBulkAdd = () => {
@@ -330,43 +341,103 @@ export function Destajo() {
         return operario ? <BoletaOperario operario={operario} periodo={selectedPeriodo} onClose={() => setShowBoleta(false)} /> : null;
       })()}
 
-      {/* Modal agregar línea individual */}
+      {/* Modal agregar múltiples líneas */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white border border-gray-300 w-full max-w-md">
-            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-              <h3 className="text-sm font-black uppercase tracking-widest">Agregar Línea</h3>
-              <button onClick={() => setShowForm(false)}><X className="h-4 w-4" /></button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white border border-gray-300 w-full max-w-3xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 shrink-0">
+              <div>
+                <h3 className="text-sm font-black uppercase tracking-widest">Agregar Líneas</h3>
+                <p className="text-[10px] text-gray-400 mt-0.5 uppercase tracking-widest">
+                  {operarioMap.get(selectedOperario)?.nombre} — {selectedPeriodo}
+                </p>
+              </div>
+              <button onClick={() => { setShowForm(false); setDraftLineas([{ id: uid(), corteId: '', tarifaId: '', cantPrendas: '' }]); }}>
+                <X className="h-4 w-4" />
+              </button>
             </div>
-            <form onSubmit={handleAddLinea} className="p-6 space-y-4">
-              <F label="Corte">
-                <select value={lineForm.corteId}
-                  onChange={e => setLineForm(f => ({ ...f, corteId: e.target.value, tarifaId: '' }))}
-                  className="input-base" required>
-                  <option value="">Seleccionar…</option>
-                  {cortes.filter(c => c.estado !== 'ANULADO').map(c => (
-                    <option key={c.id} value={c.id}>{c.nCorte} — {productoMap.get(c.productoId)?.nombre}</option>
+
+            <form onSubmit={handleAddLineas} className="flex flex-col flex-1 overflow-hidden">
+              <div className="overflow-y-auto flex-1 p-4 space-y-2">
+                {/* Cabecera */}
+                <div className="grid grid-cols-[1fr_1fr_90px_32px] gap-2 px-1">
+                  {['Corte', 'Operación', 'Prendas', ''].map(h => (
+                    <span key={h} className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{h}</span>
                   ))}
-                </select>
-              </F>
-              <F label="Operación">
-                <select value={lineForm.tarifaId}
-                  onChange={e => setLineForm(f => ({ ...f, tarifaId: e.target.value }))}
-                  className="input-base" required disabled={!lineForm.corteId}>
-                  <option value="">Seleccionar…</option>
-                  {tarifasDelCorte.map(t => (
-                    <option key={t.id} value={t.id}>{t.orden}. {t.operacion} — S/ {t.tarifa.toFixed(3)}</option>
-                  ))}
-                </select>
-              </F>
-              <F label="Cantidad de Prendas">
-                <input type="number" min={0} value={lineForm.cantPrendas}
-                  onChange={e => setLineForm(f => ({ ...f, cantPrendas: e.target.value }))}
-                  className="input-base" required />
-              </F>
-              <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setShowForm(false)} className="btn-secondary">Cancelar</button>
-                <button type="submit" className="btn-primary">Agregar</button>
+                </div>
+
+                {draftLineas.map((row, idx) => {
+                  const tarifasRow = row.corteId ? (tarifasPorCorte.get(row.corteId) ?? []) : [];
+                  return (
+                    <div key={row.id} className="grid grid-cols-[1fr_1fr_90px_32px] gap-2 items-center">
+                      {/* Corte */}
+                      <select
+                        value={row.corteId}
+                        onChange={e => updateDraftRow(row.id, { corteId: e.target.value, tarifaId: '' })}
+                        className="input-base text-xs"
+                      >
+                        <option value="">Seleccionar…</option>
+                        {cortes.filter(c => c.estado !== 'ANULADO').map(c => (
+                          <option key={c.id} value={c.id}>{c.nCorte} — {productoMap.get(c.productoId)?.nombre}</option>
+                        ))}
+                      </select>
+
+                      {/* Operación */}
+                      <select
+                        value={row.tarifaId}
+                        onChange={e => updateDraftRow(row.id, { tarifaId: e.target.value })}
+                        className="input-base text-xs"
+                        disabled={!row.corteId}
+                      >
+                        <option value="">Seleccionar…</option>
+                        {tarifasRow.map(t => (
+                          <option key={t.id} value={t.id}>{t.orden}. {t.operacion} — S/{t.tarifa.toFixed(3)}</option>
+                        ))}
+                      </select>
+
+                      {/* Cantidad */}
+                      <input
+                        type="number" min={0}
+                        value={row.cantPrendas}
+                        onChange={e => updateDraftRow(row.id, { cantPrendas: e.target.value })}
+                        placeholder="0"
+                        className="input-base text-xs text-right"
+                      />
+
+                      {/* Quitar fila */}
+                      <button
+                        type="button"
+                        onClick={() => draftLineas.length > 1 ? removeDraftRow(row.id) : null}
+                        className="flex items-center justify-center text-gray-300 hover:text-red-500 disabled:opacity-20"
+                        disabled={draftLineas.length === 1}
+                        tabIndex={-1}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  );
+                })}
+
+                <button
+                  type="button"
+                  onClick={addDraftRow}
+                  className="mt-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-[#173A25] hover:text-[#B66F35] transition-colors"
+                >
+                  <Plus className="h-3 w-3" /> Agregar otra línea
+                </button>
+              </div>
+
+              <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => { setShowForm(false); setDraftLineas([{ id: uid(), corteId: '', tarifaId: '', cantPrendas: '' }]); }}
+                  className="btn-secondary"
+                >Cancelar</button>
+                <button type="submit" className="btn-primary">
+                  Guardar {draftLineas.filter(r => r.corteId && r.tarifaId && r.cantPrendas).length > 0
+                    ? `(${draftLineas.filter(r => r.corteId && r.tarifaId && r.cantPrendas).length} línea${draftLineas.filter(r => r.corteId && r.tarifaId && r.cantPrendas).length !== 1 ? 's' : ''})`
+                    : ''}
+                </button>
               </div>
             </form>
           </div>

@@ -46,7 +46,7 @@ export function Configuracion() {
     setForm(f => ({ ...f, [field]: parseFloat(e.target.value) || 0 }));
 
   return (
-    <div className="space-y-8 max-w-2xl">
+    <div className="space-y-8 w-full max-w-2xl">
       <div>
         <h2 className="text-2xl font-black uppercase tracking-tight">Configuración</h2>
         <p className="text-xs text-gray-500 mt-1">Parámetros globales del sistema</p>
@@ -54,7 +54,7 @@ export function Configuracion() {
 
       <div className="bg-white border border-gray-200 p-6 space-y-6">
         <h3 className="text-[11px] font-bold uppercase tracking-widest text-gray-500">Inventario</h3>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Umbral Crítico (rollos)">
             <input type="number" min={1} value={form.umbralCritico} onChange={num('umbralCritico')} className="input-base" />
           </Field>
@@ -70,7 +70,7 @@ export function Configuracion() {
         </div>
 
         <h3 className="text-[11px] font-bold uppercase tracking-widest text-gray-500 pt-2">Finanzas</h3>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Detracción %">
             <input type="number" min={0} max={100} step={0.5} value={form.detraccionPct} onChange={num('detraccionPct')} className="input-base" />
           </Field>
@@ -80,7 +80,7 @@ export function Configuracion() {
           <Field label="Tipo de Cambio USD">
             <input type="number" min={1} step={0.01} value={form.tipoCambioUsd} onChange={num('tipoCambioUsd')} className="input-base" />
           </Field>
-          <Field label="Comisión José (S/. por kg)">
+          <Field label="Comisión J/O (S/. por kg)">
             <input type="number" min={0} step={0.01} value={form.comisionJoseKg} onChange={num('comisionJoseKg')} className="input-base" />
           </Field>
         </div>
