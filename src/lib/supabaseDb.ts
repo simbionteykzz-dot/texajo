@@ -1,7 +1,7 @@
 /**
  * Capa de acceso a Supabase.
  * Mapea snake_case (DB) ↔ camelCase (app).
- * Cada función recibe/devuelve los tipos de src/types.ts.
+ * Datos compartidos entre todos los usuarios autenticados (sin RLS).
  */
 import { supabase } from './supabase';
 import type {
@@ -11,21 +11,6 @@ import type {
   ProgramaZurzam, ProgramaDetalle, CompraHilo, StockExtorno, CobroDiario,
   MovimientoComplemento,
 } from '../types';
-
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-async function userId(): Promise<string> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('No hay sesión activa');
-  return user.id;
-}
-
-function strip<T extends Record<string, unknown>>(row: T): T {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { user_id, created_at, ...rest } = row as Record<string, unknown>;
-  void user_id; void created_at;
-  return rest as T;
-}
 
 // ─── Mappers DB → App ────────────────────────────────────────────────────────
 
@@ -76,27 +61,28 @@ const toConfig = (r: any): Config => ({ umbralCritico: r.umbral_critico, umbralB
 
 // ─── Mappers App → DB ────────────────────────────────────────────────────────
 
-const fromCliente = (v: Cliente, uid: string) => ({ id: v.id, nombre: v.nombre, contacto: v.contacto, notas: v.notas, user_id: uid });
-const fromProveedor = (v: Proveedor, uid: string) => ({ id: v.id, nombre: v.nombre, ruc: v.ruc, contacto: v.contacto, tipo: v.tipo, user_id: uid });
-const fromTela = (v: Tela, uid: string) => ({ id: v.id, nombre: v.nombre, composicion: v.composicion, kg_por_rollo: v.kgPorRollo, notas: v.notas, user_id: uid });
-const fromColor = (v: Color, uid: string) => ({ id: v.id, nombre: v.nombre, categoria: v.categoria, prioridad: v.prioridad, notas: v.notas, user_id: uid });
-const fromPrecioTela = (v: PrecioTela, uid: string) => ({ id: v.id, tela_id: v.telaId, categoria_color: v.categoriaColor, precio_kg: v.precioKg, user_id: uid });
-const fromPrecioComplemento = (v: PrecioComplemento, uid: string) => ({ id: v.id, clave: v.clave, tipo: v.tipo, origen: v.origen, talla: v.talla, precio: v.precio, user_id: uid });
-const fromPrecioTejeduria = (v: PrecioTejeduria, uid: string) => ({ id: v.id, tipo_tejido: v.tipoTejido, precio_kg: v.precioKg, user_id: uid });
-const fromProducto = (v: Producto, uid: string) => ({ id: v.id, nombre: v.nombre, costo_mo_total: v.costoMoTotal, precio_servicio: v.precioServicio, tela_base: v.telaBase ?? null, limite_consumo: v.limiteConsumo ?? null, limite_rendimiento: v.limiteRendimiento ?? null, notas: v.notas, user_id: uid });
-const fromTarifa = (v: TarifaOperacion, uid: string) => ({ id: v.id, producto_id: v.productoId, orden: v.orden, operacion: v.operacion, tarifa: v.tarifa, notas: v.notas, clave: v.clave, user_id: uid });
-const fromOperario = (v: Operario, uid: string) => ({ id: v.id, codigo: v.codigo, nombre: v.nombre, estado: v.estado, dni: v.dni ?? null, telefono: v.telefono ?? null, modulo: v.modulo ?? null, maquina: v.maquina ?? null, fecha_ingreso: v.fechaIngreso ?? null, user_id: uid });
-const fromMovTela = (v: MovimientoTela, uid: string) => ({ id: v.id, fecha: v.fecha, tipo: v.tipo, cliente_id: v.clienteId, tela_id: v.telaId, color_id: v.colorId, rollos: v.rollos, kg_total: v.kgTotal, categoria_color: v.categoriaColor, precio_kg: v.precioKg, total_soles: v.totalSoles, stock_rollos_antes: v.stockRollosAntes, stock_rollos_despues: v.stockRollosDespues, responsable: v.responsable, proveedor_id: v.proveedorId ?? null, n_factura: v.nFactura ?? null, costo_real_fact: v.costoRealFact ?? null, corte_id: v.corteId ?? null, n_corte: v.nCorte ?? null, notas: v.notas, user_id: uid });
-const fromCorte = (v: Corte, uid: string) => ({ id: v.id, n_corte: v.nCorte, fecha: v.fecha, cliente_id: v.clienteId, producto_id: v.productoId, color_id: v.colorId, tela_id: v.telaId ?? null, cortador: v.cortador, ayudante: v.ayudante, kg_usados: v.kgUsados, rollos_usados: v.rollosUsados, tendidas: v.tendidas, mts_por_tendida: v.mtsPorTendida, ancho: v.ancho, cant_s: v.cantS, cant_m: v.cantM, cant_l: v.cantL, cant_xl: v.cantXL, total_prendas: v.totalPrendas, consumo: v.consumo, rendimiento: v.rendimiento, revision: v.revision, traslado: v.traslado, estado: v.estado, pago_cliente: v.pagoCliente, pago_planilla: v.pagoPlanilla, costo_mo_corte: v.costoMoCorte, notas: v.notas, user_id: uid });
-const fromSeguimientoFila = (v: SeguimientoFila, uid: string) => ({ id: v.id, corte_id: v.corteId, n_corte: v.nCorte, producto_id: v.productoId, fecha: v.fecha, color_id: v.colorId, talla: v.talla, cantidad: v.cantidad, asignaciones: v.asignaciones, pct_avance: v.pctAvance, estado: v.estado, total_pago: v.totalPago, user_id: uid });
-const fromBoletaLinea = (v: BoletaLinea, uid: string) => ({ id: v.id, operario_id: v.operarioId, corte_id: v.corteId, n_corte: v.nCorte, producto_id: v.productoId, tarifa_id: v.tarifaId, operacion: v.operacion, orden: v.orden, tarifa: v.tarifa, cant_prendas: v.cantPrendas, importe: v.importe, periodo: v.periodo, estado_pago: v.estadoPago, fecha_pago: v.fechaPago ?? null, user_id: uid });
-const fromDescuento = (v: DescuentoBoleta, uid: string) => ({ id: v.id, operario_id: v.operarioId, periodo: v.periodo, tipo: v.tipo, monto: v.monto, notas: v.notas, user_id: uid });
-const fromPrograma = (v: ProgramaZurzam, uid: string) => ({ id: v.id, nombre: v.nombre, fecha: v.fecha, cliente_id: v.clienteId, rollos_objetivo: v.rollosObjetivo, kg_objetivo: v.kgObjetivo, estado: v.estado, comision_jose: v.comisionJose, estado_pago_comision: v.estadoPagoComision, dias_entrega: v.diasEntrega, notas: v.notas, user_id: uid });
-const fromDetalle = (v: ProgramaDetalle, uid: string) => ({ id: v.id, programa_id: v.programaId, color_id: v.colorId, categoria_color: v.categoriaColor, tipo_servicio: v.tipoServicio, prioridad: v.prioridad, kg_tej_enviado: v.kgTejEnviado, kg_tej_retornado: v.kgTejRetornado, precio_kg_tej: v.precioKgTej, moneda_tej: v.monedaTej, tc_tej: v.tcTej, costo_tejido: v.costoTejido, estado_pago_tej: v.estadoPagoTej, kg_tint_enviado: v.kgTintEnviado, kg_tint_retornado: v.kgTintRetornado, rollos_final: v.rollosFinal, precio_kg_tint: v.precioKgTint, moneda_tint: v.monedaTint, tc_tint: v.tcTint, costo_tint: v.costoTint, estado_pago_tint: v.estadoPagoTint, costo_hilo_prorrateado: v.costoHiloProrrateado, costo_total_color: v.costoTotalColor, notas: v.notas, user_id: uid });
-const fromCompraHilo = (v: CompraHilo, uid: string) => ({ id: v.id, fecha: v.fecha, programa_id: v.programaId, tipo_hilo: v.tipoHilo, kg_asignados: v.kgAsignados, precio_kg: v.precioKg, moneda: v.moneda, tipo_cambio: v.tipoCambio, total_soles: v.totalSoles, proveedor_id: v.proveedorId, n_factura: v.nFactura, costo_real_fact: v.costoRealFact, diferencia: v.diferencia, estado_pago: v.estadoPago, fecha_pago: v.fechaPago ?? null, monto_pagado: v.montoPagado, saldo: v.saldo, notas: v.notas, user_id: uid });
-const fromExtorno = (v: StockExtorno, uid: string) => ({ id: v.id, programa_id: v.programaId, programa_detalle_id: v.programaDetalleId ?? null, fecha: v.fecha, kg_conos: v.kgConos, precio_kg_hilo: v.precioKgHilo, total_soles: v.totalSoles, usado: v.usado, notas: v.notas, user_id: uid });
-const fromCobro = (v: CobroDiario, uid: string) => ({ id: v.id, fecha: v.fecha, n_corte: v.nCorte, n_factura: v.nFactura, cliente_id: v.clienteId, producto_id: v.productoId, color_id: v.colorId, cant_s: v.cantS, cant_m: v.cantM, cant_l: v.cantL, cant_xl: v.cantXL, total_prendas: v.totalPrendas, precio_unitario: v.precioUnitario, bruto: v.bruto, detraccion_10pct: v.detraccion10Pct, disponible_90pct: v.disponible90Pct, estado: v.estado, notas: v.notas, fecha_cobro: v.fechaCobro ?? null, user_id: uid });
-const fromMovComplemento = (v: MovimientoComplemento, uid: string) => ({ id: v.id, fecha: v.fecha, tipo: v.tipo, tipo_complemento: v.tipoComplemento, color_id: v.colorId, talla: v.talla, cantidad: v.cantidad, precio_unit: v.precioUnit, total_soles: v.totalSoles, stock_antes: v.stockAntes, stock_despues: v.stockDespues, corte_id: v.corteId ?? null, n_corte: v.nCorte ?? null, proveedor_id: v.proveedorId ?? null, n_factura: v.nFactura ?? null, responsable: v.responsable, notas: v.notas, user_id: uid });
+const fromCliente = (v: Cliente) => ({ id: v.id, nombre: v.nombre, contacto: v.contacto, notas: v.notas });
+const fromProveedor = (v: Proveedor) => ({ id: v.id, nombre: v.nombre, ruc: v.ruc, contacto: v.contacto, tipo: v.tipo });
+const fromTela = (v: Tela) => ({ id: v.id, nombre: v.nombre, composicion: v.composicion, kg_por_rollo: v.kgPorRollo, notas: v.notas });
+const fromColor = (v: Color) => ({ id: v.id, nombre: v.nombre, categoria: v.categoria, prioridad: v.prioridad, notas: v.notas });
+const fromPrecioTela = (v: PrecioTela) => ({ id: v.id, tela_id: v.telaId, categoria_color: v.categoriaColor, precio_kg: v.precioKg });
+const fromPrecioComplemento = (v: PrecioComplemento) => ({ id: v.id, clave: v.clave, tipo: v.tipo, origen: v.origen, talla: v.talla, precio: v.precio });
+const fromPrecioTejeduria = (v: PrecioTejeduria) => ({ id: v.id, tipo_tejido: v.tipoTejido, precio_kg: v.precioKg });
+const fromProducto = (v: Producto) => ({ id: v.id, nombre: v.nombre, costo_mo_total: v.costoMoTotal, precio_servicio: v.precioServicio, tela_base: v.telaBase ?? null, limite_consumo: v.limiteConsumo ?? null, limite_rendimiento: v.limiteRendimiento ?? null, notas: v.notas });
+const fromTarifa = (v: TarifaOperacion) => ({ id: v.id, producto_id: v.productoId, orden: v.orden, operacion: v.operacion, tarifa: v.tarifa, notas: v.notas, clave: v.clave });
+const fromOperario = (v: Operario) => ({ id: v.id, codigo: v.codigo, nombre: v.nombre, estado: v.estado, dni: v.dni ?? null, telefono: v.telefono ?? null, modulo: v.modulo ?? null, maquina: v.maquina ?? null, fecha_ingreso: v.fechaIngreso ?? null });
+const fromMovTela = (v: MovimientoTela) => ({ id: v.id, fecha: v.fecha, tipo: v.tipo, cliente_id: v.clienteId, tela_id: v.telaId, color_id: v.colorId, rollos: v.rollos, kg_total: v.kgTotal, categoria_color: v.categoriaColor, precio_kg: v.precioKg, total_soles: v.totalSoles, stock_rollos_antes: v.stockRollosAntes, stock_rollos_despues: v.stockRollosDespues, responsable: v.responsable, proveedor_id: v.proveedorId ?? null, n_factura: v.nFactura ?? null, costo_real_fact: v.costoRealFact ?? null, corte_id: v.corteId ?? null, n_corte: v.nCorte ?? null, notas: v.notas });
+const fromCorte = (v: Corte) => ({ id: v.id, n_corte: v.nCorte, fecha: v.fecha, cliente_id: v.clienteId, producto_id: v.productoId, color_id: v.colorId, tela_id: v.telaId ?? null, cortador: v.cortador, ayudante: v.ayudante, kg_usados: v.kgUsados, rollos_usados: v.rollosUsados, tendidas: v.tendidas, mts_por_tendida: v.mtsPorTendida, ancho: v.ancho, cant_s: v.cantS, cant_m: v.cantM, cant_l: v.cantL, cant_xl: v.cantXL, total_prendas: v.totalPrendas, consumo: v.consumo, rendimiento: v.rendimiento, revision: v.revision, traslado: v.traslado, estado: v.estado, pago_cliente: v.pagoCliente, pago_planilla: v.pagoPlanilla, costo_mo_corte: v.costoMoCorte, notas: v.notas });
+const fromSeguimientoFila = (v: SeguimientoFila) => ({ id: v.id, corte_id: v.corteId, n_corte: v.nCorte, producto_id: v.productoId, fecha: v.fecha, color_id: v.colorId, talla: v.talla, cantidad: v.cantidad, asignaciones: v.asignaciones, pct_avance: v.pctAvance, estado: v.estado, total_pago: v.totalPago });
+const fromBoletaLinea = (v: BoletaLinea) => ({ id: v.id, operario_id: v.operarioId, corte_id: v.corteId, n_corte: v.nCorte, producto_id: v.productoId, tarifa_id: v.tarifaId, operacion: v.operacion, orden: v.orden, tarifa: v.tarifa, cant_prendas: v.cantPrendas, importe: v.importe, periodo: v.periodo, estado_pago: v.estadoPago, fecha_pago: v.fechaPago ?? null });
+const fromDescuento = (v: DescuentoBoleta) => ({ id: v.id, operario_id: v.operarioId, periodo: v.periodo, tipo: v.tipo, monto: v.monto, notas: v.notas });
+const fromPrograma = (v: ProgramaZurzam) => ({ id: v.id, nombre: v.nombre, fecha: v.fecha, cliente_id: v.clienteId, rollos_objetivo: v.rollosObjetivo, kg_objetivo: v.kgObjetivo, estado: v.estado, comision_jose: v.comisionJose, estado_pago_comision: v.estadoPagoComision, dias_entrega: v.diasEntrega, notas: v.notas });
+const fromDetalle = (v: ProgramaDetalle) => ({ id: v.id, programa_id: v.programaId, color_id: v.colorId, categoria_color: v.categoriaColor, tipo_servicio: v.tipoServicio, prioridad: v.prioridad, kg_tej_enviado: v.kgTejEnviado, kg_tej_retornado: v.kgTejRetornado, precio_kg_tej: v.precioKgTej, moneda_tej: v.monedaTej, tc_tej: v.tcTej, costo_tejido: v.costoTejido, estado_pago_tej: v.estadoPagoTej, kg_tint_enviado: v.kgTintEnviado, kg_tint_retornado: v.kgTintRetornado, rollos_final: v.rollosFinal, precio_kg_tint: v.precioKgTint, moneda_tint: v.monedaTint, tc_tint: v.tcTint, costo_tint: v.costoTint, estado_pago_tint: v.estadoPagoTint, costo_hilo_prorrateado: v.costoHiloProrrateado, costo_total_color: v.costoTotalColor, notas: v.notas });
+const fromCompraHilo = (v: CompraHilo) => ({ id: v.id, fecha: v.fecha, programa_id: v.programaId, tipo_hilo: v.tipoHilo, kg_asignados: v.kgAsignados, precio_kg: v.precioKg, moneda: v.moneda, tipo_cambio: v.tipoCambio, total_soles: v.totalSoles, proveedor_id: v.proveedorId, n_factura: v.nFactura, costo_real_fact: v.costoRealFact, diferencia: v.diferencia, estado_pago: v.estadoPago, fecha_pago: v.fechaPago ?? null, monto_pagado: v.montoPagado, saldo: v.saldo, notas: v.notas });
+const fromExtorno = (v: StockExtorno) => ({ id: v.id, programa_id: v.programaId, programa_detalle_id: v.programaDetalleId ?? null, fecha: v.fecha, kg_conos: v.kgConos, precio_kg_hilo: v.precioKgHilo, total_soles: v.totalSoles, usado: v.usado, notas: v.notas });
+const fromCobro = (v: CobroDiario) => ({ id: v.id, fecha: v.fecha, n_corte: v.nCorte, n_factura: v.nFactura, cliente_id: v.clienteId, producto_id: v.productoId, color_id: v.colorId, cant_s: v.cantS, cant_m: v.cantM, cant_l: v.cantL, cant_xl: v.cantXL, total_prendas: v.totalPrendas, precio_unitario: v.precioUnitario, bruto: v.bruto, detraccion_10pct: v.detraccion10Pct, disponible_90pct: v.disponible90Pct, estado: v.estado, notas: v.notas, fecha_cobro: v.fechaCobro ?? null });
+const fromMovComplemento = (v: MovimientoComplemento) => ({ id: v.id, fecha: v.fecha, tipo: v.tipo, tipo_complemento: v.tipoComplemento, color_id: v.colorId, talla: v.talla, cantidad: v.cantidad, precio_unit: v.precioUnit, total_soles: v.totalSoles, stock_antes: v.stockAntes, stock_despues: v.stockDespues, corte_id: v.corteId ?? null, n_corte: v.nCorte ?? null, proveedor_id: v.proveedorId ?? null, n_factura: v.nFactura ?? null, responsable: v.responsable, notas: v.notas });
+const fromConfig = (v: Config) => ({ umbral_critico: v.umbralCritico, umbral_bajo: v.umbralBajo, merma_pct: v.mermaPct, detraccion_pct: v.detraccionPct, igv_pct: v.igvPct, incluir_igv: v.incluirIgv, tipo_cambio_usd: v.tipoCambioUsd, kg_por_rollo_default: v.kgPorRolloDefault, comision_jose_kg: v.comisionJoseKg, merma_max_tej: v.mermaMaxTej, merma_max_tint: v.mermaMaxTint });
 
 // ─── Tipos de AppState para carga inicial ────────────────────────────────────
 
@@ -158,74 +144,64 @@ export async function loadAllFromDb(): Promise<DbAppState> {
   ]);
 
   return {
-    clientes:              (c.data   ?? []).map(toCliente),
-    proveedores:           (p.data   ?? []).map(toProveedor),
-    telas:                 (te.data  ?? []).map(toTela),
-    colores:               (co.data  ?? []).map(toColor),
-    preciosTelas:          (pt.data  ?? []).map(toPrecioTela),
-    preciosComplementos:   (pc.data  ?? []).map(toPrecioComplemento),
-    preciosTejeduria:      (ptej.data ?? []).map(toPrecioTejeduria),
-    productos:             (pr.data  ?? []).map(toProducto),
-    tarifasOperaciones:    (to.data  ?? []).map(toTarifa),
-    operarios:             (op.data  ?? []).map(toOperario),
-    movimientosTela:       (mt.data  ?? []).map(toMovTela),
-    cortes:                (cor.data ?? []).map(toCorte),
-    seguimientoFilas:      (sf.data  ?? []).map(toSeguimientoFila),
-    boletaLineas:          (bl.data  ?? []).map(toBoletaLinea),
-    descuentosBoleta:      (db.data  ?? []).map(toDescuento),
-    programasZurzam:       (pz.data  ?? []).map(toPrograma),
-    programaDetalles:      (pd.data  ?? []).map(toDetalle),
-    comprasHilo:           (ch.data  ?? []).map(toCompraHilo),
-    stockExtornos:         (se.data  ?? []).map(toExtorno),
-    cobrosDiarios:         (cd.data  ?? []).map(toCobro),
-    movimientosComplemento:(mc.data  ?? []).map(toMovComplemento),
-    config:                cfg.data ? toConfig(cfg.data) : null,
+    clientes:               (c.data    ?? []).map(toCliente),
+    proveedores:            (p.data    ?? []).map(toProveedor),
+    telas:                  (te.data   ?? []).map(toTela),
+    colores:                (co.data   ?? []).map(toColor),
+    preciosTelas:           (pt.data   ?? []).map(toPrecioTela),
+    preciosComplementos:    (pc.data   ?? []).map(toPrecioComplemento),
+    preciosTejeduria:       (ptej.data ?? []).map(toPrecioTejeduria),
+    productos:              (pr.data   ?? []).map(toProducto),
+    tarifasOperaciones:     (to.data   ?? []).map(toTarifa),
+    operarios:              (op.data   ?? []).map(toOperario),
+    movimientosTela:        (mt.data   ?? []).map(toMovTela),
+    cortes:                 (cor.data  ?? []).map(toCorte),
+    seguimientoFilas:       (sf.data   ?? []).map(toSeguimientoFila),
+    boletaLineas:           (bl.data   ?? []).map(toBoletaLinea),
+    descuentosBoleta:       (db.data   ?? []).map(toDescuento),
+    programasZurzam:        (pz.data   ?? []).map(toPrograma),
+    programaDetalles:       (pd.data   ?? []).map(toDetalle),
+    comprasHilo:            (ch.data   ?? []).map(toCompraHilo),
+    stockExtornos:          (se.data   ?? []).map(toExtorno),
+    cobrosDiarios:          (cd.data   ?? []).map(toCobro),
+    movimientosComplemento: (mc.data   ?? []).map(toMovComplemento),
+    config:                 cfg.data ? toConfig(cfg.data) : null,
   };
 }
 
-// ─── Seed inicial (solo primer login: tablas vacías) ─────────────────────────
+// ─── Seed inicial (solo cuando las tablas están vacías) ──────────────────────
 
 export async function seedInitialData(state: Omit<DbAppState, 'config'> & { config: Config }) {
-  const uid = await userId();
-
-  const inserts = [
-    supabase.from('clientes').upsert(state.clientes.map(v => fromCliente(v, uid))),
-    supabase.from('proveedores').upsert(state.proveedores.map(v => fromProveedor(v, uid))),
-    supabase.from('telas').upsert(state.telas.map(v => fromTela(v, uid))),
-    supabase.from('colores').upsert(state.colores.map(v => fromColor(v, uid))),
-    supabase.from('precios_telas').upsert(state.preciosTelas.map(v => fromPrecioTela(v, uid))),
-    supabase.from('precios_complementos').upsert(state.preciosComplementos.map(v => fromPrecioComplemento(v, uid))),
-    supabase.from('precios_tejeduria').upsert(state.preciosTejeduria.map(v => fromPrecioTejeduria(v, uid))),
-    supabase.from('productos').upsert(state.productos.map(v => fromProducto(v, uid))),
-    supabase.from('tarifas_operaciones').upsert(state.tarifasOperaciones.map(v => fromTarifa(v, uid))),
-    supabase.from('operarios').upsert(state.operarios.map(v => fromOperario(v, uid))),
-    supabase.from('config').upsert([{ id: 'singleton', ...fromConfig(state.config, uid) }]),
-  ];
-
-  await Promise.all(inserts);
-}
-
-function fromConfig(v: Config, uid: string) {
-  return { umbral_critico: v.umbralCritico, umbral_bajo: v.umbralBajo, merma_pct: v.mermaPct, detraccion_pct: v.detraccionPct, igv_pct: v.igvPct, incluir_igv: v.incluirIgv, tipo_cambio_usd: v.tipoCambioUsd, kg_por_rollo_default: v.kgPorRolloDefault, comision_jose_kg: v.comisionJoseKg, merma_max_tej: v.mermaMaxTej, merma_max_tint: v.mermaMaxTint, user_id: uid };
+  await Promise.all([
+    supabase.from('clientes').upsert(state.clientes.map(fromCliente)),
+    supabase.from('proveedores').upsert(state.proveedores.map(fromProveedor)),
+    supabase.from('telas').upsert(state.telas.map(fromTela)),
+    supabase.from('colores').upsert(state.colores.map(fromColor)),
+    supabase.from('precios_telas').upsert(state.preciosTelas.map(fromPrecioTela)),
+    supabase.from('precios_complementos').upsert(state.preciosComplementos.map(fromPrecioComplemento)),
+    supabase.from('precios_tejeduria').upsert(state.preciosTejeduria.map(fromPrecioTejeduria)),
+    supabase.from('productos').upsert(state.productos.map(fromProducto)),
+    supabase.from('tarifas_operaciones').upsert(state.tarifasOperaciones.map(fromTarifa)),
+    supabase.from('operarios').upsert(state.operarios.map(fromOperario)),
+    supabase.from('config').upsert([{ id: 'singleton', ...fromConfig(state.config) }]),
+  ]);
 }
 
 // ─── CRUD genérico por tabla ─────────────────────────────────────────────────
 
 type TableName = string;
 
-async function dbInsert<T>(table: TableName, row: T, mapper: (v: T, uid: string) => Record<string, unknown>) {
-  const uid = await userId();
-  const { error } = await supabase.from(table).insert(mapper(row, uid));
+async function dbInsert<T>(table: TableName, row: T, mapper: (v: T) => Record<string, unknown>) {
+  const { error } = await supabase.from(table).insert(mapper(row));
   if (error) throw error;
 }
 
-async function dbUpdate<T>(table: TableName, id: string, updates: Partial<T>, fullMapper: (v: T, uid: string) => Record<string, unknown>, current: T) {
-  const uid = await userId();
+async function dbUpdate<T>(table: TableName, id: string, updates: Partial<T>, fullMapper: (v: T) => Record<string, unknown>, current: T) {
   const merged = { ...current, ...updates } as T;
-  const mapped = fullMapper(merged, uid);
+  const mapped = fullMapper(merged);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { id: _id, user_id: _uid, created_at: _ca, ...fields } = mapped as Record<string, unknown>;
-  void _id; void _uid; void _ca;
+  const { id: _id, created_at: _ca, ...fields } = mapped as Record<string, unknown>;
+  void _id; void _ca;
   const { error } = await supabase.from(table).update(fields).eq('id', id);
   if (error) throw error;
 }
@@ -238,7 +214,6 @@ async function dbDelete(table: TableName, id: string) {
 // ─── API pública por entidad ─────────────────────────────────────────────────
 
 export const db = {
-  // Catálogos
   clientes: {
     add: (v: Cliente) => dbInsert('clientes', v, fromCliente),
     update: (id: string, u: Partial<Cliente>, cur: Cliente) => dbUpdate('clientes', id, u, fromCliente, cur),
@@ -289,7 +264,6 @@ export const db = {
     update: (id: string, u: Partial<Operario>, cur: Operario) => dbUpdate('operarios', id, u, fromOperario, cur),
     delete: (id: string) => dbDelete('operarios', id),
   },
-  // Transacciones
   movimientosTela: {
     add: (v: MovimientoTela) => dbInsert('movimientos_tela', v, fromMovTela),
     update: (id: string, u: Partial<MovimientoTela>, cur: MovimientoTela) => dbUpdate('movimientos_tela', id, u, fromMovTela, cur),
@@ -347,12 +321,8 @@ export const db = {
   },
   config: {
     upsert: async (v: Config) => {
-      const uid = await userId();
-      const { error } = await supabase.from('config').upsert({ id: 'singleton', ...fromConfig(v, uid) });
+      const { error } = await supabase.from('config').upsert({ id: 'singleton', ...fromConfig(v) });
       if (error) throw error;
     },
   },
 };
-
-// exportar strip por si se necesita en otro lado
-export { strip };
