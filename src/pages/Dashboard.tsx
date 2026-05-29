@@ -71,7 +71,8 @@ const sectionAnim = {
 
 export function Dashboard() {
   const navigate = useNavigate();
-  const { movimientosTela, cortes, cobrosDiarios, operarios, telas, colores, config } = useAppContext();
+  const { movimientosTela, cortes, cobrosDiarios, operarios, telas, colores, config,
+    seguimientoFilas, boletaLineas, programasZurzam } = useAppContext();
 
   const stockResumen = useMemo(() => {
     const byKey = new Map<string, { telaId: string; colorId: string; rollos: number }>();
@@ -89,6 +90,51 @@ export function Dashboard() {
   const operariosActivos = operarios.filter(o => o.estado === 'ACTIVO').length;
   const cobrosPendientes = cobrosDiarios.filter(c => c.estado === 'PENDIENTE').reduce((s, c) => s + c.bruto, 0);
   const cobrosTotal = cobrosDiarios.reduce((s, c) => s + c.bruto, 0);
+
+  const metricas = useMemo(() => {
+    // Producción: prendas cortadas (completadas) vs producidas (filas LISTO/PAGADO) vs pendientes
+    const prendasCortadas = cortes
+      .filter(c => c.estado === 'COMPLETADO')
+      .reduce((s, c) => s + c.totalPrendas, 0);
+    const prendasProducidas = seguimientoFilas
+      .filter(f => f.estado === 'LISTO' || f.estado === 'PAGADO')
+      .reduce((s, f) => s + f.cantidad, 0);
+    const prendasPorHacer = seguimientoFilas
+      .filter(f => f.estado !== 'LISTO' && f.estado !== 'PAGADO' && f.estado !== 'ANULADO')
+      .reduce((s, f) => s + f.cantidad, 0);
+
+    // Recaudación: cobrado vs facturado total
+    const totalFacturado = cobrosDiarios
+      .filter(c => c.estado !== 'ANULADO')
+      .reduce((s, c) => s + c.bruto, 0);
+    const totalCobrado = cobrosDiarios
+      .filter(c => c.estado === 'COBRADO')
+      .reduce((s, c) => s + c.bruto, 0);
+    const pctRecaudado = totalFacturado > 0 ? (totalCobrado / totalFacturado) * 100 : 0;
+
+    // Costo MO: suma de boletaLineas importe
+    const costoMoTotal = boletaLineas.reduce((s, b) => s + b.importe, 0);
+    const costoMoPagado = boletaLineas
+      .filter(b => b.estadoPago === 'PAGADO')
+      .reduce((s, b) => s + b.importe, 0);
+
+    // Margen bruto estimado: (totalCobrado - costoMoPagado) / totalCobrado * 100
+    const margenPct = totalCobrado > 0
+      ? ((totalCobrado - costoMoPagado) / totalCobrado) * 100
+      : 0;
+
+    return {
+      prendasCortadas,
+      prendasProducidas,
+      prendasPorHacer,
+      totalFacturado,
+      totalCobrado,
+      pctRecaudado,
+      costoMoTotal,
+      costoMoPagado,
+      margenPct,
+    };
+  }, [cortes, seguimientoFilas, cobrosDiarios, boletaLineas]);
 
   const recentMovs = [...movimientosTela].sort((a, b) => b.fecha.localeCompare(a.fecha)).slice(0, 8);
   const telaMap = new Map(telas.map(t => [t.id, t.nombre]));
@@ -211,6 +257,73 @@ export function Dashboard() {
           </p>
         </motion.div>
       ) : null}
+
+      <motion.div variants={sectionAnim} initial="initial" animate="animate" transition={{ duration: 0.4, delay: 0.25 }}>
+        <SectionRule>Métricas gerenciales</SectionRule>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {/* Prendas Cortadas */}
+          <StatCard
+            title="Prendas Cortadas"
+            value={metricas.prendasCortadas.toLocaleString()}
+            sub={`${metricas.prendasProducidas.toLocaleString()} producidas`}
+            icon={Scissors}
+            accent="#B89B5E"
+          />
+          {/* Por Hacer */}
+          <StatCard
+            title="Prendas por Hacer"
+            value={metricas.prendasPorHacer.toLocaleString()}
+            sub="en producción activa"
+            icon={ClipboardList}
+            accent="#4B7FA3"
+          />
+          {/* Recaudación */}
+          <StatCard
+            title="Recaudación"
+            value={`${metricas.pctRecaudado.toFixed(1)}%`}
+            sub={`S/ ${metricas.totalCobrado.toLocaleString('es-PE', { minimumFractionDigits: 0 })} cobrado`}
+            icon={TrendingUp}
+            accent="#3E8C5F"
+          />
+          {/* Margen bruto */}
+          <StatCard
+            title="Margen Bruto Est."
+            value={`${metricas.margenPct.toFixed(1)}%`}
+            sub={`Costo MO S/ ${metricas.costoMoPagado.toLocaleString('es-PE', { minimumFractionDigits: 0 })}`}
+            icon={DollarSign}
+            accent={metricas.margenPct >= 30 ? '#3E8C5F' : metricas.margenPct >= 15 ? '#B89B5E' : '#C4612A'}
+          />
+        </div>
+        {/* Barra de desglose */}
+        <div className="mt-3 bg-white border border-[#DDD8CF] p-4">
+          <div className="grid grid-cols-3 gap-6 text-xs">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">Producción</p>
+              <div className="space-y-1">
+                <div className="flex justify-between"><span className="text-gray-500">Cortadas</span><span className="font-mono font-bold">{metricas.prendasCortadas.toLocaleString()}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Producidas</span><span className="font-mono font-bold text-green-700">{metricas.prendasProducidas.toLocaleString()}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Por hacer</span><span className="font-mono font-bold text-amber-700">{metricas.prendasPorHacer.toLocaleString()}</span></div>
+              </div>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">Facturación</p>
+              <div className="space-y-1">
+                <div className="flex justify-between"><span className="text-gray-500">Total facturado</span><span className="font-mono font-bold">S/ {metricas.totalFacturado.toLocaleString('es-PE', { minimumFractionDigits: 0 })}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Cobrado</span><span className="font-mono font-bold text-green-700">S/ {metricas.totalCobrado.toLocaleString('es-PE', { minimumFractionDigits: 0 })}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">% Cobrado</span><span className="font-mono font-bold">{metricas.pctRecaudado.toFixed(1)}%</span></div>
+              </div>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">Costo MO</p>
+              <div className="space-y-1">
+                <div className="flex justify-between"><span className="text-gray-500">Total MO</span><span className="font-mono font-bold">S/ {metricas.costoMoTotal.toLocaleString('es-PE', { minimumFractionDigits: 0 })}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Pagado</span><span className="font-mono font-bold text-green-700">S/ {metricas.costoMoPagado.toLocaleString('es-PE', { minimumFractionDigits: 0 })}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Margen bruto</span><span className={`font-mono font-bold ${metricas.margenPct >= 30 ? 'text-green-700' : metricas.margenPct >= 15 ? 'text-amber-700' : 'text-red-700'}`}>{metricas.margenPct.toFixed(1)}%</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </motion.div>
 
       <motion.div variants={sectionAnim} initial="initial" animate="animate" transition={{ duration: 0.45, delay: 0.16 }}>
         <SectionRule>Modulos</SectionRule>

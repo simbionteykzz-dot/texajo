@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
+import { motion } from 'motion/react';
 import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
-import { Download, Plus, X, ChevronDown, ChevronRight, FileText } from 'lucide-react';
-import { ProgramaZurzam, ProgramaDetalle, CompraHilo, EstadoPrograma, EstadoPago } from '../types';
+import { Download, Plus, X, ChevronDown, ChevronRight, FileText, Trash2 } from 'lucide-react';
+import { ProgramaZurzam, ProgramaDetalle, CompraHilo, EstadoPrograma, EstadoPago, StockExtorno } from '../types';
 import { exportRowsToXlsx, exportTableToPdf } from '../lib/export';
 
 const uid = () => crypto.randomUUID();
@@ -13,17 +14,23 @@ const ESTADOS_PAGO: EstadoPago[] = ['PENDIENTE', 'PARCIAL', 'PAGADO', 'ANULADO']
 export function ProgramasZurzam() {
   const {
     programasZurzam, programaDetalles, comprasHilo,
-    clientes, colores, proveedores,
-    addPrograma, updatePrograma,
-    addProgramaDetalle, updateProgramaDetalle,
-    addCompraHilo, updateCompraHilo,
+    clientes, colores, proveedores, preciosTelas, preciosTejeduria, config,
+    stockExtornos,
+    addPrograma, updatePrograma, deletePrograma,
+    addProgramaDetalle, updateProgramaDetalle, deleteProgramaDetalle,
+    addCompraHilo, updateCompraHilo, deleteCompraHilo,
+    addStockExtorno, updateStockExtorno, deleteStockExtorno,
   } = useAppContext();
   const { addToast } = useToast();
 
+  const [activeTab, setActiveTab] = useState<'programas' | 'resumen'>('programas');
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [showProgForm, setShowProgForm] = useState(false);
   const [showDetalleForm, setShowDetalleForm] = useState<string | null>(null);
   const [showHiloForm, setShowHiloForm] = useState<string | null>(null);
+  const [showExtornoForm, setShowExtornoForm] = useState<string | null>(null);
+  const [showStockPorEtapa, setShowStockPorEtapa] = useState<Set<string>>(new Set());
 
   const [progForm, setProgForm] = useState({
     nombre: '', fecha: new Date().toISOString().slice(0, 10),
@@ -36,6 +43,7 @@ export function ProgramasZurzam() {
     kgTejEnviado: '', kgTejRetornado: '', precioKgTej: '', monedaTej: 'PEN' as 'PEN'|'USD', tcTej: '1',
     kgTintEnviado: '', kgTintRetornado: '', rollosFinal: '', precioKgTint: '',
     monedaTint: 'PEN' as 'PEN'|'USD', tcTint: '1', notas: '',
+    tipoTejidoId: '',
   });
 
   const [hiloForm, setHiloForm] = useState({
@@ -44,8 +52,25 @@ export function ProgramasZurzam() {
     proveedorId: '', nFactura: '', notas: '',
   });
 
+  const [extornoForm, setExtornoForm] = useState({
+    fecha: new Date().toISOString().slice(0, 10),
+    kgConos: '',
+    precioKgHilo: '',
+    notas: '',
+  });
+
   const clienteMap = useMemo(() => new Map(clientes.map(c => [c.id, c.nombre])), [clientes]);
-  const colorMap = useMemo(() => new Map(colores.map(c => [c.id, c.nombre])), [colores]);
+  const colorMap = useMemo(() => new Map(colores.map(c => [c.id, c])), [colores]);
+  const colorNombreMap = useMemo(() => new Map(colores.map(c => [c.id, c.nombre])), [colores]);
+
+  // Precio sugerido para tejeduría y tintorería según color seleccionado en detalle
+  const precioSugeridoDet = useMemo(() => {
+    if (!detForm.colorId) return null;
+    const color = colorMap.get(detForm.colorId);
+    if (!color) return null;
+    const match = preciosTelas.find(p => p.categoriaColor === color.categoria);
+    return match?.precioKg ?? null;
+  }, [detForm.colorId, colorMap, preciosTelas]);
 
   const detallesByProg = useMemo(() => {
     const map = new Map<string, ProgramaDetalle[]>();
@@ -65,15 +90,83 @@ export function ProgramasZurzam() {
     return map;
   }, [comprasHilo]);
 
+  const extornosByProg = useMemo(() => {
+    const map = new Map<string, StockExtorno[]>();
+    for (const s of stockExtornos) {
+      if (!map.has(s.programaId)) map.set(s.programaId, []);
+      map.get(s.programaId)!.push(s);
+    }
+    return map;
+  }, [stockExtornos]);
+
+  const dashboardResumen = useMemo(() => {
+    const activos = programasZurzam.filter(p => p.estado !== 'CERRADO');
+
+    // kg producidos = suma de kgTintRetornado de todos los detalles de programas NO cerrados
+    const kgProducidos = programaDetalles
+      .filter(d => programasZurzam.find(p => p.id === d.programaId)?.estado !== 'CERRADO')
+      .reduce((s, d) => s + d.kgTintRetornado, 0);
+
+    // Inversión total = suma de comprasHilo totalSoles + costoTejido + costoTint de todos los detalles
+    const inversionHilo = comprasHilo.reduce((s, h) => s + h.totalSoles, 0);
+    const inversionTej = programaDetalles.reduce((s, d) => s + d.costoTejido, 0);
+    const inversionTint = programaDetalles.reduce((s, d) => s + d.costoTint, 0);
+    const inversionTotal = inversionHilo + inversionTej + inversionTint;
+
+    // Costo/kg promedio global
+    const totalKgTint = programaDetalles.reduce((s, d) => s + d.kgTintRetornado, 0);
+    const costoKgPromedio = totalKgTint > 0 ? inversionTotal / totalKgTint : 0;
+
+    // Comisión José pendiente
+    const comisionPendiente = programasZurzam
+      .filter(p => p.estadoPagoComision === 'PENDIENTE')
+      .reduce((s, p) => s + p.comisionJose, 0);
+
+    // CXP (cuentas por pagar) = detalles con estadoPagoTej o estadoPagoTint PENDIENTE/PARCIAL + compras PENDIENTE
+    const cxpTej = programaDetalles
+      .filter(d => d.estadoPagoTej === 'PENDIENTE' || d.estadoPagoTej === 'PARCIAL')
+      .reduce((s, d) => s + d.costoTejido, 0);
+    const cxpTint = programaDetalles
+      .filter(d => d.estadoPagoTint === 'PENDIENTE' || d.estadoPagoTint === 'PARCIAL')
+      .reduce((s, d) => s + d.costoTint, 0);
+    const cxpHilo = comprasHilo
+      .filter(h => h.estadoPago === 'PENDIENTE' || h.estadoPago === 'PARCIAL')
+      .reduce((s, h) => s + h.saldo, 0);
+    const cxpTotal = cxpTej + cxpTint + cxpHilo;
+
+    // Por estado
+    const porEstado = ESTADOS.map(estado => ({
+      estado,
+      count: programasZurzam.filter(p => p.estado === estado).length,
+    }));
+
+    return {
+      totalProgramas: programasZurzam.length,
+      activos: activos.length,
+      kgProducidos,
+      inversionTotal,
+      costoKgPromedio,
+      comisionPendiente,
+      cxpTotal,
+      porEstado,
+      inversionHilo,
+      inversionTej,
+      inversionTint,
+    };
+  }, [programasZurzam, programaDetalles, comprasHilo]);
+
   const handleAddPrograma = (e: React.FormEvent) => {
     e.preventDefault();
     if (!progForm.nombre || !progForm.clienteId) { addToast('Completa nombre y cliente', 'error'); return; }
+    const kgObjetivo = parseFloat(progForm.kgObjetivo) || 0;
     addPrograma({
       id: uid(), nombre: progForm.nombre, fecha: progForm.fecha,
       clienteId: progForm.clienteId,
       rollosObjetivo: parseInt(progForm.rollosObjetivo) || 0,
-      kgObjetivo: parseFloat(progForm.kgObjetivo) || 0,
-      estado: 'NUEVO', comisionJose: 0, estadoPagoComision: 'PENDIENTE',
+      kgObjetivo,
+      estado: 'NUEVO',
+      comisionJose: kgObjetivo * config.comisionJoseKg,
+      estadoPagoComision: 'PENDIENTE',
       diasEntrega: parseInt(progForm.diasEntrega) || 0, notas: progForm.notas,
     });
     addToast('Programa creado', 'success');
@@ -111,6 +204,19 @@ export function ProgramasZurzam() {
       costoTotalColor: costoTej + costoTint,
       notas: detForm.notas,
     });
+
+    // Avance automático de estado del programa
+    const prog = programasZurzam.find(p => p.id === programaId);
+    if (prog) {
+      const nuevoEstado = (() => {
+        if (kgTej > 0 && (prog.estado === 'NUEVO' || prog.estado === 'EN_COMPRA')) return 'EN_TEJEDURIA';
+        if (kgTint > 0 && prog.estado !== 'EN_PLANTA' && prog.estado !== 'CERRADO') return 'EN_TINTORERIA';
+        if (parseInt(detForm.rollosFinal) > 0) return 'EN_PLANTA';
+        return null;
+      })();
+      if (nuevoEstado) updatePrograma(programaId, { estado: nuevoEstado as EstadoPrograma });
+    }
+
     addToast('Detalle agregado', 'success');
     setShowDetalleForm(null);
   };
@@ -129,8 +235,56 @@ export function ProgramasZurzam() {
       costoRealFact: 0, diferencia: 0, estadoPago: 'PENDIENTE',
       montoPagado: 0, saldo: total, notas: hiloForm.notas,
     });
+
+    // Avance de estado: si el programa estaba en NUEVO, pasar a EN_COMPRA
+    const progH = programasZurzam.find(p => p.id === programaId);
+    if (progH && progH.estado === 'NUEVO') {
+      updatePrograma(programaId, { estado: 'EN_COMPRA' });
+    }
+
+    // Recalcular costoHiloProrrateado en todos los detalles del programa
+    const detallesDelProg = programaDetalles.filter(d => d.programaId === programaId);
+    const totalHiloActual = comprasHilo.filter(h => h.programaId === programaId).reduce((s, h) => s + h.totalSoles, 0) + total;
+    const kgObjetivoP = progH?.kgObjetivo ?? 1;
+    const costoHiloPorKg = kgObjetivoP > 0 ? totalHiloActual / kgObjetivoP : 0;
+    for (const det of detallesDelProg) {
+      updateProgramaDetalle(det.id, {
+        costoHiloProrrateado: costoHiloPorKg,
+        costoTotalColor: det.costoTejido + det.costoTint + costoHiloPorKg,
+      });
+    }
+
     addToast('Compra de hilo registrada', 'success');
     setShowHiloForm(null);
+  };
+
+  const handleAddExtorno = (e: React.FormEvent, programaId: string) => {
+    e.preventDefault();
+    const kg = parseFloat(extornoForm.kgConos) || 0;
+    const precio = parseFloat(extornoForm.precioKgHilo) || 0;
+    if (kg <= 0) { addToast('Ingresa Kg de conos', 'error'); return; }
+    addStockExtorno({
+      id: uid(),
+      programaId,
+      fecha: extornoForm.fecha,
+      kgConos: kg,
+      precioKgHilo: precio,
+      totalSoles: kg * precio,
+      usado: false,
+      notas: extornoForm.notas,
+    });
+    addToast('Extorno registrado', 'success');
+    setShowExtornoForm(null);
+    setExtornoForm({ fecha: new Date().toISOString().slice(0, 10), kgConos: '', precioKgHilo: '', notas: '' });
+  };
+
+  const toggleStockEtapa = (progId: string) => {
+    setShowStockPorEtapa(prev => {
+      const next = new Set(prev);
+      if (next.has(progId)) next.delete(progId);
+      else next.add(progId);
+      return next;
+    });
   };
 
   const buildProgramasRows = () => programasZurzam.map((p) => ({
@@ -173,7 +327,12 @@ export function ProgramasZurzam() {
   };
 
   return (
-    <div className="space-y-8">
+    <motion.div
+      className="space-y-8"
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.28, ease: 'easeOut' }}
+    >
       <div className="flex items-start justify-between">
         <div>
           <h2 className="text-2xl font-black uppercase tracking-tight">Programas Zurzam</h2>
@@ -192,6 +351,26 @@ export function ProgramasZurzam() {
         </div>
       </div>
 
+      <div className="flex gap-1 mt-4 border-b border-[#DDD8CF]">
+        {([
+          { key: 'programas', label: 'Programas' },
+          { key: 'resumen', label: 'Resumen Ejecutivo' },
+        ] as const).map(({ key, label }) => (
+          <button
+            key={key}
+            onClick={() => setActiveTab(key)}
+            className={`px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-b-2 -mb-px transition-colors ${
+              activeTab === key
+                ? 'border-[#B66F35] text-[#1a1a1a]'
+                : 'border-transparent text-gray-400 hover:text-gray-600'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'programas' && (<>
       {programasZurzam.length === 0 ? (
         <p className="text-sm text-gray-400 italic">Sin programas registrados.</p>
       ) : (
@@ -199,12 +378,29 @@ export function ProgramasZurzam() {
           {[...programasZurzam].sort((a, b) => b.fecha.localeCompare(a.fecha)).map(prog => {
             const detalles = detallesByProg.get(prog.id) ?? [];
             const hilos = hilosByProg.get(prog.id) ?? [];
+            const extornos = extornosByProg.get(prog.id) ?? [];
             const isOpen = expanded === prog.id;
+
             const totalCosto = detalles.reduce((s, d) => s + d.costoTotalColor, 0)
               + hilos.reduce((s, h) => s + h.totalSoles, 0);
 
+            // F1.2 — Costo/kg sobre kg tint retornado total
+            const kgTintRetornadoTotal = detalles.reduce((s, d) => s + d.kgTintRetornado, 0);
+            const costoKgFinal = kgTintRetornadoTotal > 0 ? totalCosto / kgTintRetornadoTotal : null;
+
+            // F1.4 — Stock en proceso (calculado, no persistido)
+            const kgHiloTotal = hilos.reduce((s, h) => s + h.kgAsignados, 0);
+            const kgTejEnviadoTotal = detalles.reduce((s, d) => s + d.kgTejEnviado, 0);
+            const kgTejRetornadoTotal = detalles.reduce((s, d) => s + d.kgTejRetornado, 0);
+            const kgTintEnviadoTotal = detalles.reduce((s, d) => s + d.kgTintEnviado, 0);
+            const kgTintFinalTotal = detalles.reduce((s, d) => s + d.kgTintRetornado, 0);
+
+            const enTejeduria = Math.max(0, kgTejEnviadoTotal - kgTejRetornadoTotal);
+            const enCrudo = Math.max(0, kgTejRetornadoTotal - kgTintEnviadoTotal);
+
             return (
               <div key={prog.id} className="bg-white border border-gray-200">
+                {/* Header row */}
                 <div className="flex items-center justify-between px-5 py-4">
                   <button className="flex items-center gap-3 flex-1 text-left" onClick={() => setExpanded(isOpen ? null : prog.id)}>
                     {isOpen ? <ChevronDown className="h-4 w-4 flex-shrink-0" /> : <ChevronRight className="h-4 w-4 flex-shrink-0" />}
@@ -219,7 +415,26 @@ export function ProgramasZurzam() {
                       className="text-[10px] font-bold uppercase border border-gray-200 px-2 py-1 bg-white">
                       {ESTADOS.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
                     </select>
-                    <span className="text-xs font-mono text-gray-500">S/ {totalCosto.toFixed(0)}</span>
+                    {/* F1.2 — Costo total y costo/kg */}
+                    <div className="flex flex-col items-end">
+                      <span className="text-xs font-mono text-gray-500">S/ {totalCosto.toFixed(0)}</span>
+                      {costoKgFinal !== null && (
+                        <span className="text-xs text-gray-500 font-mono">
+                          Costo/kg: S/ {costoKgFinal.toFixed(2)}
+                        </span>
+                      )}
+                    </div>
+                    {confirmDelete === prog.id ? (
+                      <span className="flex items-center gap-1 whitespace-nowrap">
+                        <button onClick={() => { deletePrograma(prog.id); setConfirmDelete(null); addToast('Programa eliminado', 'success'); }} className="text-[10px] font-bold text-red-600 hover:text-red-800 uppercase">Sí</button>
+                        <span className="text-gray-300">/</span>
+                        <button onClick={e => { e.stopPropagation(); setConfirmDelete(null); }} className="text-[10px] font-bold text-gray-400 hover:text-gray-600 uppercase">No</button>
+                      </span>
+                    ) : (
+                      <button onClick={e => { e.stopPropagation(); setConfirmDelete(prog.id); }} className="text-gray-300 hover:text-red-500 transition-colors">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -238,39 +453,95 @@ export function ProgramasZurzam() {
                           <table className="min-w-full text-xs">
                             <thead>
                               <tr className="border-b border-gray-100">
-                                {['Color', 'Servicio', 'Prior.', 'Kg Tej', 'Costo Tej', 'Kg Tint', 'Rollos', 'Costo Tint', 'Total', 'Pago Tej', 'Pago Tint'].map(h => (
+                                {['Color', 'Servicio', 'Prior.', 'Kg Tej', 'Costo Tej', '% Merma Tej', 'Kg Tint', 'Rollos', 'Costo Tint', '% Merma Tint', 'Total', 'Pago Tej', 'Pago Tint', ''].map(h => (
                                   <th key={h} className="px-2 py-1 text-left text-[10px] font-bold uppercase tracking-widest text-gray-400 whitespace-nowrap">{h}</th>
                                 ))}
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50">
-                              {detalles.map(d => (
-                                <tr key={d.id}>
-                                  <td className="px-2 py-1.5">{colorMap.get(d.colorId)}</td>
-                                  <td className="px-2 py-1.5 text-[10px]">{d.tipoServicio}</td>
-                                  <td className="px-2 py-1.5 text-[10px]">{d.prioridad}</td>
-                                  <td className="px-2 py-1.5 font-mono text-right">{d.kgTejEnviado}</td>
-                                  <td className="px-2 py-1.5 font-mono text-right">S/ {d.costoTejido.toFixed(2)}</td>
-                                  <td className="px-2 py-1.5 font-mono text-right">{d.kgTintEnviado}</td>
-                                  <td className="px-2 py-1.5 font-mono text-right">{d.rollosFinal}</td>
-                                  <td className="px-2 py-1.5 font-mono text-right">S/ {d.costoTint.toFixed(2)}</td>
-                                  <td className="px-2 py-1.5 font-mono text-right font-bold">S/ {d.costoTotalColor.toFixed(2)}</td>
-                                  <td className="px-2 py-1.5">
-                                    <select value={d.estadoPagoTej}
-                                      onChange={e => updateProgramaDetalle(d.id, { estadoPagoTej: e.target.value as EstadoPago })}
-                                      className="text-[10px] border-0 bg-transparent font-bold uppercase cursor-pointer">
-                                      {ESTADOS_PAGO.map(s => <option key={s} value={s}>{s}</option>)}
-                                    </select>
-                                  </td>
-                                  <td className="px-2 py-1.5">
-                                    <select value={d.estadoPagoTint}
-                                      onChange={e => updateProgramaDetalle(d.id, { estadoPagoTint: e.target.value as EstadoPago })}
-                                      className="text-[10px] border-0 bg-transparent font-bold uppercase cursor-pointer">
-                                      {ESTADOS_PAGO.map(s => <option key={s} value={s}>{s}</option>)}
-                                    </select>
-                                  </td>
-                                </tr>
-                              ))}
+                              {detalles.map(d => {
+                                // F1.2 — % merma cálculo
+                                const hasMermaTej = d.kgTejEnviado > 0 && d.kgTejRetornado > 0;
+                                const hasMermaTint = d.kgTintEnviado > 0 && d.kgTintRetornado > 0;
+                                const pctMermaTej = hasMermaTej
+                                  ? (d.kgTejEnviado - d.kgTejRetornado) / d.kgTejEnviado * 100
+                                  : null;
+                                const pctMermaTint = hasMermaTint
+                                  ? (d.kgTintEnviado - d.kgTintRetornado) / d.kgTintEnviado * 100
+                                  : null;
+
+                                const mermaTejColor = pctMermaTej !== null
+                                  ? pctMermaTej <= config.mermaMaxTej
+                                    ? 'bg-green-100 text-green-800'
+                                    : 'bg-red-100 text-red-800'
+                                  : null;
+                                const mermaTintColor = pctMermaTint !== null
+                                  ? pctMermaTint <= config.mermaMaxTint
+                                    ? 'bg-green-100 text-green-800'
+                                    : 'bg-red-100 text-red-800'
+                                  : null;
+
+                                return (
+                                  <tr key={d.id}>
+                                    <td className="px-2 py-1.5">{colorNombreMap.get(d.colorId)}</td>
+                                    <td className="px-2 py-1.5 text-[10px]">{d.tipoServicio}</td>
+                                    <td className="px-2 py-1.5 text-[10px]">{d.prioridad}</td>
+                                    <td className="px-2 py-1.5 font-mono text-right">{d.kgTejEnviado}</td>
+                                    <td className="px-2 py-1.5 font-mono text-right">S/ {d.costoTejido.toFixed(2)}</td>
+                                    {/* F1.2 — % Merma Tej badge */}
+                                    <td className="px-2 py-1.5 text-center">
+                                      {mermaTejColor && pctMermaTej !== null ? (
+                                        <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold font-mono ${mermaTejColor}`}>
+                                          {pctMermaTej.toFixed(1)}%
+                                        </span>
+                                      ) : (
+                                        <span className="text-gray-300 text-[10px]">—</span>
+                                      )}
+                                    </td>
+                                    <td className="px-2 py-1.5 font-mono text-right">{d.kgTintEnviado}</td>
+                                    <td className="px-2 py-1.5 font-mono text-right">{d.rollosFinal}</td>
+                                    <td className="px-2 py-1.5 font-mono text-right">S/ {d.costoTint.toFixed(2)}</td>
+                                    {/* F1.2 — % Merma Tint badge */}
+                                    <td className="px-2 py-1.5 text-center">
+                                      {mermaTintColor && pctMermaTint !== null ? (
+                                        <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold font-mono ${mermaTintColor}`}>
+                                          {pctMermaTint.toFixed(1)}%
+                                        </span>
+                                      ) : (
+                                        <span className="text-gray-300 text-[10px]">—</span>
+                                      )}
+                                    </td>
+                                    <td className="px-2 py-1.5 font-mono text-right font-bold">S/ {d.costoTotalColor.toFixed(2)}</td>
+                                    <td className="px-2 py-1.5">
+                                      <select value={d.estadoPagoTej}
+                                        onChange={e => updateProgramaDetalle(d.id, { estadoPagoTej: e.target.value as EstadoPago })}
+                                        className="text-[10px] border-0 bg-transparent font-bold uppercase cursor-pointer">
+                                        {ESTADOS_PAGO.map(s => <option key={s} value={s}>{s}</option>)}
+                                      </select>
+                                    </td>
+                                    <td className="px-2 py-1.5">
+                                      <select value={d.estadoPagoTint}
+                                        onChange={e => updateProgramaDetalle(d.id, { estadoPagoTint: e.target.value as EstadoPago })}
+                                        className="text-[10px] border-0 bg-transparent font-bold uppercase cursor-pointer">
+                                        {ESTADOS_PAGO.map(s => <option key={s} value={s}>{s}</option>)}
+                                      </select>
+                                    </td>
+                                    <td className="px-2 py-1.5">
+                                      {confirmDelete === d.id ? (
+                                        <span className="flex items-center gap-1 whitespace-nowrap">
+                                          <button onClick={() => { deleteProgramaDetalle(d.id); setConfirmDelete(null); addToast('Detalle eliminado', 'success'); }} className="text-[10px] font-bold text-red-600 hover:text-red-800 uppercase">Sí</button>
+                                          <span className="text-gray-300">/</span>
+                                          <button onClick={() => setConfirmDelete(null)} className="text-[10px] font-bold text-gray-400 hover:text-gray-600 uppercase">No</button>
+                                        </span>
+                                      ) : (
+                                        <button onClick={() => setConfirmDelete(d.id)} className="text-gray-300 hover:text-red-500 transition-colors">
+                                          <Trash2 className="h-3 w-3" />
+                                        </button>
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
                             </tbody>
                           </table>
                         </div>
@@ -289,7 +560,7 @@ export function ProgramasZurzam() {
                         <table className="min-w-full text-xs">
                           <thead>
                             <tr className="border-b border-gray-100">
-                              {['Fecha', 'Tipo Hilo', 'Kg', 'Precio', 'Moneda', 'Total S/.', 'Estado', 'Saldo'].map(h => (
+                              {['Fecha', 'Tipo Hilo', 'Kg', 'Precio', 'Moneda', 'Total S/.', 'Estado', 'Saldo', ''].map(h => (
                                 <th key={h} className="px-2 py-1 text-left text-[10px] font-bold uppercase tracking-widest text-gray-400 whitespace-nowrap">{h}</th>
                               ))}
                             </tr>
@@ -311,10 +582,131 @@ export function ProgramasZurzam() {
                                   </select>
                                 </td>
                                 <td className="px-2 py-1.5 font-mono text-right">S/ {h.saldo.toFixed(2)}</td>
+                                <td className="px-2 py-1.5">
+                                  {confirmDelete === h.id ? (
+                                    <span className="flex items-center gap-1 whitespace-nowrap">
+                                      <button onClick={() => { deleteCompraHilo(h.id); setConfirmDelete(null); addToast('Compra eliminada', 'success'); }} className="text-[10px] font-bold text-red-600 hover:text-red-800 uppercase">Sí</button>
+                                      <span className="text-gray-300">/</span>
+                                      <button onClick={() => setConfirmDelete(null)} className="text-[10px] font-bold text-gray-400 hover:text-gray-600 uppercase">No</button>
+                                    </span>
+                                  ) : (
+                                    <button onClick={() => setConfirmDelete(h.id)} className="text-gray-300 hover:text-red-500 transition-colors">
+                                      <Trash2 className="h-3 w-3" />
+                                    </button>
+                                  )}
+                                </td>
                               </tr>
                             ))}
                           </tbody>
                         </table>
+                      )}
+                    </div>
+
+                    {/* F1.3 — Stock Extorno */}
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Stock Extorno</h4>
+                        <button onClick={() => { setShowExtornoForm(prog.id); setExtornoForm({ fecha: new Date().toISOString().slice(0, 10), kgConos: '', precioKgHilo: '', notas: '' }); }} className="btn-secondary text-xs flex items-center gap-1">
+                          <Plus className="h-3 w-3" /> Agregar Extorno
+                        </button>
+                      </div>
+                      {extornos.length === 0 ? <p className="text-xs text-gray-400 italic">Sin extornos registrados.</p> : (
+                        <>
+                          <table className="min-w-full text-xs">
+                            <thead>
+                              <tr className="border-b border-gray-100">
+                                {['Fecha', 'Kg Conos', 'Precio/kg', 'Total S/.', 'Usado', 'Notas', ''].map(h => (
+                                  <th key={h} className="px-2 py-1 text-left text-[10px] font-bold uppercase tracking-widest text-gray-400 whitespace-nowrap">{h}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50">
+                              {extornos.map(s => (
+                                <tr key={s.id}>
+                                  <td className="px-2 py-1.5 font-mono">{s.fecha}</td>
+                                  <td className="px-2 py-1.5 font-mono text-right">{s.kgConos.toFixed(2)}</td>
+                                  <td className="px-2 py-1.5 font-mono text-right">S/ {s.precioKgHilo.toFixed(2)}</td>
+                                  <td className="px-2 py-1.5 font-mono text-right font-bold">S/ {s.totalSoles.toFixed(2)}</td>
+                                  <td className="px-2 py-1.5 text-center">
+                                    <input
+                                      type="checkbox"
+                                      checked={s.usado}
+                                      onChange={() => updateStockExtorno(s.id, { usado: !s.usado })}
+                                      className="cursor-pointer"
+                                    />
+                                  </td>
+                                  <td className="px-2 py-1.5 text-gray-500">{s.notas}</td>
+                                  <td className="px-2 py-1.5">
+                                    {confirmDelete === s.id ? (
+                                      <span className="flex items-center gap-1 whitespace-nowrap">
+                                        <button onClick={() => { deleteStockExtorno(s.id); setConfirmDelete(null); addToast('Extorno eliminado', 'success'); }} className="text-[10px] font-bold text-red-600 hover:text-red-800 uppercase">Sí</button>
+                                        <span className="text-gray-300">/</span>
+                                        <button onClick={() => setConfirmDelete(null)} className="text-[10px] font-bold text-gray-400 hover:text-gray-600 uppercase">No</button>
+                                      </span>
+                                    ) : (
+                                      <button onClick={() => setConfirmDelete(s.id)} className="text-gray-300 hover:text-red-500 transition-colors">
+                                        <Trash2 className="h-3 w-3" />
+                                      </button>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                          <div className="flex gap-6 mt-2 px-2 text-xs text-gray-500 font-mono">
+                            <span>Total kg extornados: <strong>{extornos.reduce((s, e) => s + e.kgConos, 0).toFixed(2)} kg</strong></span>
+                            <span>Valor total: <strong>S/ {extornos.reduce((s, e) => s + e.totalSoles, 0).toFixed(2)}</strong></span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {/* F1.4 — Stock en Proceso (colapsable) */}
+                    <div>
+                      <button
+                        onClick={() => toggleStockEtapa(prog.id)}
+                        className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500 hover:text-gray-700 transition-colors"
+                      >
+                        {showStockPorEtapa.has(prog.id)
+                          ? <ChevronDown className="h-3 w-3" />
+                          : <ChevronRight className="h-3 w-3" />
+                        }
+                        Stock en Proceso
+                      </button>
+                      {showStockPorEtapa.has(prog.id) && (
+                        <div className="mt-3 overflow-x-auto">
+                          <table className="min-w-full text-xs border border-gray-100">
+                            <thead>
+                              <tr className="border-b border-gray-100">
+                                <th className="px-3 py-1.5 text-left text-[10px] font-bold uppercase tracking-widest text-gray-400">Etapa</th>
+                                <th className="px-3 py-1.5 text-right text-[10px] font-bold uppercase tracking-widest text-gray-400">KG</th>
+                                <th className="px-3 py-1.5 text-left text-[10px] font-bold uppercase tracking-widest text-gray-400">Descripción</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <tr className="bg-amber-50">
+                                <td className="px-3 py-1.5 font-bold">En hilo</td>
+                                <td className="px-3 py-1.5 font-mono text-right">{kgHiloTotal.toFixed(2)}</td>
+                                <td className="px-3 py-1.5 text-gray-500">Hilo comprado</td>
+                              </tr>
+                              <tr className="bg-blue-50">
+                                <td className="px-3 py-1.5 font-bold">En tejeduría</td>
+                                <td className="px-3 py-1.5 font-mono text-right">{enTejeduria.toFixed(2)}</td>
+                                <td className="px-3 py-1.5 text-gray-500">Enviado, no retornado</td>
+                              </tr>
+                              <tr className="bg-gray-50">
+                                <td className="px-3 py-1.5 font-bold">En crudo</td>
+                                <td className="px-3 py-1.5 font-mono text-right">{enCrudo.toFixed(2)}</td>
+                                <td className="px-3 py-1.5 text-gray-500">Tejido sin teñir</td>
+                              </tr>
+                              <tr className="bg-green-50">
+                                <td className="px-3 py-1.5 font-bold">Tela final</td>
+                                <td className="px-3 py-1.5 font-mono text-right">{kgTintFinalTotal.toFixed(2)}</td>
+                                <td className="px-3 py-1.5 text-gray-500">Tela teñida disponible</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -373,9 +765,37 @@ export function ProgramasZurzam() {
               </select>
             </F>
             <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 pt-1">Tejeduría</p>
+            {preciosTejeduria.length > 0 && (
+              <F label="Tipo Tejido (precio ref.)">
+                <select
+                  value={detForm.tipoTejidoId}
+                  onChange={e => {
+                    const pt = preciosTejeduria.find(p => p.id === e.target.value);
+                    setDetForm(f => ({
+                      ...f,
+                      tipoTejidoId: e.target.value,
+                      precioKgTej: pt ? String(pt.precioKg) : f.precioKgTej,
+                    }));
+                  }}
+                  className="input-base"
+                >
+                  <option value="">— seleccionar —</option>
+                  {preciosTejeduria.map(pt => (
+                    <option key={pt.id} value={pt.id}>{pt.tipoTejido} — S/ {pt.precioKg.toFixed(2)}/kg</option>
+                  ))}
+                </select>
+              </F>
+            )}
             <div className="grid grid-cols-3 gap-3">
               <F label="Kg Enviado"><input type="number" min={0} step={0.1} value={detForm.kgTejEnviado} onChange={e => setDetForm(f => ({ ...f, kgTejEnviado: e.target.value }))} className="input-base" /></F>
-              <F label="Precio/Kg"><input type="number" min={0} step={0.01} value={detForm.precioKgTej} onChange={e => setDetForm(f => ({ ...f, precioKgTej: e.target.value }))} className="input-base" /></F>
+              <F label={precioSugeridoDet ? `Precio/Kg (sug: S/${precioSugeridoDet})` : 'Precio/Kg'}>
+                <div className="flex gap-1">
+                  <input type="number" min={0} step={0.01} value={detForm.precioKgTej} onChange={e => setDetForm(f => ({ ...f, precioKgTej: e.target.value }))} className="input-base flex-1" />
+                  {precioSugeridoDet && !detForm.precioKgTej && (
+                    <button type="button" onClick={() => setDetForm(f => ({ ...f, precioKgTej: String(precioSugeridoDet) }))} className="text-[10px] font-bold text-blue-600 border border-blue-200 px-1">Usar</button>
+                  )}
+                </div>
+              </F>
               <F label="Moneda">
                 <select value={detForm.monedaTej} onChange={e => setDetForm(f => ({ ...f, monedaTej: e.target.value as any }))} className="input-base">
                   <option value="PEN">PEN</option><option value="USD">USD</option>
@@ -421,7 +841,104 @@ export function ProgramasZurzam() {
           </form>
         </Modal>
       )}
-    </div>
+
+      {/* F1.3 — Modal extorno */}
+      {showExtornoForm && (
+        <Modal title="Agregar Extorno de Hilo" onClose={() => setShowExtornoForm(null)}>
+          <form onSubmit={e => handleAddExtorno(e, showExtornoForm)} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <F label="Fecha">
+                <input type="date" value={extornoForm.fecha} onChange={e => setExtornoForm(f => ({ ...f, fecha: e.target.value }))} className="input-base" />
+              </F>
+              <F label="Kg Conos">
+                <input type="number" min={0} step={0.01} value={extornoForm.kgConos} onChange={e => setExtornoForm(f => ({ ...f, kgConos: e.target.value }))} className="input-base" required />
+              </F>
+            </div>
+            <F label="Precio/kg hilo">
+              <input type="number" min={0} step={0.01} value={extornoForm.precioKgHilo} onChange={e => setExtornoForm(f => ({ ...f, precioKgHilo: e.target.value }))} className="input-base" />
+            </F>
+            {extornoForm.kgConos && extornoForm.precioKgHilo && (
+              <p className="text-xs font-mono text-gray-500">
+                Total calculado: <strong>S/ {(parseFloat(extornoForm.kgConos) * parseFloat(extornoForm.precioKgHilo)).toFixed(2)}</strong>
+              </p>
+            )}
+            <F label="Notas">
+              <input type="text" value={extornoForm.notas} onChange={e => setExtornoForm(f => ({ ...f, notas: e.target.value }))} className="input-base" />
+            </F>
+            <ModalActions onCancel={() => setShowExtornoForm(null)} />
+          </form>
+        </Modal>
+      )}
+      </>)}
+
+      {activeTab === 'resumen' && (
+        <div className="space-y-6">
+          {/* KPI cards */}
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            {[
+              { label: 'Programas Activos', val: String(dashboardResumen.activos), sub: `${dashboardResumen.totalProgramas} total` },
+              { label: 'Kg Producidos', val: `${dashboardResumen.kgProducidos.toFixed(1)} kg`, sub: 'tela retornada de tintorería' },
+              { label: 'Inversión Total', val: `S/ ${dashboardResumen.inversionTotal.toFixed(0)}`, sub: 'hilo + tejeduría + tintorería' },
+              { label: 'Costo/kg Promedio', val: dashboardResumen.costoKgPromedio > 0 ? `S/ ${dashboardResumen.costoKgPromedio.toFixed(2)}` : '—', sub: 'costo total / kg tela' },
+            ].map(card => (
+              <div key={card.label} className="bg-white border border-[#DDD8CF] p-4">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">{card.label}</p>
+                <p className="text-2xl font-black mt-1">{card.val}</p>
+                <p className="text-[10px] text-gray-400 mt-1">{card.sub}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Segunda fila de KPIs */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-white border border-amber-200 p-4">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-amber-700">Comisión José Pendiente</p>
+              <p className="text-2xl font-black mt-1">S/ {dashboardResumen.comisionPendiente.toFixed(2)}</p>
+              <p className="text-[10px] text-gray-400 mt-1">programas con pago pendiente</p>
+            </div>
+            <div className="bg-white border border-red-200 p-4">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-red-700">CXP Total</p>
+              <p className="text-2xl font-black mt-1">S/ {dashboardResumen.cxpTotal.toFixed(2)}</p>
+              <p className="text-[10px] text-gray-400 mt-1">tejeduría + tintorería + hilo pendiente</p>
+            </div>
+          </div>
+
+          {/* Desglose inversión */}
+          <div className="bg-white border border-[#DDD8CF] p-4">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-3">Desglose Inversión</p>
+            <div className="space-y-2">
+              {[
+                { label: 'Hilo', val: dashboardResumen.inversionHilo },
+                { label: 'Tejeduría', val: dashboardResumen.inversionTej },
+                { label: 'Tintorería', val: dashboardResumen.inversionTint },
+              ].map(item => (
+                <div key={item.label} className="flex justify-between text-sm">
+                  <span className="text-gray-600">{item.label}</span>
+                  <span className="font-mono font-bold">S/ {item.val.toFixed(2)}</span>
+                </div>
+              ))}
+              <div className="flex justify-between text-sm font-black border-t border-gray-200 pt-2 mt-2">
+                <span>Total</span>
+                <span className="font-mono">S/ {dashboardResumen.inversionTotal.toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Por estado */}
+          <div className="bg-white border border-[#DDD8CF] p-4">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-3">Programas por Estado</p>
+            <div className="flex flex-wrap gap-2">
+              {dashboardResumen.porEstado.map(({ estado, count }) => (
+                <div key={estado} className="flex items-center gap-2 border border-gray-200 px-3 py-2 text-xs">
+                  <span className="font-mono text-gray-500">{estado}</span>
+                  <span className="font-black text-lg">{count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </motion.div>
   );
 }
 

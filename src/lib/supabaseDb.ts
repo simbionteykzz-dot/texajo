@@ -1,0 +1,358 @@
+/**
+ * Capa de acceso a Supabase.
+ * Mapea snake_case (DB) ↔ camelCase (app).
+ * Cada función recibe/devuelve los tipos de src/types.ts.
+ */
+import { supabase } from './supabase';
+import type {
+  Cliente, Proveedor, Tela, Color, PrecioTela, PrecioTejeduria, PrecioComplemento,
+  Producto, TarifaOperacion, Operario, Config,
+  MovimientoTela, Corte, SeguimientoFila, BoletaLinea, DescuentoBoleta,
+  ProgramaZurzam, ProgramaDetalle, CompraHilo, StockExtorno, CobroDiario,
+  MovimientoComplemento,
+} from '../types';
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+async function userId(): Promise<string> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('No hay sesión activa');
+  return user.id;
+}
+
+function strip<T extends Record<string, unknown>>(row: T): T {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { user_id, created_at, ...rest } = row as Record<string, unknown>;
+  void user_id; void created_at;
+  return rest as T;
+}
+
+// ─── Mappers DB → App ────────────────────────────────────────────────────────
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toCliente = (r: any): Cliente => ({ id: r.id, nombre: r.nombre, contacto: r.contacto, notas: r.notas });
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toProveedor = (r: any): Proveedor => ({ id: r.id, nombre: r.nombre, ruc: r.ruc, contacto: r.contacto, tipo: r.tipo });
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toTela = (r: any): Tela => ({ id: r.id, nombre: r.nombre, composicion: r.composicion, kgPorRollo: r.kg_por_rollo, notas: r.notas });
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toColor = (r: any): Color => ({ id: r.id, nombre: r.nombre, categoria: r.categoria, prioridad: r.prioridad, notas: r.notas });
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toPrecioTela = (r: any): PrecioTela => ({ id: r.id, telaId: r.tela_id, categoriaColor: r.categoria_color, precioKg: r.precio_kg });
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toPrecioComplemento = (r: any): PrecioComplemento => ({ id: r.id, clave: r.clave, tipo: r.tipo, origen: r.origen, talla: r.talla, precio: r.precio });
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toPrecioTejeduria = (r: any): PrecioTejeduria => ({ id: r.id, tipoTejido: r.tipo_tejido, precioKg: r.precio_kg });
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toProducto = (r: any): Producto => ({ id: r.id, nombre: r.nombre, costoMoTotal: r.costo_mo_total, precioServicio: r.precio_servicio, telaBase: r.tela_base ?? undefined, limiteConsumo: r.limite_consumo ?? undefined, limiteRendimiento: r.limite_rendimiento ?? undefined, notas: r.notas });
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toTarifa = (r: any): TarifaOperacion => ({ id: r.id, productoId: r.producto_id, orden: r.orden, operacion: r.operacion, tarifa: r.tarifa, notas: r.notas, clave: r.clave });
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toOperario = (r: any): Operario => ({ id: r.id, codigo: r.codigo, nombre: r.nombre, estado: r.estado, dni: r.dni ?? undefined, telefono: r.telefono ?? undefined, modulo: r.modulo ?? undefined, maquina: r.maquina ?? undefined, fechaIngreso: r.fecha_ingreso ?? undefined });
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toMovTela = (r: any): MovimientoTela => ({ id: r.id, fecha: r.fecha, tipo: r.tipo, clienteId: r.cliente_id, telaId: r.tela_id, colorId: r.color_id, rollos: r.rollos, kgTotal: r.kg_total, categoriaColor: r.categoria_color, precioKg: r.precio_kg, totalSoles: r.total_soles, stockRollosAntes: r.stock_rollos_antes, stockRollosDespues: r.stock_rollos_despues, responsable: r.responsable, proveedorId: r.proveedor_id ?? undefined, nFactura: r.n_factura ?? undefined, costoRealFact: r.costo_real_fact ?? undefined, corteId: r.corte_id ?? undefined, nCorte: r.n_corte ?? undefined, notas: r.notas });
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toCorte = (r: any): Corte => ({ id: r.id, nCorte: r.n_corte, fecha: r.fecha, clienteId: r.cliente_id, productoId: r.producto_id, colorId: r.color_id, telaId: r.tela_id ?? undefined, cortador: r.cortador, ayudante: r.ayudante, kgUsados: r.kg_usados, rollosUsados: r.rollos_usados, tendidas: r.tendidas, mtsPorTendida: r.mts_por_tendida, ancho: r.ancho, cantS: r.cant_s, cantM: r.cant_m, cantL: r.cant_l, cantXL: r.cant_xl, totalPrendas: r.total_prendas, consumo: r.consumo, rendimiento: r.rendimiento, revision: r.revision, traslado: r.traslado, estado: r.estado, pagoCliente: r.pago_cliente, pagoPlanilla: r.pago_planilla, costoMoCorte: r.costo_mo_corte, notas: r.notas });
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toSeguimientoFila = (r: any): SeguimientoFila => ({ id: r.id, corteId: r.corte_id, nCorte: r.n_corte, productoId: r.producto_id, fecha: r.fecha, colorId: r.color_id, talla: r.talla, cantidad: r.cantidad, asignaciones: r.asignaciones ?? [], pctAvance: r.pct_avance, estado: r.estado, totalPago: r.total_pago });
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toBoletaLinea = (r: any): BoletaLinea => ({ id: r.id, operarioId: r.operario_id, corteId: r.corte_id, nCorte: r.n_corte, productoId: r.producto_id, tarifaId: r.tarifa_id, operacion: r.operacion, orden: r.orden, tarifa: r.tarifa, cantPrendas: r.cant_prendas, importe: r.importe, periodo: r.periodo, estadoPago: r.estado_pago, fechaPago: r.fecha_pago ?? undefined });
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toDescuento = (r: any): DescuentoBoleta => ({ id: r.id, operarioId: r.operario_id, periodo: r.periodo, tipo: r.tipo, monto: r.monto, notas: r.notas });
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toPrograma = (r: any): ProgramaZurzam => ({ id: r.id, nombre: r.nombre, fecha: r.fecha, clienteId: r.cliente_id, rollosObjetivo: r.rollos_objetivo, kgObjetivo: r.kg_objetivo, estado: r.estado, comisionJose: r.comision_jose, estadoPagoComision: r.estado_pago_comision, diasEntrega: r.dias_entrega, notas: r.notas });
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toDetalle = (r: any): ProgramaDetalle => ({ id: r.id, programaId: r.programa_id, colorId: r.color_id, categoriaColor: r.categoria_color, tipoServicio: r.tipo_servicio, prioridad: r.prioridad, kgTejEnviado: r.kg_tej_enviado, kgTejRetornado: r.kg_tej_retornado, precioKgTej: r.precio_kg_tej, monedaTej: r.moneda_tej, tcTej: r.tc_tej, costoTejido: r.costo_tejido, estadoPagoTej: r.estado_pago_tej, kgTintEnviado: r.kg_tint_enviado, kgTintRetornado: r.kg_tint_retornado, rollosFinal: r.rollos_final, precioKgTint: r.precio_kg_tint, monedaTint: r.moneda_tint, tcTint: r.tc_tint, costoTint: r.costo_tint, estadoPagoTint: r.estado_pago_tint, costoHiloProrrateado: r.costo_hilo_prorrateado, costoTotalColor: r.costo_total_color, notas: r.notas });
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toCompraHilo = (r: any): CompraHilo => ({ id: r.id, fecha: r.fecha, programaId: r.programa_id, tipoHilo: r.tipo_hilo, kgAsignados: r.kg_asignados, precioKg: r.precio_kg, moneda: r.moneda, tipoCambio: r.tipo_cambio, totalSoles: r.total_soles, proveedorId: r.proveedor_id, nFactura: r.n_factura, costoRealFact: r.costo_real_fact, diferencia: r.diferencia, estadoPago: r.estado_pago, fechaPago: r.fecha_pago ?? undefined, montoPagado: r.monto_pagado, saldo: r.saldo, notas: r.notas });
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toExtorno = (r: any): StockExtorno => ({ id: r.id, programaId: r.programa_id, programaDetalleId: r.programa_detalle_id ?? undefined, fecha: r.fecha, kgConos: r.kg_conos, precioKgHilo: r.precio_kg_hilo, totalSoles: r.total_soles, usado: r.usado, notas: r.notas });
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toCobro = (r: any): CobroDiario => ({ id: r.id, fecha: r.fecha, nCorte: r.n_corte, nFactura: r.n_factura, clienteId: r.cliente_id, productoId: r.producto_id, colorId: r.color_id, cantS: r.cant_s, cantM: r.cant_m, cantL: r.cant_l, cantXL: r.cant_xl, totalPrendas: r.total_prendas, precioUnitario: r.precio_unitario, bruto: r.bruto, detraccion10Pct: r.detraccion_10pct, disponible90Pct: r.disponible_90pct, estado: r.estado, notas: r.notas, fechaCobro: r.fecha_cobro ?? undefined });
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toMovComplemento = (r: any): MovimientoComplemento => ({ id: r.id, fecha: r.fecha, tipo: r.tipo, tipoComplemento: r.tipo_complemento, colorId: r.color_id, talla: r.talla, cantidad: r.cantidad, precioUnit: r.precio_unit, totalSoles: r.total_soles, stockAntes: r.stock_antes, stockDespues: r.stock_despues, corteId: r.corte_id ?? undefined, nCorte: r.n_corte ?? undefined, proveedorId: r.proveedor_id ?? undefined, nFactura: r.n_factura ?? undefined, responsable: r.responsable, notas: r.notas });
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toConfig = (r: any): Config => ({ umbralCritico: r.umbral_critico, umbralBajo: r.umbral_bajo, mermaPct: r.merma_pct, detraccionPct: r.detraccion_pct, igvPct: r.igv_pct, incluirIgv: r.incluir_igv, tipoCambioUsd: r.tipo_cambio_usd, kgPorRolloDefault: r.kg_por_rollo_default, comisionJoseKg: r.comision_jose_kg, mermaMaxTej: r.merma_max_tej, mermaMaxTint: r.merma_max_tint });
+
+// ─── Mappers App → DB ────────────────────────────────────────────────────────
+
+const fromCliente = (v: Cliente, uid: string) => ({ id: v.id, nombre: v.nombre, contacto: v.contacto, notas: v.notas, user_id: uid });
+const fromProveedor = (v: Proveedor, uid: string) => ({ id: v.id, nombre: v.nombre, ruc: v.ruc, contacto: v.contacto, tipo: v.tipo, user_id: uid });
+const fromTela = (v: Tela, uid: string) => ({ id: v.id, nombre: v.nombre, composicion: v.composicion, kg_por_rollo: v.kgPorRollo, notas: v.notas, user_id: uid });
+const fromColor = (v: Color, uid: string) => ({ id: v.id, nombre: v.nombre, categoria: v.categoria, prioridad: v.prioridad, notas: v.notas, user_id: uid });
+const fromPrecioTela = (v: PrecioTela, uid: string) => ({ id: v.id, tela_id: v.telaId, categoria_color: v.categoriaColor, precio_kg: v.precioKg, user_id: uid });
+const fromPrecioComplemento = (v: PrecioComplemento, uid: string) => ({ id: v.id, clave: v.clave, tipo: v.tipo, origen: v.origen, talla: v.talla, precio: v.precio, user_id: uid });
+const fromPrecioTejeduria = (v: PrecioTejeduria, uid: string) => ({ id: v.id, tipo_tejido: v.tipoTejido, precio_kg: v.precioKg, user_id: uid });
+const fromProducto = (v: Producto, uid: string) => ({ id: v.id, nombre: v.nombre, costo_mo_total: v.costoMoTotal, precio_servicio: v.precioServicio, tela_base: v.telaBase ?? null, limite_consumo: v.limiteConsumo ?? null, limite_rendimiento: v.limiteRendimiento ?? null, notas: v.notas, user_id: uid });
+const fromTarifa = (v: TarifaOperacion, uid: string) => ({ id: v.id, producto_id: v.productoId, orden: v.orden, operacion: v.operacion, tarifa: v.tarifa, notas: v.notas, clave: v.clave, user_id: uid });
+const fromOperario = (v: Operario, uid: string) => ({ id: v.id, codigo: v.codigo, nombre: v.nombre, estado: v.estado, dni: v.dni ?? null, telefono: v.telefono ?? null, modulo: v.modulo ?? null, maquina: v.maquina ?? null, fecha_ingreso: v.fechaIngreso ?? null, user_id: uid });
+const fromMovTela = (v: MovimientoTela, uid: string) => ({ id: v.id, fecha: v.fecha, tipo: v.tipo, cliente_id: v.clienteId, tela_id: v.telaId, color_id: v.colorId, rollos: v.rollos, kg_total: v.kgTotal, categoria_color: v.categoriaColor, precio_kg: v.precioKg, total_soles: v.totalSoles, stock_rollos_antes: v.stockRollosAntes, stock_rollos_despues: v.stockRollosDespues, responsable: v.responsable, proveedor_id: v.proveedorId ?? null, n_factura: v.nFactura ?? null, costo_real_fact: v.costoRealFact ?? null, corte_id: v.corteId ?? null, n_corte: v.nCorte ?? null, notas: v.notas, user_id: uid });
+const fromCorte = (v: Corte, uid: string) => ({ id: v.id, n_corte: v.nCorte, fecha: v.fecha, cliente_id: v.clienteId, producto_id: v.productoId, color_id: v.colorId, tela_id: v.telaId ?? null, cortador: v.cortador, ayudante: v.ayudante, kg_usados: v.kgUsados, rollos_usados: v.rollosUsados, tendidas: v.tendidas, mts_por_tendida: v.mtsPorTendida, ancho: v.ancho, cant_s: v.cantS, cant_m: v.cantM, cant_l: v.cantL, cant_xl: v.cantXL, total_prendas: v.totalPrendas, consumo: v.consumo, rendimiento: v.rendimiento, revision: v.revision, traslado: v.traslado, estado: v.estado, pago_cliente: v.pagoCliente, pago_planilla: v.pagoPlanilla, costo_mo_corte: v.costoMoCorte, notas: v.notas, user_id: uid });
+const fromSeguimientoFila = (v: SeguimientoFila, uid: string) => ({ id: v.id, corte_id: v.corteId, n_corte: v.nCorte, producto_id: v.productoId, fecha: v.fecha, color_id: v.colorId, talla: v.talla, cantidad: v.cantidad, asignaciones: v.asignaciones, pct_avance: v.pctAvance, estado: v.estado, total_pago: v.totalPago, user_id: uid });
+const fromBoletaLinea = (v: BoletaLinea, uid: string) => ({ id: v.id, operario_id: v.operarioId, corte_id: v.corteId, n_corte: v.nCorte, producto_id: v.productoId, tarifa_id: v.tarifaId, operacion: v.operacion, orden: v.orden, tarifa: v.tarifa, cant_prendas: v.cantPrendas, importe: v.importe, periodo: v.periodo, estado_pago: v.estadoPago, fecha_pago: v.fechaPago ?? null, user_id: uid });
+const fromDescuento = (v: DescuentoBoleta, uid: string) => ({ id: v.id, operario_id: v.operarioId, periodo: v.periodo, tipo: v.tipo, monto: v.monto, notas: v.notas, user_id: uid });
+const fromPrograma = (v: ProgramaZurzam, uid: string) => ({ id: v.id, nombre: v.nombre, fecha: v.fecha, cliente_id: v.clienteId, rollos_objetivo: v.rollosObjetivo, kg_objetivo: v.kgObjetivo, estado: v.estado, comision_jose: v.comisionJose, estado_pago_comision: v.estadoPagoComision, dias_entrega: v.diasEntrega, notas: v.notas, user_id: uid });
+const fromDetalle = (v: ProgramaDetalle, uid: string) => ({ id: v.id, programa_id: v.programaId, color_id: v.colorId, categoria_color: v.categoriaColor, tipo_servicio: v.tipoServicio, prioridad: v.prioridad, kg_tej_enviado: v.kgTejEnviado, kg_tej_retornado: v.kgTejRetornado, precio_kg_tej: v.precioKgTej, moneda_tej: v.monedaTej, tc_tej: v.tcTej, costo_tejido: v.costoTejido, estado_pago_tej: v.estadoPagoTej, kg_tint_enviado: v.kgTintEnviado, kg_tint_retornado: v.kgTintRetornado, rollos_final: v.rollosFinal, precio_kg_tint: v.precioKgTint, moneda_tint: v.monedaTint, tc_tint: v.tcTint, costo_tint: v.costoTint, estado_pago_tint: v.estadoPagoTint, costo_hilo_prorrateado: v.costoHiloProrrateado, costo_total_color: v.costoTotalColor, notas: v.notas, user_id: uid });
+const fromCompraHilo = (v: CompraHilo, uid: string) => ({ id: v.id, fecha: v.fecha, programa_id: v.programaId, tipo_hilo: v.tipoHilo, kg_asignados: v.kgAsignados, precio_kg: v.precioKg, moneda: v.moneda, tipo_cambio: v.tipoCambio, total_soles: v.totalSoles, proveedor_id: v.proveedorId, n_factura: v.nFactura, costo_real_fact: v.costoRealFact, diferencia: v.diferencia, estado_pago: v.estadoPago, fecha_pago: v.fechaPago ?? null, monto_pagado: v.montoPagado, saldo: v.saldo, notas: v.notas, user_id: uid });
+const fromExtorno = (v: StockExtorno, uid: string) => ({ id: v.id, programa_id: v.programaId, programa_detalle_id: v.programaDetalleId ?? null, fecha: v.fecha, kg_conos: v.kgConos, precio_kg_hilo: v.precioKgHilo, total_soles: v.totalSoles, usado: v.usado, notas: v.notas, user_id: uid });
+const fromCobro = (v: CobroDiario, uid: string) => ({ id: v.id, fecha: v.fecha, n_corte: v.nCorte, n_factura: v.nFactura, cliente_id: v.clienteId, producto_id: v.productoId, color_id: v.colorId, cant_s: v.cantS, cant_m: v.cantM, cant_l: v.cantL, cant_xl: v.cantXL, total_prendas: v.totalPrendas, precio_unitario: v.precioUnitario, bruto: v.bruto, detraccion_10pct: v.detraccion10Pct, disponible_90pct: v.disponible90Pct, estado: v.estado, notas: v.notas, fecha_cobro: v.fechaCobro ?? null, user_id: uid });
+const fromMovComplemento = (v: MovimientoComplemento, uid: string) => ({ id: v.id, fecha: v.fecha, tipo: v.tipo, tipo_complemento: v.tipoComplemento, color_id: v.colorId, talla: v.talla, cantidad: v.cantidad, precio_unit: v.precioUnit, total_soles: v.totalSoles, stock_antes: v.stockAntes, stock_despues: v.stockDespues, corte_id: v.corteId ?? null, n_corte: v.nCorte ?? null, proveedor_id: v.proveedorId ?? null, n_factura: v.nFactura ?? null, responsable: v.responsable, notas: v.notas, user_id: uid });
+
+// ─── Tipos de AppState para carga inicial ────────────────────────────────────
+
+export interface DbAppState {
+  clientes: Cliente[];
+  proveedores: Proveedor[];
+  telas: Tela[];
+  colores: Color[];
+  preciosTelas: PrecioTela[];
+  preciosComplementos: PrecioComplemento[];
+  preciosTejeduria: PrecioTejeduria[];
+  productos: Producto[];
+  tarifasOperaciones: TarifaOperacion[];
+  operarios: Operario[];
+  movimientosTela: MovimientoTela[];
+  cortes: Corte[];
+  seguimientoFilas: SeguimientoFila[];
+  boletaLineas: BoletaLinea[];
+  descuentosBoleta: DescuentoBoleta[];
+  programasZurzam: ProgramaZurzam[];
+  programaDetalles: ProgramaDetalle[];
+  comprasHilo: CompraHilo[];
+  stockExtornos: StockExtorno[];
+  cobrosDiarios: CobroDiario[];
+  movimientosComplemento: MovimientoComplemento[];
+  config: Config | null;
+}
+
+// ─── Carga inicial completa ──────────────────────────────────────────────────
+
+export async function loadAllFromDb(): Promise<DbAppState> {
+  const [
+    c, p, te, co, pt, pc, ptej, pr, to, op,
+    mt, cor, sf, bl, db,
+    pz, pd, ch, se, cd, mc, cfg
+  ] = await Promise.all([
+    supabase.from('clientes').select('*'),
+    supabase.from('proveedores').select('*'),
+    supabase.from('telas').select('*'),
+    supabase.from('colores').select('*'),
+    supabase.from('precios_telas').select('*'),
+    supabase.from('precios_complementos').select('*'),
+    supabase.from('precios_tejeduria').select('*'),
+    supabase.from('productos').select('*'),
+    supabase.from('tarifas_operaciones').select('*'),
+    supabase.from('operarios').select('*'),
+    supabase.from('movimientos_tela').select('*'),
+    supabase.from('cortes').select('*'),
+    supabase.from('seguimiento_filas').select('*'),
+    supabase.from('boleta_lineas').select('*'),
+    supabase.from('descuentos_boleta').select('*'),
+    supabase.from('programas_zurzam').select('*'),
+    supabase.from('programa_detalles').select('*'),
+    supabase.from('compras_hilo').select('*'),
+    supabase.from('stock_extornos').select('*'),
+    supabase.from('cobros_diarios').select('*'),
+    supabase.from('movimientos_complemento').select('*'),
+    supabase.from('config').select('*').eq('id', 'singleton').maybeSingle(),
+  ]);
+
+  return {
+    clientes:              (c.data   ?? []).map(toCliente),
+    proveedores:           (p.data   ?? []).map(toProveedor),
+    telas:                 (te.data  ?? []).map(toTela),
+    colores:               (co.data  ?? []).map(toColor),
+    preciosTelas:          (pt.data  ?? []).map(toPrecioTela),
+    preciosComplementos:   (pc.data  ?? []).map(toPrecioComplemento),
+    preciosTejeduria:      (ptej.data ?? []).map(toPrecioTejeduria),
+    productos:             (pr.data  ?? []).map(toProducto),
+    tarifasOperaciones:    (to.data  ?? []).map(toTarifa),
+    operarios:             (op.data  ?? []).map(toOperario),
+    movimientosTela:       (mt.data  ?? []).map(toMovTela),
+    cortes:                (cor.data ?? []).map(toCorte),
+    seguimientoFilas:      (sf.data  ?? []).map(toSeguimientoFila),
+    boletaLineas:          (bl.data  ?? []).map(toBoletaLinea),
+    descuentosBoleta:      (db.data  ?? []).map(toDescuento),
+    programasZurzam:       (pz.data  ?? []).map(toPrograma),
+    programaDetalles:      (pd.data  ?? []).map(toDetalle),
+    comprasHilo:           (ch.data  ?? []).map(toCompraHilo),
+    stockExtornos:         (se.data  ?? []).map(toExtorno),
+    cobrosDiarios:         (cd.data  ?? []).map(toCobro),
+    movimientosComplemento:(mc.data  ?? []).map(toMovComplemento),
+    config:                cfg.data ? toConfig(cfg.data) : null,
+  };
+}
+
+// ─── Seed inicial (solo primer login: tablas vacías) ─────────────────────────
+
+export async function seedInitialData(state: Omit<DbAppState, 'config'> & { config: Config }) {
+  const uid = await userId();
+
+  const inserts = [
+    supabase.from('clientes').upsert(state.clientes.map(v => fromCliente(v, uid))),
+    supabase.from('proveedores').upsert(state.proveedores.map(v => fromProveedor(v, uid))),
+    supabase.from('telas').upsert(state.telas.map(v => fromTela(v, uid))),
+    supabase.from('colores').upsert(state.colores.map(v => fromColor(v, uid))),
+    supabase.from('precios_telas').upsert(state.preciosTelas.map(v => fromPrecioTela(v, uid))),
+    supabase.from('precios_complementos').upsert(state.preciosComplementos.map(v => fromPrecioComplemento(v, uid))),
+    supabase.from('precios_tejeduria').upsert(state.preciosTejeduria.map(v => fromPrecioTejeduria(v, uid))),
+    supabase.from('productos').upsert(state.productos.map(v => fromProducto(v, uid))),
+    supabase.from('tarifas_operaciones').upsert(state.tarifasOperaciones.map(v => fromTarifa(v, uid))),
+    supabase.from('operarios').upsert(state.operarios.map(v => fromOperario(v, uid))),
+    supabase.from('config').upsert([{ id: 'singleton', ...fromConfig(state.config, uid) }]),
+  ];
+
+  await Promise.all(inserts);
+}
+
+function fromConfig(v: Config, uid: string) {
+  return { umbral_critico: v.umbralCritico, umbral_bajo: v.umbralBajo, merma_pct: v.mermaPct, detraccion_pct: v.detraccionPct, igv_pct: v.igvPct, incluir_igv: v.incluirIgv, tipo_cambio_usd: v.tipoCambioUsd, kg_por_rollo_default: v.kgPorRolloDefault, comision_jose_kg: v.comisionJoseKg, merma_max_tej: v.mermaMaxTej, merma_max_tint: v.mermaMaxTint, user_id: uid };
+}
+
+// ─── CRUD genérico por tabla ─────────────────────────────────────────────────
+
+type TableName = string;
+
+async function dbInsert<T>(table: TableName, row: T, mapper: (v: T, uid: string) => Record<string, unknown>) {
+  const uid = await userId();
+  const { error } = await supabase.from(table).insert(mapper(row, uid));
+  if (error) throw error;
+}
+
+async function dbUpdate<T>(table: TableName, id: string, updates: Partial<T>, fullMapper: (v: T, uid: string) => Record<string, unknown>, current: T) {
+  const uid = await userId();
+  const merged = { ...current, ...updates } as T;
+  const mapped = fullMapper(merged, uid);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { id: _id, user_id: _uid, created_at: _ca, ...fields } = mapped as Record<string, unknown>;
+  void _id; void _uid; void _ca;
+  const { error } = await supabase.from(table).update(fields).eq('id', id);
+  if (error) throw error;
+}
+
+async function dbDelete(table: TableName, id: string) {
+  const { error } = await supabase.from(table).delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ─── API pública por entidad ─────────────────────────────────────────────────
+
+export const db = {
+  // Catálogos
+  clientes: {
+    add: (v: Cliente) => dbInsert('clientes', v, fromCliente),
+    update: (id: string, u: Partial<Cliente>, cur: Cliente) => dbUpdate('clientes', id, u, fromCliente, cur),
+    delete: (id: string) => dbDelete('clientes', id),
+  },
+  proveedores: {
+    add: (v: Proveedor) => dbInsert('proveedores', v, fromProveedor),
+    update: (id: string, u: Partial<Proveedor>, cur: Proveedor) => dbUpdate('proveedores', id, u, fromProveedor, cur),
+    delete: (id: string) => dbDelete('proveedores', id),
+  },
+  telas: {
+    add: (v: Tela) => dbInsert('telas', v, fromTela),
+    update: (id: string, u: Partial<Tela>, cur: Tela) => dbUpdate('telas', id, u, fromTela, cur),
+    delete: (id: string) => dbDelete('telas', id),
+  },
+  colores: {
+    add: (v: Color) => dbInsert('colores', v, fromColor),
+    update: (id: string, u: Partial<Color>, cur: Color) => dbUpdate('colores', id, u, fromColor, cur),
+    delete: (id: string) => dbDelete('colores', id),
+  },
+  preciosTelas: {
+    add: (v: PrecioTela) => dbInsert('precios_telas', v, fromPrecioTela),
+    update: (id: string, u: Partial<PrecioTela>, cur: PrecioTela) => dbUpdate('precios_telas', id, u, fromPrecioTela, cur),
+    delete: (id: string) => dbDelete('precios_telas', id),
+  },
+  preciosComplementos: {
+    add: (v: PrecioComplemento) => dbInsert('precios_complementos', v, fromPrecioComplemento),
+    update: (id: string, u: Partial<PrecioComplemento>, cur: PrecioComplemento) => dbUpdate('precios_complementos', id, u, fromPrecioComplemento, cur),
+    delete: (id: string) => dbDelete('precios_complementos', id),
+  },
+  preciosTejeduria: {
+    add: (v: PrecioTejeduria) => dbInsert('precios_tejeduria', v, fromPrecioTejeduria),
+    update: (id: string, u: Partial<PrecioTejeduria>, cur: PrecioTejeduria) => dbUpdate('precios_tejeduria', id, u, fromPrecioTejeduria, cur),
+    delete: (id: string) => dbDelete('precios_tejeduria', id),
+  },
+  productos: {
+    add: (v: Producto) => dbInsert('productos', v, fromProducto),
+    update: (id: string, u: Partial<Producto>, cur: Producto) => dbUpdate('productos', id, u, fromProducto, cur),
+    delete: (id: string) => dbDelete('productos', id),
+  },
+  tarifasOperaciones: {
+    add: (v: TarifaOperacion) => dbInsert('tarifas_operaciones', v, fromTarifa),
+    update: (id: string, u: Partial<TarifaOperacion>, cur: TarifaOperacion) => dbUpdate('tarifas_operaciones', id, u, fromTarifa, cur),
+    delete: (id: string) => dbDelete('tarifas_operaciones', id),
+  },
+  operarios: {
+    add: (v: Operario) => dbInsert('operarios', v, fromOperario),
+    update: (id: string, u: Partial<Operario>, cur: Operario) => dbUpdate('operarios', id, u, fromOperario, cur),
+    delete: (id: string) => dbDelete('operarios', id),
+  },
+  // Transacciones
+  movimientosTela: {
+    add: (v: MovimientoTela) => dbInsert('movimientos_tela', v, fromMovTela),
+    update: (id: string, u: Partial<MovimientoTela>, cur: MovimientoTela) => dbUpdate('movimientos_tela', id, u, fromMovTela, cur),
+    delete: (id: string) => dbDelete('movimientos_tela', id),
+  },
+  cortes: {
+    add: (v: Corte) => dbInsert('cortes', v, fromCorte),
+    update: (id: string, u: Partial<Corte>, cur: Corte) => dbUpdate('cortes', id, u, fromCorte, cur),
+    delete: (id: string) => dbDelete('cortes', id),
+  },
+  seguimientoFilas: {
+    add: (v: SeguimientoFila) => dbInsert('seguimiento_filas', v, fromSeguimientoFila),
+    update: (id: string, u: Partial<SeguimientoFila>, cur: SeguimientoFila) => dbUpdate('seguimiento_filas', id, u, fromSeguimientoFila, cur),
+    delete: (id: string) => dbDelete('seguimiento_filas', id),
+  },
+  boletaLineas: {
+    add: (v: BoletaLinea) => dbInsert('boleta_lineas', v, fromBoletaLinea),
+    update: (id: string, u: Partial<BoletaLinea>, cur: BoletaLinea) => dbUpdate('boleta_lineas', id, u, fromBoletaLinea, cur),
+    delete: (id: string) => dbDelete('boleta_lineas', id),
+  },
+  descuentosBoleta: {
+    add: (v: DescuentoBoleta) => dbInsert('descuentos_boleta', v, fromDescuento),
+    update: (id: string, u: Partial<DescuentoBoleta>, cur: DescuentoBoleta) => dbUpdate('descuentos_boleta', id, u, fromDescuento, cur),
+    delete: (id: string) => dbDelete('descuentos_boleta', id),
+  },
+  programasZurzam: {
+    add: (v: ProgramaZurzam) => dbInsert('programas_zurzam', v, fromPrograma),
+    update: (id: string, u: Partial<ProgramaZurzam>, cur: ProgramaZurzam) => dbUpdate('programas_zurzam', id, u, fromPrograma, cur),
+    delete: (id: string) => dbDelete('programas_zurzam', id),
+  },
+  programaDetalles: {
+    add: (v: ProgramaDetalle) => dbInsert('programa_detalles', v, fromDetalle),
+    update: (id: string, u: Partial<ProgramaDetalle>, cur: ProgramaDetalle) => dbUpdate('programa_detalles', id, u, fromDetalle, cur),
+    delete: (id: string) => dbDelete('programa_detalles', id),
+  },
+  comprasHilo: {
+    add: (v: CompraHilo) => dbInsert('compras_hilo', v, fromCompraHilo),
+    update: (id: string, u: Partial<CompraHilo>, cur: CompraHilo) => dbUpdate('compras_hilo', id, u, fromCompraHilo, cur),
+    delete: (id: string) => dbDelete('compras_hilo', id),
+  },
+  stockExtornos: {
+    add: (v: StockExtorno) => dbInsert('stock_extornos', v, fromExtorno),
+    update: (id: string, u: Partial<StockExtorno>, cur: StockExtorno) => dbUpdate('stock_extornos', id, u, fromExtorno, cur),
+    delete: (id: string) => dbDelete('stock_extornos', id),
+  },
+  cobrosDiarios: {
+    add: (v: CobroDiario) => dbInsert('cobros_diarios', v, fromCobro),
+    update: (id: string, u: Partial<CobroDiario>, cur: CobroDiario) => dbUpdate('cobros_diarios', id, u, fromCobro, cur),
+    delete: (id: string) => dbDelete('cobros_diarios', id),
+  },
+  movimientosComplemento: {
+    add: (v: MovimientoComplemento) => dbInsert('movimientos_complemento', v, fromMovComplemento),
+    update: (id: string, u: Partial<MovimientoComplemento>, cur: MovimientoComplemento) => dbUpdate('movimientos_complemento', id, u, fromMovComplemento, cur),
+    delete: (id: string) => dbDelete('movimientos_complemento', id),
+  },
+  config: {
+    upsert: async (v: Config) => {
+      const uid = await userId();
+      const { error } = await supabase.from('config').upsert({ id: 'singleton', ...fromConfig(v, uid) });
+      if (error) throw error;
+    },
+  },
+};
+
+// exportar strip por si se necesita en otro lado
+export { strip };

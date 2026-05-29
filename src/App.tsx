@@ -13,14 +13,33 @@ import { Destajo } from './pages/Destajo';
 import { ProgramasZurzam } from './pages/ProgramasZurzam';
 import { CobrosEntregas } from './pages/CobrosEntregas';
 import { Catalogos } from './pages/Catalogos';
+import { Complementos } from './pages/Complementos';
 import { Configuracion } from './pages/Configuracion';
+import { PanelOperativo } from './pages/PanelOperativo';
+import { supabase } from './lib/supabase';
 import introAnim from './assets/login/logo-animado-texajo.gif';
 
 export default function App() {
   const [autenticado, setAutenticado] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   const [mostrarIntro, setMostrarIntro] = useState(false);
   const [sidebarColapsado, setSidebarColapsado] = useState(false);
   const [sidebarMobileOpen, setSidebarMobileOpen] = useState(false);
+
+  // Verificar sesión existente al arrancar
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setAutenticado(!!session);
+      setAuthChecked(true);
+    });
+
+    // Escuchar cambios de sesión (login / logout / token refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAutenticado(!!session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
     if (!mostrarIntro) return;
@@ -28,8 +47,24 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, [mostrarIntro]);
 
+  // Mientras verifica la sesión guardada, pantalla en blanco (evita flash de login)
+  if (!authChecked) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#FFFFFF]">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#173A25] border-t-transparent" />
+      </div>
+    );
+  }
+
   if (!autenticado) {
-    return <Login onLogin={() => { setAutenticado(true); setMostrarIntro(true); }} />;
+    return (
+      <Login
+        onLogin={() => {
+          setAutenticado(true);
+          setMostrarIntro(true);
+        }}
+      />
+    );
   }
 
   if (mostrarIntro) {
@@ -44,13 +79,20 @@ export default function App() {
     );
   }
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setAutenticado(false);
+    setMostrarIntro(false);
+    setSidebarMobileOpen(false);
+  };
+
   return (
     <AppProvider>
       <ToastProvider>
         <Router>
           <div className="flex h-screen overflow-hidden bg-[#F4F2EE] font-sans text-[#1A1A1A]">
 
-            {/* Overlay móvil — toca fuera para cerrar */}
+            {/* Overlay móvil */}
             {sidebarMobileOpen && (
               <div
                 className="fixed inset-0 z-40 bg-black/40 md:hidden"
@@ -58,7 +100,7 @@ export default function App() {
               />
             )}
 
-            {/* Sidebar — drawer en móvil, fijo en desktop */}
+            {/* Sidebar */}
             <div className={`
               fixed inset-y-0 left-0 z-50 transition-transform duration-200
               md:relative md:translate-x-0 md:z-auto md:flex md:shrink-0
@@ -67,11 +109,7 @@ export default function App() {
               <Sidebar
                 colapsado={sidebarColapsado}
                 onToggle={() => setSidebarColapsado(prev => !prev)}
-                onLogout={() => {
-                  setAutenticado(false);
-                  setMostrarIntro(false);
-                  setSidebarMobileOpen(false);
-                }}
+                onLogout={handleLogout}
                 onMobileClose={() => setSidebarMobileOpen(false)}
               />
             </div>
@@ -89,8 +127,10 @@ export default function App() {
                     <Route path="/destajo" element={<Destajo />} />
                     <Route path="/programas" element={<ProgramasZurzam />} />
                     <Route path="/cobros" element={<CobrosEntregas />} />
+                    <Route path="/complementos" element={<Complementos />} />
                     <Route path="/catalogos" element={<Catalogos />} />
                     <Route path="/configuracion" element={<Configuracion />} />
+                    <Route path="/panel" element={<PanelOperativo />} />
                   </Routes>
                 </div>
               </main>

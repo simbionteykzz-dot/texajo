@@ -17,7 +17,7 @@ function soles(n: number) {
 }
 
 export function BoletaOperario({ operario, periodo, onClose }: BoletaOperarioProps) {
-  const { boletaLineas, productos } = useAppContext();
+  const { boletaLineas, productos, descuentosBoleta } = useAppContext();
 
   const lineas = useMemo(() =>
     boletaLineas
@@ -29,8 +29,9 @@ export function BoletaOperario({ operario, periodo, onClose }: BoletaOperarioPro
   const productoMap = useMemo(() => new Map(productos.map(p => [p.id, p])), [productos]);
 
   const totalBruto    = lineas.reduce((s, b) => s + b.importe, 0);
-  const descuento     = totalBruto * 0.01;
-  const totalNeto     = totalBruto - descuento;
+  const descuentos    = descuentosBoleta.filter(d => d.operarioId === operario.id && d.periodo === periodo);
+  const totalDescuentos = descuentos.reduce((s, d) => s + d.monto, 0);
+  const totalNeto     = totalBruto - totalDescuentos;
   const pendiente     = lineas.filter(b => b.estadoPago === 'PENDIENTE').reduce((s, b) => s + b.importe, 0);
   const cortesUnicos  = new Set(lineas.map(b => b.nCorte)).size;
 
@@ -57,6 +58,7 @@ export function BoletaOperario({ operario, periodo, onClose }: BoletaOperarioPro
       totalesPrendas:    lineas.reduce((s, b) => s + b.cantPrendas, 0),
       totalesPendiente:  pendiente,
       totalesImporte:    totalBruto,
+      descuentoOverride: totalDescuentos,
       lineas: lineas.map(ln => ({
         fecha:        ln.fechaPago ?? ln.periodo,
         nCorte:       ln.nCorte,
@@ -242,15 +244,32 @@ export function BoletaOperario({ operario, periodo, onClose }: BoletaOperarioPro
           {/* Resumen financiero */}
           {lineas.length > 0 && (
             <div style={{ padding: '1.25rem 2rem', borderTop: '1px solid #DDD8CF', display: 'flex', justifyContent: 'flex-end', background: '#fff' }}>
-              <div style={{ width: '220px' }}>
+              <div style={{ width: '260px' }}>
+                {/* Fila Bruto */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid #EDE9E0' }}>
                   <span style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#9A8F87' }}>Bruto</span>
                   <span style={{ fontFamily: 'var(--font-mono)', fontSize: '12px' }}>S/. {soles(totalBruto)}</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid #EDE9E0' }}>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#C84B1A' }}>Descuento 1%</span>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: '#C84B1A' }}>− S/. {soles(descuento)}</span>
-                </div>
+
+                {/* Filas de descuentos */}
+                {descuentos.map(d => (
+                  <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid #EDE9E0' }}>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#C84B1A' }}>
+                      {d.tipo}{d.notas ? ` — ${d.notas}` : ''}
+                    </span>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: '#C84B1A' }}>− S/. {soles(d.monto)}</span>
+                  </div>
+                ))}
+
+                {/* Fila total descuentos (solo si hay más de 1) */}
+                {descuentos.length > 1 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid #EDE9E0' }}>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#C84B1A' }}>Total Descuentos</span>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: '#C84B1A' }}>− S/. {soles(totalDescuentos)}</span>
+                  </div>
+                )}
+
+                {/* Fila Neto */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', marginTop: '6px', background: '#173A25' }}>
                   <span style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#7EAA8A' }}>Neto a Pagar</span>
                   <span style={{ fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 900, fontStyle: 'italic', color: '#F5F2EA' }}>S/. {soles(totalNeto)}</span>

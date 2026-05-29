@@ -1,18 +1,27 @@
 import React, { useState, useMemo } from 'react';
+import { motion } from 'motion/react';
 import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
-import { Download, Plus, X, ChevronDown, ChevronRight, FileText } from 'lucide-react';
+import { Download, Plus, X, ChevronDown, ChevronRight, FileText, Trash2 } from 'lucide-react';
 import { SeguimientoFila, SeguimientoAsignacion } from '../types';
 import { exportRowsToXlsx, exportTableToPdf } from '../lib/export';
 
 const uid = () => crypto.randomUUID();
 
 export function ProduccionConfeccion() {
-  const { seguimientoFilas, cortes, productos, colores, operarios, tarifasOperaciones, addSeguimientoFila, updateSeguimientoFila } = useAppContext();
+  const {
+    seguimientoFilas, cortes, productos, colores, operarios, tarifasOperaciones,
+    boletaLineas,
+    addSeguimientoFila, updateSeguimientoFila, deleteSeguimientoFila,
+    addBoletaLinea, updateBoletaLinea,
+  } = useAppContext();
   const { addToast } = useToast();
   const [expandedCorte, setExpandedCorte] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [filterCorteId, setFilterCorteId] = useState('');
+  const [filterDesde, setFilterDesde] = useState('');
+  const [filterHasta, setFilterHasta] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     corteId: '', talla: 'M' as 'S' | 'M' | 'L' | 'XL',
@@ -41,9 +50,14 @@ export function ProduccionConfeccion() {
   }, [seguimientoFilas]);
 
   const cortesConSeguimiento = useMemo(() =>
-    cortes.filter(c => c.estado !== 'ANULADO' && (!filterCorteId || c.id === filterCorteId))
-      .sort((a, b) => b.fecha.localeCompare(a.fecha)),
-    [cortes, filterCorteId]);
+    cortes.filter(c => {
+      if (c.estado === 'ANULADO') return false;
+      if (filterCorteId && c.id !== filterCorteId) return false;
+      if (filterDesde && c.fecha < filterDesde) return false;
+      if (filterHasta && c.fecha > filterHasta) return false;
+      return true;
+    }).sort((a, b) => b.fecha.localeCompare(a.fecha)),
+    [cortes, filterCorteId, filterDesde, filterHasta]);
 
   const handleAddFila = (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,7 +102,40 @@ export function ProduccionConfeccion() {
     const totalPago = asignaciones.reduce((s, a) => s + a.pago, 0);
     const assignedCount = asignaciones.filter(a => a.operarioId).length;
     const pctAvance = asignaciones.length > 0 ? Math.round((assignedCount / asignaciones.length) * 100) : 0;
-    updateSeguimientoFila(filaId, { asignaciones, totalPago, pctAvance });
+    const estado = pctAvance === 100 ? 'LISTO' : fila.estado;
+    updateSeguimientoFila(filaId, { asignaciones, totalPago, pctAvance, estado });
+
+    // Auto-generar BoletaLinea si se asigna operario
+    if (operarioId && tarifa) {
+      const periodo = fila.fecha.slice(0, 7);
+      const existente = boletaLineas.find(
+        b => b.operarioId === operarioId && b.corteId === fila.corteId &&
+             b.tarifaId === tarifaId && b.periodo === periodo
+      );
+      if (existente) {
+        updateBoletaLinea(existente.id, {
+          cantPrendas: fila.cantidad,
+          importe: fila.cantidad * tarifa.tarifa,
+          estadoPago: 'PENDIENTE',
+        });
+      } else {
+        addBoletaLinea({
+          id: uid(),
+          operarioId,
+          corteId: fila.corteId,
+          nCorte: fila.nCorte,
+          productoId: fila.productoId,
+          tarifaId,
+          operacion: tarifa.operacion,
+          orden: tarifa.orden,
+          tarifa: tarifa.tarifa,
+          cantPrendas: fila.cantidad,
+          importe: fila.cantidad * tarifa.tarifa,
+          periodo,
+          estadoPago: 'PENDIENTE',
+        });
+      }
+    }
   };
 
   const buildRows = () => seguimientoFilas.map((f) => {
@@ -136,7 +183,12 @@ export function ProduccionConfeccion() {
   };
 
   return (
-    <div className="space-y-8">
+    <motion.div
+      className="space-y-8"
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.28, ease: 'easeOut' }}
+    >
       <div className="flex items-start justify-between">
         <div>
           <h2 className="text-2xl font-black uppercase tracking-tight">Seguimiento Confección</h2>
@@ -155,13 +207,32 @@ export function ProduccionConfeccion() {
         </div>
       </div>
 
-      <div className="flex gap-3">
-        <select value={filterCorteId} onChange={e => setFilterCorteId(e.target.value)} className="input-base text-xs w-48">
-          <option value="">Todos los cortes</option>
-          {cortes.filter(c => c.estado !== 'ANULADO').map(c => (
-            <option key={c.id} value={c.id}>{c.nCorte}</option>
-          ))}
-        </select>
+      <div className="flex flex-wrap gap-3 items-end">
+        <div>
+          <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Corte</label>
+          <select value={filterCorteId} onChange={e => setFilterCorteId(e.target.value)} className="input-base text-xs w-48">
+            <option value="">Todos los cortes</option>
+            {cortes.filter(c => c.estado !== 'ANULADO').map(c => (
+              <option key={c.id} value={c.id}>{c.nCorte}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Desde</label>
+          <input type="date" value={filterDesde} onChange={e => setFilterDesde(e.target.value)} className="input-base w-36" />
+        </div>
+        <div>
+          <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Hasta</label>
+          <input type="date" value={filterHasta} onChange={e => setFilterHasta(e.target.value)} className="input-base w-36" />
+        </div>
+        {(filterCorteId || filterDesde || filterHasta) && (
+          <button
+            onClick={() => { setFilterCorteId(''); setFilterDesde(''); setFilterHasta(''); }}
+            className="btn-secondary text-xs h-8 px-3 self-end"
+          >
+            Limpiar filtros
+          </button>
+        )}
       </div>
 
       {cortesConSeguimiento.length === 0 ? (
@@ -214,6 +285,7 @@ export function ProduccionConfeccion() {
                               </th>
                             ))}
                             <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500">Total Pago</th>
+                            <th></th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50">
@@ -247,6 +319,19 @@ export function ProduccionConfeccion() {
                                 );
                               })}
                               <td className="px-3 py-2 font-mono text-right font-bold">S/ {fila.totalPago.toFixed(2)}</td>
+                              <td className="px-3 py-2">
+                                {confirmDelete === fila.id ? (
+                                  <span className="flex items-center gap-1 whitespace-nowrap">
+                                    <button onClick={() => { deleteSeguimientoFila(fila.id); setConfirmDelete(null); addToast('Fila eliminada', 'success'); }} className="text-[10px] font-bold text-red-600 hover:text-red-800 uppercase">Sí</button>
+                                    <span className="text-gray-300">/</span>
+                                    <button onClick={() => setConfirmDelete(null)} className="text-[10px] font-bold text-gray-400 hover:text-gray-600 uppercase">No</button>
+                                  </span>
+                                ) : (
+                                  <button onClick={() => setConfirmDelete(fila.id)} className="text-gray-300 hover:text-red-500 transition-colors">
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
+                              </td>
                             </tr>
                           ))}
                         </tbody>
@@ -298,7 +383,7 @@ export function ProduccionConfeccion() {
           </div>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }
 

@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
+import { motion } from 'motion/react';
 import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
-import { Download, Plus, X, FileText, Receipt } from 'lucide-react';
-import { BoletaLinea } from '../types';
+import { Download, Plus, X, FileText, Receipt, Users, BarChart2 } from 'lucide-react';
+import { BoletaLinea, TipoDescuentoBoleta } from '../types';
 import { exportRowsToXlsx, exportTableToPdf } from '../lib/export';
 import { BoletaOperario } from '../components/BoletaOperario';
 
@@ -21,25 +22,68 @@ const PERIODOS = (() => {
 export function Destajo() {
   const {
     boletaLineas, operarios, cortes, productos, tarifasOperaciones,
-    addBoletaLinea, addBoletaLineas, updateBoletaLinea,
+    addBoletaLinea, addBoletaLineas, updateBoletaLinea, deleteBoletaLinea,
+    descuentosBoleta, addDescuentoBoleta, deleteDescuentoBoleta,
   } = useAppContext();
   const { addToast } = useToast();
 
+  const [activeTab, setActiveTab] = useState<'boleta' | 'resumen' | 'general'>('boleta');
+
+  // ── Tab: Mi Boleta ──
   const [selectedOperario, setSelectedOperario] = useState('');
   const [selectedPeriodo, setSelectedPeriodo] = useState(PERIODOS[0]);
   const [showForm, setShowForm] = useState(false);
   const [bulkCorteId, setBulkCorteId] = useState('');
   const [showBoleta, setShowBoleta] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
-  // Líneas del modal multi-fila
+  // ── Descuentos boleta ──
+  const [showDescForm, setShowDescForm] = useState(false);
+  const [descForm, setDescForm] = useState<{ tipo: TipoDescuentoBoleta; monto: string; notas: string }>({ tipo: 'ADELANTO', monto: '', notas: '' });
+
+  // ── Tab: Resumen ──
+  const [rPeriodo, setRPeriodo] = useState(PERIODOS[0]);
+
+  // ── Tab: Vista General ──
+  const [gOperarioId, setGOperarioId] = useState('');
+  const [gOperacion, setGOperacion] = useState('');
+  const [gPeriodo, setGPeriodo] = useState('');
+  const [gEstado, setGEstado] = useState<'' | 'PENDIENTE' | 'PAGADO'>('');
+
+  // Modal multi-operario: cada sección tiene su propio array de líneas draft
   type DraftLinea = { id: string; corteId: string; tarifaId: string; cantPrendas: string };
-  const [draftLineas, setDraftLineas] = useState<DraftLinea[]>([{ id: uid(), corteId: '', tarifaId: '', cantPrendas: '' }]);
-  const [extraOperarioId, setExtraOperarioId] = useState('');
+  type DraftSeccion = { operarioId: string; lineas: DraftLinea[] };
 
-  const addDraftRow = () => setDraftLineas(prev => [...prev, { id: uid(), corteId: '', tarifaId: '', cantPrendas: '' }]);
-  const removeDraftRow = (id: string) => setDraftLineas(prev => prev.filter(r => r.id !== id));
-  const updateDraftRow = (id: string, patch: Partial<DraftLinea>) =>
-    setDraftLineas(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r));
+  const emptyLinea = (): DraftLinea => ({ id: uid(), corteId: '', tarifaId: '', cantPrendas: '' });
+  const emptySeccion = (opId: string): DraftSeccion => ({ operarioId: opId, lineas: [emptyLinea()] });
+
+  const [draftSecciones, setDraftSecciones] = useState<DraftSeccion[]>([]);
+
+  const resetDraft = () => setDraftSecciones([emptySeccion(selectedOperario)]);
+
+  // helpers por sección
+  const addRowToSeccion = (opId: string) =>
+    setDraftSecciones(prev => prev.map(s => s.operarioId === opId ? { ...s, lineas: [...s.lineas, emptyLinea()] } : s));
+
+  const removeRowFromSeccion = (opId: string, rowId: string) =>
+    setDraftSecciones(prev => prev.map(s =>
+      s.operarioId === opId ? { ...s, lineas: s.lineas.filter(r => r.id !== rowId) } : s
+    ));
+
+  const updateRowInSeccion = (opId: string, rowId: string, patch: Partial<DraftLinea>) =>
+    setDraftSecciones(prev => prev.map(s =>
+      s.operarioId === opId
+        ? { ...s, lineas: s.lineas.map(r => r.id === rowId ? { ...r, ...patch } : r) }
+        : s
+    ));
+
+  const addExtraSeccion = (opId: string) => {
+    if (!opId || draftSecciones.some(s => s.operarioId === opId)) return;
+    setDraftSecciones(prev => [...prev, emptySeccion(opId)]);
+  };
+
+  const removeSeccion = (opId: string) =>
+    setDraftSecciones(prev => prev.filter(s => s.operarioId !== opId));
 
   const operarioMap = useMemo(() => new Map(operarios.map(o => [o.id, o])), [operarios]);
   const productoMap = useMemo(() => new Map(productos.map(p => [p.id, p])), [productos]);
@@ -59,16 +103,62 @@ export function Destajo() {
       .sort((a, b) => a.nCorte.localeCompare(b.nCorte) || a.orden - b.orden),
     [boletaLineas, selectedOperario, selectedPeriodo]);
 
+  // Vista general: todas las líneas con filtros opcionales
+  const todasOperaciones = useMemo(() => {
+    const ops = new Set<string>();
+    boletaLineas.forEach(b => ops.add(b.operacion));
+    return Array.from(ops).sort();
+  }, [boletaLineas]);
+
+  const lineasGenerales = useMemo(() => {
+    return boletaLineas
+      .filter(b => {
+        if (gOperarioId && b.operarioId !== gOperarioId) return false;
+        if (gOperacion && b.operacion !== gOperacion) return false;
+        if (gPeriodo && b.periodo !== gPeriodo) return false;
+        if (gEstado && b.estadoPago !== gEstado) return false;
+        return true;
+      })
+      .sort((a, b) => b.periodo.localeCompare(a.periodo) || a.nCorte.localeCompare(b.nCorte) || a.orden - b.orden);
+  }, [boletaLineas, gOperarioId, gOperacion, gPeriodo, gEstado]);
+
+  const totalGeneral = lineasGenerales.reduce((s, b) => s + b.importe, 0);
+
+  // Resumen por operario en un período dado
+  const resumenPorOperario = useMemo(() => {
+    const lineasPeriodo = boletaLineas.filter(b => b.periodo === rPeriodo);
+    const map = new Map<string, { total: number; prendas: number; pagado: number; pendiente: number; nLineas: number }>();
+    for (const b of lineasPeriodo) {
+      const prev = map.get(b.operarioId) ?? { total: 0, prendas: 0, pagado: 0, pendiente: 0, nLineas: 0 };
+      map.set(b.operarioId, {
+        total: prev.total + b.importe,
+        prendas: prev.prendas + b.cantPrendas,
+        pagado: prev.pagado + (b.estadoPago === 'PAGADO' ? b.importe : 0),
+        pendiente: prev.pendiente + (b.estadoPago === 'PENDIENTE' ? b.importe : 0),
+        nLineas: prev.nLineas + 1,
+      });
+    }
+    return Array.from(map.entries())
+      .map(([operarioId, stats]) => ({ operarioId, ...stats }))
+      .sort((a, b) => b.total - a.total);
+  }, [boletaLineas, rPeriodo]);
+
   const totalBruto = lineasFiltradas.reduce((s, b) => s + b.importe, 0);
-  const descuento1pct = totalBruto * 0.01;
-  const totalNeto = totalBruto - descuento1pct;
+
+  const descuentosFiltrados = useMemo(() =>
+    descuentosBoleta.filter(d => d.operarioId === selectedOperario && d.periodo === selectedPeriodo),
+    [descuentosBoleta, selectedOperario, selectedPeriodo]
+  );
+  const totalDescuentos = descuentosFiltrados.reduce((s, d) => s + d.monto, 0);
+  const totalNeto = totalBruto - totalDescuentos;
 
   const pendientes = lineasFiltradas.filter(b => b.estadoPago === 'PENDIENTE');
   const pagadas = lineasFiltradas.filter(b => b.estadoPago === 'PAGADO');
 
-  const buildLineasParaOperario = (opId: string, validas: DraftLinea[]): BoletaLinea[] => {
+  const buildLineasParaOperario = (opId: string, lineas: DraftLinea[]): BoletaLinea[] => {
     const result: BoletaLinea[] = [];
-    for (const r of validas) {
+    for (const r of lineas) {
+      if (!r.corteId || !r.tarifaId || !r.cantPrendas) continue;
       const tarifa = tarifasOperaciones.find(t => t.id === r.tarifaId);
       const corte = corteMap.get(r.corteId);
       if (!tarifa || !corte) continue;
@@ -94,21 +184,16 @@ export function Destajo() {
 
   const handleAddLineas = (e: React.FormEvent) => {
     e.preventDefault();
-    const validas = draftLineas.filter(r => r.corteId && r.tarifaId && r.cantPrendas);
-    if (validas.length === 0) {
+    const nuevas: BoletaLinea[] = draftSecciones.flatMap(s => buildLineasParaOperario(s.operarioId, s.lineas));
+    if (nuevas.length === 0) {
       addToast('Completa al menos una línea con corte, operación y cantidad', 'error');
       return;
     }
-    const nuevas: BoletaLinea[] = [
-      ...buildLineasParaOperario(selectedOperario, validas),
-      ...(extraOperarioId ? buildLineasParaOperario(extraOperarioId, validas) : []),
-    ];
     addBoletaLineas(nuevas);
-    const ops = extraOperarioId ? 2 : 1;
-    addToast(`${validas.length} línea${validas.length !== 1 ? 's' : ''} agregada${validas.length !== 1 ? 's' : ''} para ${ops} operario${ops > 1 ? 's' : ''}`, 'success');
+    const nOps = draftSecciones.filter(s => buildLineasParaOperario(s.operarioId, s.lineas).length > 0).length;
+    addToast(`${nuevas.length} línea${nuevas.length !== 1 ? 's' : ''} guardada${nuevas.length !== 1 ? 's' : ''} para ${nOps} operario${nOps > 1 ? 's' : ''}`, 'success');
     setShowForm(false);
-    setDraftLineas([{ id: uid(), corteId: '', tarifaId: '', cantPrendas: '' }]);
-    setExtraOperarioId('');
+    resetDraft();
   };
 
   const handleBulkAdd = () => {
@@ -190,11 +275,265 @@ export function Destajo() {
   };
 
   return (
-    <div className="space-y-8">
+    <motion.div
+      className="space-y-8"
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.28, ease: 'easeOut' }}
+    >
+      {/* Encabezado + tabs */}
       <div>
         <h2 className="text-2xl font-black uppercase tracking-tight">Destajo</h2>
-        <p className="text-xs text-gray-500 mt-1">Pago por destajo — prendas × tarifa, descuento 1%</p>
+        <p className="text-xs text-gray-500 mt-1">Pago por destajo — prendas × tarifa con descuentos configurables por operario</p>
+        <div className="flex gap-1 mt-4 border-b border-[#DDD8CF]">
+          {([
+            { key: 'boleta', label: 'Mi Boleta', icon: Receipt },
+            { key: 'resumen', label: 'Resumen', icon: BarChart2 },
+            { key: 'general', label: 'Vista General', icon: Users },
+          ] as const).map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              onClick={() => setActiveTab(key)}
+              className={`flex items-center gap-2 px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-b-2 -mb-px transition-colors ${
+                activeTab === key
+                  ? 'border-[#B66F35] text-[#1a1a1a]'
+                  : 'border-transparent text-gray-400 hover:text-gray-600'
+              }`}
+            >
+              <Icon className="h-3.5 w-3.5" />{label}
+            </button>
+          ))}
+        </div>
       </div>
+
+      {/* ══════════════ TAB: RESUMEN ══════════════ */}
+      {activeTab === 'resumen' && (
+        <div className="space-y-6">
+          <div className="flex items-end gap-4">
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Período</label>
+              <select value={rPeriodo} onChange={e => setRPeriodo(e.target.value)} className="input-base w-36">
+                {PERIODOS.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
+          </div>
+          {resumenPorOperario.length === 0 ? (
+            <p className="text-sm text-gray-400 italic">Sin datos para este período.</p>
+          ) : (
+            <div className="bg-white border border-gray-200 overflow-x-auto">
+              <table className="min-w-full text-xs">
+                <thead>
+                  <tr className="border-b border-gray-200 bg-gray-50">
+                    {['Operario', 'Prendas', 'Líneas', 'Total Bruto', 'Pagado', 'Pendiente', 'Acción'].map(h => (
+                      <th key={h} className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500 whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {resumenPorOperario.map(r => {
+                    const op = operarioMap.get(r.operarioId);
+                    return (
+                      <tr key={r.operarioId} className="hover:bg-gray-50">
+                        <td className="px-3 py-2">
+                          <div className="font-bold">{op?.nombre ?? r.operarioId}</div>
+                          <div className="text-[10px] text-gray-400 font-mono">{op?.codigo}</div>
+                        </td>
+                        <td className="px-3 py-2 font-mono text-right">{r.prendas.toLocaleString()}</td>
+                        <td className="px-3 py-2 font-mono text-right">{r.nLineas}</td>
+                        <td className="px-3 py-2 font-mono text-right font-bold">S/ {r.total.toFixed(2)}</td>
+                        <td className="px-3 py-2 font-mono text-right text-green-700">S/ {r.pagado.toFixed(2)}</td>
+                        <td className="px-3 py-2 font-mono text-right text-yellow-700">S/ {r.pendiente.toFixed(2)}</td>
+                        <td className="px-3 py-2">
+                          {r.pendiente > 0 && (
+                            <button
+                              onClick={() => {
+                                const hoy = new Date().toISOString().slice(0, 10);
+                                boletaLineas
+                                  .filter(b => b.operarioId === r.operarioId && b.periodo === rPeriodo && b.estadoPago === 'PENDIENTE')
+                                  .forEach(b => updateBoletaLinea(b.id, { estadoPago: 'PAGADO', fechaPago: hoy }));
+                                addToast(`${op?.nombre ?? r.operarioId} marcado como pagado`, 'success');
+                              }}
+                              className="text-[10px] font-bold uppercase text-green-700 border border-green-300 px-2 py-0.5 hover:bg-green-50 whitespace-nowrap"
+                            >Marcar Pagado</button>
+                          )}
+                          {r.pendiente === 0 && r.total > 0 && (
+                            <span className="text-[10px] font-bold uppercase text-green-700">✓ Pagado</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-gray-200">
+                    <td className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">Total</td>
+                    <td className="px-3 py-2 font-mono text-right font-bold">{resumenPorOperario.reduce((s, r) => s + r.prendas, 0).toLocaleString()}</td>
+                    <td className="px-3 py-2 font-mono text-right">{resumenPorOperario.reduce((s, r) => s + r.nLineas, 0)}</td>
+                    <td className="px-3 py-2 font-mono text-right font-black">S/ {resumenPorOperario.reduce((s, r) => s + r.total, 0).toFixed(2)}</td>
+                    <td className="px-3 py-2 font-mono text-right font-bold text-green-700">S/ {resumenPorOperario.reduce((s, r) => s + r.pagado, 0).toFixed(2)}</td>
+                    <td className="px-3 py-2 font-mono text-right font-bold text-yellow-700">S/ {resumenPorOperario.reduce((s, r) => s + r.pendiente, 0).toFixed(2)}</td>
+                    <td />
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══════════════ TAB: VISTA GENERAL ══════════════ */}
+      {activeTab === 'general' && (
+        <div className="space-y-6">
+          {/* Filtros */}
+          <div className="flex flex-wrap gap-4 bg-white border border-[#DDD8CF] p-4">
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Operario</label>
+              <select value={gOperarioId} onChange={e => setGOperarioId(e.target.value)} className="input-base w-52">
+                <option value="">Todos</option>
+                {operarios.map(o => (
+                  <option key={o.id} value={o.id}>{o.codigo} — {o.nombre}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Operación</label>
+              <select value={gOperacion} onChange={e => setGOperacion(e.target.value)} className="input-base w-52">
+                <option value="">Todas</option>
+                {todasOperaciones.map(op => (
+                  <option key={op} value={op}>{op}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Período</label>
+              <select value={gPeriodo} onChange={e => setGPeriodo(e.target.value)} className="input-base w-36">
+                <option value="">Todos</option>
+                {PERIODOS.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Estado</label>
+              <select value={gEstado} onChange={e => setGEstado(e.target.value as typeof gEstado)} className="input-base w-36">
+                <option value="">Todos</option>
+                <option value="PENDIENTE">Pendiente</option>
+                <option value="PAGADO">Pagado</option>
+              </select>
+            </div>
+            {(gOperarioId || gOperacion || gPeriodo || gEstado) && (
+              <div className="flex items-end">
+                <button
+                  onClick={() => { setGOperarioId(''); setGOperacion(''); setGPeriodo(''); setGEstado(''); }}
+                  className="text-[10px] font-bold uppercase tracking-widest text-gray-400 hover:text-red-500 flex items-center gap-1"
+                >
+                  <X className="h-3 w-3" /> Limpiar
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Contador */}
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400">
+              {lineasGenerales.length} línea{lineasGenerales.length !== 1 ? 's' : ''}
+              {lineasGenerales.length > 0 && (
+                <span className="ml-3 text-[#1a1a1a]">Total S/ {totalGeneral.toFixed(2)}</span>
+              )}
+            </p>
+          </div>
+
+          {/* Tabla */}
+          {lineasGenerales.length === 0 ? (
+            <div className="texajo-table-shell">
+              <div className="texajo-table-scroll">
+                <table className="texajo-table">
+                  <thead>
+                    <tr>
+                      {['Período', 'Operario', 'N° Corte', 'Operación', 'Tarifa', 'Prendas', 'Importe', 'Estado', ''].map(h => (
+                        <th key={h}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr><td colSpan={9} className="texajo-empty-row">Sin resultados</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            <div className="texajo-table-shell">
+              <div className="texajo-table-scroll">
+                <table className="texajo-table texajo-table--wide">
+                  <thead>
+                    <tr>
+                      <th>Período</th>
+                      <th>Operario</th>
+                      <th>N° Corte</th>
+                      <th>Operación</th>
+                      <th className="text-right">Tarifa</th>
+                      <th className="text-right">Prendas</th>
+                      <th className="text-right">Importe</th>
+                      <th className="text-center">Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lineasGenerales.map(b => {
+                      const op = operarioMap.get(b.operarioId);
+                      return (
+                        <tr key={b.id} className={b.estadoPago === 'PAGADO' ? 'opacity-60' : ''}>
+                          <td className="font-mono text-xs">{b.periodo}</td>
+                          <td>
+                            <div className="font-bold text-[11px]">{op?.nombre ?? b.operarioId}</div>
+                            <div className="text-[10px] text-gray-400 font-mono">{op?.codigo}</div>
+                          </td>
+                          <td className="font-mono">{b.nCorte}</td>
+                          <td>{b.operacion}</td>
+                          <td className="text-right font-mono">S/ {b.tarifa.toFixed(3)}</td>
+                          <td className="text-right font-mono">{b.cantPrendas}</td>
+                          <td className="text-right font-mono font-bold">S/ {b.importe.toFixed(2)}</td>
+                          <td className="text-center">
+                            <span className={`text-[10px] font-bold uppercase px-2 py-0.5 ${
+                              b.estadoPago === 'PAGADO'
+                                ? 'bg-green-100 text-green-700'
+                                : 'bg-yellow-100 text-yellow-700'
+                            }`}>
+                              {b.estadoPago}
+                            </span>
+                          </td>
+                          <td className="px-2">
+                            {confirmDelete === b.id ? (
+                              <span className="flex items-center gap-1 whitespace-nowrap">
+                                <button onClick={() => { deleteBoletaLinea(b.id); setConfirmDelete(null); addToast('Línea eliminada', 'success'); }} className="text-[10px] font-bold text-red-600 hover:text-red-800 uppercase">Sí</button>
+                                <span className="text-gray-300">/</span>
+                                <button onClick={() => setConfirmDelete(null)} className="text-[10px] font-bold text-gray-400 hover:text-gray-600 uppercase">No</button>
+                              </span>
+                            ) : (
+                              <button onClick={() => setConfirmDelete(b.id)} className="text-gray-300 hover:text-red-500 transition-colors">
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td colSpan={6} className="text-[10px] font-bold uppercase tracking-widest text-gray-500 px-4 py-3">
+                        Total — {lineasGenerales.length} línea{lineasGenerales.length !== 1 ? 's' : ''}
+                      </td>
+                      <td className="text-right font-mono font-black px-4 py-3">S/ {totalGeneral.toFixed(2)}</td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══════════════ TAB: MI BOLETA ══════════════ */}
+      {activeTab === 'boleta' && <>
 
       {/* Selectores */}
       <div className="flex flex-wrap gap-4 bg-white border border-gray-200 p-4">
@@ -215,7 +554,7 @@ export function Destajo() {
         </div>
         {selectedOperario && (
           <div className="flex items-end gap-2">
-            <button onClick={() => setShowForm(true)} className="btn-primary flex items-center gap-2 text-xs">
+            <button onClick={() => { resetDraft(); setShowForm(true); }} className="btn-primary flex items-center gap-2 text-xs">
               <Plus className="h-3 w-3" /> Agregar Línea
             </button>
             <button onClick={() => setShowBoleta(true)} className="btn-secondary flex items-center gap-2 text-xs">
@@ -306,12 +645,25 @@ export function Destajo() {
                         </span>
                       </td>
                       <td className="px-3 py-2">
-                        {b.estadoPago === 'PENDIENTE' && (
-                          <button
-                            onClick={() => updateBoletaLinea(b.id, { estadoPago: 'PAGADO', fechaPago: new Date().toISOString().slice(0, 10) })}
-                            className="text-[10px] text-green-600 hover:text-green-800 font-bold uppercase"
-                          >Pagar</button>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {b.estadoPago === 'PENDIENTE' && (
+                            <button
+                              onClick={() => updateBoletaLinea(b.id, { estadoPago: 'PAGADO', fechaPago: new Date().toISOString().slice(0, 10) })}
+                              className="text-[10px] text-green-600 hover:text-green-800 font-bold uppercase"
+                            >Pagar</button>
+                          )}
+                          {confirmDelete === b.id ? (
+                            <span className="flex items-center gap-1 whitespace-nowrap">
+                              <button onClick={() => { deleteBoletaLinea(b.id); setConfirmDelete(null); addToast('Línea eliminada', 'success'); }} className="text-[10px] font-bold text-red-600 hover:text-red-800 uppercase">Sí</button>
+                              <span className="text-gray-300">/</span>
+                              <button onClick={() => setConfirmDelete(null)} className="text-[10px] font-bold text-gray-400 hover:text-gray-600 uppercase">No</button>
+                            </span>
+                          ) : (
+                            <button onClick={() => setConfirmDelete(b.id)} className="text-gray-300 hover:text-red-500 transition-colors">
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -322,19 +674,35 @@ export function Destajo() {
 
           {lineasFiltradas.length > 0 && (
             <div className="mt-4 flex justify-end">
-              <div className="bg-white border border-gray-200 p-4 w-64 space-y-2">
+              <div className="bg-white border border-gray-200 p-4 w-72 space-y-2">
+                {/* Bruto */}
                 <div className="flex justify-between text-xs">
-                  <span className="text-gray-500 font-bold uppercase">Bruto</span>
+                  <span className="text-gray-500 font-bold uppercase">Bruto Destajo</span>
                   <span className="font-mono">S/ {totalBruto.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between text-xs text-red-700">
-                  <span className="font-bold uppercase">Descuento 1%</span>
-                  <span className="font-mono">- S/ {descuento1pct.toFixed(2)}</span>
-                </div>
+
+                {/* Descuentos individuales */}
+                {descuentosFiltrados.map(d => (
+                  <div key={d.id} className="flex justify-between text-xs text-red-700">
+                    <span className="font-bold uppercase">{d.tipo}{d.notas ? ` — ${d.notas}` : ''}</span>
+                    <span className="font-mono">− S/ {d.monto.toFixed(2)}</span>
+                  </div>
+                ))}
+
+                {/* Total descuentos (solo si hay más de uno) */}
+                {descuentosFiltrados.length > 1 && (
+                  <div className="flex justify-between text-xs text-red-700 border-t border-red-100 pt-1">
+                    <span className="font-bold uppercase">Total Descuentos</span>
+                    <span className="font-mono">− S/ {totalDescuentos.toFixed(2)}</span>
+                  </div>
+                )}
+
+                {/* Neto */}
                 <div className="flex justify-between text-sm font-black border-t border-gray-200 pt-2">
                   <span className="uppercase">Neto a Pagar</span>
-                  <span className="font-mono">S/ {totalNeto.toFixed(2)}</span>
+                  <span className="font-mono text-[#173A25]">S/ {totalNeto.toFixed(2)}</span>
                 </div>
+
                 {pagadas.length > 0 && (
                   <p className="text-[10px] text-gray-500 pt-1">
                     {pagadas.length} líneas pagadas de {lineasFiltradas.length}
@@ -343,8 +711,121 @@ export function Destajo() {
               </div>
             </div>
           )}
+
+          {/* ── Gestión de descuentos ── */}
+          {selectedOperario && lineasFiltradas.length > 0 && (
+            <div className="mt-4 bg-white border border-gray-200 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                  Descuentos del período
+                </h4>
+                <button
+                  onClick={() => setShowDescForm(v => !v)}
+                  className="btn-primary flex items-center gap-1 text-xs"
+                >
+                  <Plus className="h-3 w-3" /> Agregar Descuento
+                </button>
+              </div>
+
+              {/* Lista de descuentos existentes */}
+              {descuentosFiltrados.length === 0 ? (
+                <p className="text-xs text-gray-400 italic">Sin descuentos registrados para este período.</p>
+              ) : (
+                <ul className="space-y-1">
+                  {descuentosFiltrados.map(d => (
+                    <li key={d.id} className="flex items-center justify-between text-xs bg-red-50 border border-red-100 px-3 py-1.5">
+                      <span className="text-red-700 font-bold uppercase">{d.tipo}</span>
+                      {d.notas && <span className="text-gray-500 mx-2 flex-1 truncate">{d.notas}</span>}
+                      <span className="font-mono text-red-700 font-bold mr-3">− S/ {d.monto.toFixed(2)}</span>
+                      <button
+                        onClick={() => { deleteDescuentoBoleta(d.id); addToast('Descuento eliminado', 'success'); }}
+                        className="text-gray-300 hover:text-red-500 transition-colors"
+                        title="Eliminar descuento"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {/* Mini-form inline */}
+              {showDescForm && (
+                <form
+                  onSubmit={e => {
+                    e.preventDefault();
+                    const monto = parseFloat(descForm.monto);
+                    if (!monto || monto <= 0) { addToast('Ingresa un monto válido', 'error'); return; }
+                    addDescuentoBoleta({
+                      id: crypto.randomUUID(),
+                      operarioId: selectedOperario,
+                      periodo: selectedPeriodo,
+                      tipo: descForm.tipo,
+                      monto,
+                      notas: descForm.notas.trim(),
+                    });
+                    addToast('Descuento agregado', 'success');
+                    setDescForm({ tipo: 'ADELANTO', monto: '', notas: '' });
+                    setShowDescForm(false);
+                  }}
+                  className="border border-gray-200 bg-gray-50 p-3 space-y-2"
+                >
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Nuevo descuento</p>
+                  <div className="flex flex-wrap gap-2 items-end">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Tipo</label>
+                      <select
+                        value={descForm.tipo}
+                        onChange={e => setDescForm(f => ({ ...f, tipo: e.target.value as TipoDescuentoBoleta }))}
+                        className="input-base text-xs w-36"
+                      >
+                        <option value="ADELANTO">Adelanto</option>
+                        <option value="CAFETÍN">Cafetín</option>
+                        <option value="PRÉSTAMO">Préstamo</option>
+                        <option value="FALTA">Falta</option>
+                        <option value="OTRO">Otro</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Monto S/</label>
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={descForm.monto}
+                        onChange={e => setDescForm(f => ({ ...f, monto: e.target.value }))}
+                        placeholder="0.00"
+                        className="input-base text-xs w-28 text-right"
+                        required
+                      />
+                    </div>
+                    <div className="flex-1 min-w-[140px]">
+                      <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Notas (opcional)</label>
+                      <input
+                        type="text"
+                        value={descForm.notas}
+                        onChange={e => setDescForm(f => ({ ...f, notas: e.target.value }))}
+                        placeholder="Descripción…"
+                        className="input-base text-xs w-full"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <button type="submit" className="btn-primary text-xs">Guardar</button>
+                      <button
+                        type="button"
+                        onClick={() => { setShowDescForm(false); setDescForm({ tipo: 'ADELANTO', monto: '', notas: '' }); }}
+                        className="btn-secondary text-xs"
+                      >Cancelar</button>
+                    </div>
+                  </div>
+                </form>
+              )}
+            </div>
+          )}
         </div>
       )}
+
+      </> /* fin tab boleta */}
 
       {/* Boleta operario */}
       {showBoleta && selectedOperario && (() => {
@@ -352,133 +833,157 @@ export function Destajo() {
         return operario ? <BoletaOperario operario={operario} periodo={selectedPeriodo} onClose={() => setShowBoleta(false)} /> : null;
       })()}
 
-      {/* Modal agregar múltiples líneas */}
+      {/* Modal agregar líneas — secciones por operario */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="bg-white border border-gray-300 w-full max-w-3xl max-h-[90vh] flex flex-col">
+
+            {/* Header */}
             <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 shrink-0">
               <div>
                 <h3 className="text-sm font-black uppercase tracking-widest">Agregar Líneas</h3>
-                <p className="text-[10px] text-gray-400 mt-0.5 uppercase tracking-widest">
-                  {operarioMap.get(selectedOperario)?.nombre} — {selectedPeriodo}
-                </p>
+                <p className="text-[10px] text-gray-400 mt-0.5 uppercase tracking-widest">{selectedPeriodo}</p>
               </div>
-              <button onClick={() => { setShowForm(false); setDraftLineas([{ id: uid(), corteId: '', tarifaId: '', cantPrendas: '' }]); setExtraOperarioId(''); }}>
+              <button type="button" onClick={() => { setShowForm(false); resetDraft(); }}>
                 <X className="h-4 w-4" />
               </button>
             </div>
 
             <form onSubmit={handleAddLineas} className="flex flex-col flex-1 overflow-hidden">
-              <div className="overflow-y-auto flex-1 p-4 space-y-2">
-                {/* Cabecera */}
-                <div className="grid grid-cols-[1fr_1fr_90px_32px] gap-2 px-1">
-                  {['Corte', 'Operación', 'Prendas', ''].map(h => (
-                    <span key={h} className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{h}</span>
-                  ))}
-                </div>
+              <div className="overflow-y-auto flex-1 p-4 space-y-5">
 
-                {draftLineas.map((row, idx) => {
-                  const tarifasRow = row.corteId ? (tarifasPorCorte.get(row.corteId) ?? []) : [];
+                {draftSecciones.map((seccion, secIdx) => {
+                  const opNombre = operarioMap.get(seccion.operarioId)?.nombre ?? seccion.operarioId;
+                  const esPrimero = secIdx === 0;
                   return (
-                    <div key={row.id} className="grid grid-cols-[1fr_1fr_90px_32px] gap-2 items-center">
-                      {/* Corte */}
-                      <select
-                        value={row.corteId}
-                        onChange={e => updateDraftRow(row.id, { corteId: e.target.value, tarifaId: '' })}
-                        className="input-base text-xs"
-                      >
-                        <option value="">Seleccionar…</option>
-                        {cortes.filter(c => c.estado !== 'ANULADO').map(c => (
-                          <option key={c.id} value={c.id}>{c.nCorte} — {productoMap.get(c.productoId)?.nombre}</option>
-                        ))}
-                      </select>
+                    <div key={seccion.operarioId} className="border border-gray-200 bg-gray-50">
+                      {/* Encabezado sección */}
+                      <div className="flex items-center justify-between bg-[#1a1a1a] px-4 py-2">
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-[#f9f7f2]">
+                          {opNombre}
+                        </span>
+                        {!esPrimero && (
+                          <button
+                            type="button"
+                            onClick={() => removeSeccion(seccion.operarioId)}
+                            className="text-gray-400 hover:text-red-400 transition-colors"
+                            tabIndex={-1}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
 
-                      {/* Operación */}
-                      <select
-                        value={row.tarifaId}
-                        onChange={e => updateDraftRow(row.id, { tarifaId: e.target.value })}
-                        className="input-base text-xs"
-                        disabled={!row.corteId}
-                      >
-                        <option value="">Seleccionar…</option>
-                        {tarifasRow.map(t => (
-                          <option key={t.id} value={t.id}>{t.orden}. {t.operacion} — S/{t.tarifa.toFixed(3)}</option>
-                        ))}
-                      </select>
+                      <div className="p-3 space-y-2">
+                        {/* Cabecera columnas */}
+                        <div className="grid grid-cols-[1fr_1fr_90px_32px] gap-2 px-1">
+                          {['Corte', 'Operación', 'Prendas', ''].map(h => (
+                            <span key={h} className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{h}</span>
+                          ))}
+                        </div>
 
-                      {/* Cantidad */}
-                      <input
-                        type="number" min={0}
-                        value={row.cantPrendas}
-                        onChange={e => updateDraftRow(row.id, { cantPrendas: e.target.value })}
-                        placeholder="0"
-                        className="input-base text-xs text-right"
-                      />
+                        {/* Filas */}
+                        {seccion.lineas.map(row => {
+                          const tarifasRow = row.corteId ? (tarifasPorCorte.get(row.corteId) ?? []) : [];
+                          return (
+                            <div key={row.id} className="grid grid-cols-[1fr_1fr_90px_32px] gap-2 items-center">
+                              <select
+                                value={row.corteId}
+                                onChange={e => updateRowInSeccion(seccion.operarioId, row.id, { corteId: e.target.value, tarifaId: '' })}
+                                className="input-base text-xs"
+                              >
+                                <option value="">Seleccionar…</option>
+                                {cortes.filter(c => c.estado !== 'ANULADO').map(c => (
+                                  <option key={c.id} value={c.id}>{c.nCorte} — {productoMap.get(c.productoId)?.nombre}</option>
+                                ))}
+                              </select>
+                              <select
+                                value={row.tarifaId}
+                                onChange={e => updateRowInSeccion(seccion.operarioId, row.id, { tarifaId: e.target.value })}
+                                className="input-base text-xs"
+                                disabled={!row.corteId}
+                              >
+                                <option value="">Seleccionar…</option>
+                                {tarifasRow.map(t => (
+                                  <option key={t.id} value={t.id}>{t.orden}. {t.operacion} — S/{t.tarifa.toFixed(3)}</option>
+                                ))}
+                              </select>
+                              <input
+                                type="number" min={0}
+                                value={row.cantPrendas}
+                                onChange={e => updateRowInSeccion(seccion.operarioId, row.id, { cantPrendas: e.target.value })}
+                                placeholder="0"
+                                className="input-base text-xs text-right"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => seccion.lineas.length > 1 ? removeRowFromSeccion(seccion.operarioId, row.id) : undefined}
+                                className="flex items-center justify-center text-gray-300 hover:text-red-500"
+                                disabled={seccion.lineas.length === 1}
+                                tabIndex={-1}
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          );
+                        })}
 
-                      {/* Quitar fila */}
-                      <button
-                        type="button"
-                        onClick={() => draftLineas.length > 1 ? removeDraftRow(row.id) : null}
-                        className="flex items-center justify-center text-gray-300 hover:text-red-500 disabled:opacity-20"
-                        disabled={draftLineas.length === 1}
-                        tabIndex={-1}
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => addRowToSeccion(seccion.operarioId)}
+                          className="mt-1 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-[#173A25] hover:text-[#B66F35] transition-colors"
+                        >
+                          <Plus className="h-3 w-3" /> Agregar otra línea
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
 
-                <button
-                  type="button"
-                  onClick={addDraftRow}
-                  className="mt-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-[#173A25] hover:text-[#B66F35] transition-colors"
-                >
-                  <Plus className="h-3 w-3" /> Agregar otra línea
-                </button>
-
-                {/* Segundo operario opcional */}
-                <div className="mt-4 pt-4 border-t border-gray-100">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
-                    Agregar también a otro operario (opcional)
-                  </p>
-                  <select
-                    value={extraOperarioId}
-                    onChange={e => setExtraOperarioId(e.target.value)}
-                    className="input-base text-xs w-64"
-                  >
-                    <option value="">— Ninguno —</option>
-                    {operarios
-                      .filter(o => o.estado === 'ACTIVO' && o.id !== selectedOperario)
-                      .map(o => (
-                        <option key={o.id} value={o.id}>{o.codigo} — {o.nombre}</option>
-                      ))}
-                  </select>
-                  {extraOperarioId && (
-                    <p className="text-[10px] text-[#B66F35] font-bold mt-1 uppercase tracking-widest">
-                      Las mismas líneas se guardarán también para {operarioMap.get(extraOperarioId)?.nombre}
-                    </p>
-                  )}
-                </div>
+                {/* Agregar otro operario */}
+                {(() => {
+                  const yaAgregados = new Set(draftSecciones.map(s => s.operarioId));
+                  const disponibles = operarios.filter(o => o.estado === 'ACTIVO' && !yaAgregados.has(o.id));
+                  if (disponibles.length === 0) return null;
+                  return (
+                    <div className="pt-1">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
+                        Agregar otro operario (opcional)
+                      </p>
+                      <select
+                        value=""
+                        onChange={e => { if (e.target.value) addExtraSeccion(e.target.value); }}
+                        className="input-base text-xs w-64"
+                      >
+                        <option value="">— Seleccionar operario —</option>
+                        {disponibles.map(o => (
+                          <option key={o.id} value={o.id}>{o.codigo} — {o.nombre}</option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                })()}
               </div>
 
-              <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => { setShowForm(false); setDraftLineas([{ id: uid(), corteId: '', tarifaId: '', cantPrendas: '' }]); setExtraOperarioId(''); }}
-                  className="btn-secondary"
-                >Cancelar</button>
-                <button type="submit" className="btn-primary">
-                  Guardar {draftLineas.filter(r => r.corteId && r.tarifaId && r.cantPrendas).length > 0
-                    ? `(${draftLineas.filter(r => r.corteId && r.tarifaId && r.cantPrendas).length} línea${draftLineas.filter(r => r.corteId && r.tarifaId && r.cantPrendas).length !== 1 ? 's' : ''})`
-                    : ''}
-                </button>
+              {/* Footer */}
+              <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 shrink-0">
+                <span className="text-[10px] text-gray-400 font-mono">
+                  {draftSecciones.reduce((s, sec) => s + sec.lineas.filter(r => r.corteId && r.tarifaId && r.cantPrendas).length, 0)} líneas válidas · {draftSecciones.length} operario{draftSecciones.length !== 1 ? 's' : ''}
+                </span>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => { setShowForm(false); resetDraft(); }}
+                    className="btn-secondary"
+                  >Cancelar</button>
+                  <button type="submit" className="btn-primary">Guardar</button>
+                </div>
               </div>
             </form>
           </div>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }
 

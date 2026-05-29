@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
+import { motion } from 'motion/react';
 import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
-import { Download, Plus, X, FileText } from 'lucide-react';
+import { Download, Plus, X, FileText, Trash2 } from 'lucide-react';
 import { TipoMovimientoTela, CategoriaColor } from '../types';
 import { exportRowsToXlsx, exportTableToPdf } from '../lib/export';
 
@@ -28,13 +29,14 @@ const emptyForm = (): MovForm => ({
 type SegmentMode = 'ninguno' | 'tipo' | 'tela';
 
 export function InventarioTelas() {
-  const { movimientosTela, telas, colores, clientes, proveedores, config, addMovimientoTela } = useAppContext();
+  const { movimientosTela, telas, colores, clientes, proveedores, preciosTelas, config, addMovimientoTela, deleteMovimientoTela } = useAppContext();
   const { addToast } = useToast();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<MovForm>(emptyForm());
   const [filterTela, setFilterTela] = useState('');
   const [filterColor, setFilterColor] = useState('');
   const [segmentMode, setSegmentMode] = useState<SegmentMode>('ninguno');
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   const telaMap = useMemo(() => new Map(telas.map(t => [t.id, t])), [telas]);
   const colorMap = useMemo(() => new Map(colores.map(c => [c.id, c])), [colores]);
@@ -43,6 +45,22 @@ export function InventarioTelas() {
   const categoriaColor = useMemo((): CategoriaColor => {
     return (colorMap.get(form.colorId)?.categoria ?? 'OSCURO') as CategoriaColor;
   }, [form.colorId, colorMap]);
+
+  // Precio sugerido desde catálogo PrecioTela según telaId + categoriaColor del color
+  const precioSugerido = useMemo(() => {
+    if (!form.telaId || !form.colorId) return null;
+    const cat = colorMap.get(form.colorId)?.categoria;
+    if (!cat) return null;
+    return preciosTelas.find(p => p.telaId === form.telaId && p.categoriaColor === cat)?.precioKg ?? null;
+  }, [form.telaId, form.colorId, colorMap, preciosTelas]);
+
+  // Kg sugeridos desde rollos × kgPorRollo de la tela
+  const kgSugerido = useMemo(() => {
+    const rollos = parseInt(form.rollos);
+    if (!form.telaId || !rollos) return null;
+    const kgPorRollo = telaMap.get(form.telaId)?.kgPorRollo ?? config.kgPorRolloDefault;
+    return rollos * kgPorRollo;
+  }, [form.telaId, form.rollos, telaMap, config.kgPorRolloDefault]);
 
   const stockActual = useMemo(() => {
     const map = new Map<string, number>();
@@ -104,6 +122,11 @@ export function InventarioTelas() {
     const delta = positivos.includes(form.tipo) ? rollos : negativos.includes(form.tipo) ? -rollos : 0;
     const stockDespues = stockAntes + delta;
 
+    if (stockDespues < 0) {
+      addToast(`Stock insuficiente — quedarían ${stockDespues} rollos (actual: ${stockAntes})`, 'error');
+      return;
+    }
+
     addMovimientoTela({
       id: uid(),
       fecha: form.fecha,
@@ -132,11 +155,17 @@ export function InventarioTelas() {
     return Array.from(stockActual.entries())
       .map(([k, rollos]) => {
         const [telaId, colorId] = k.split('|');
-        return { telaId, colorId, rollos };
+        const kgPorRollo = telaMap.get(telaId)?.kgPorRollo ?? config.kgPorRolloDefault;
+        const cat = colorMap.get(colorId)?.categoria;
+        const precioKg = cat
+          ? (preciosTelas.find(p => p.telaId === telaId && p.categoriaColor === cat)?.precioKg ?? null)
+          : null;
+        const kgTotal = rollos * kgPorRollo;
+        return { telaId, colorId, rollos, kgTotal, precioKg };
       })
       .filter(s => s.rollos > 0)
       .sort((a, b) => (telaMap.get(a.telaId)?.nombre ?? '').localeCompare(telaMap.get(b.telaId)?.nombre ?? ''));
-  }, [stockActual, telaMap]);
+  }, [stockActual, telaMap, colorMap, preciosTelas, config.kgPorRolloDefault]);
 
   const buildRows = () => movsFiltrados.map((m) => ({
     Fecha: m.fecha,
@@ -186,7 +215,12 @@ export function InventarioTelas() {
   };
 
   return (
-    <div className="space-y-8">
+    <motion.div
+      className="space-y-8"
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.28, ease: 'easeOut' }}
+    >
       <div className="flex items-start justify-between">
         <div>
           <h2 className="text-2xl font-black uppercase tracking-tight">Inventario de Telas</h2>
@@ -212,17 +246,32 @@ export function InventarioTelas() {
           <p className="text-sm text-gray-400 italic">Sin stock registrado.</p>
         ) : (
           <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-            {stockSummary.map(s => {
-              const isCrit = s.rollos <= config.umbralCritico;
-              const isBajo = !isCrit && s.rollos <= config.umbralBajo;
+            {(() => {
+              const valorTotal = stockSummary.reduce((acc, s) => s.precioKg !== null ? acc + s.kgTotal * s.precioKg : acc, 0);
               return (
-                <div key={`${s.telaId}|${s.colorId}`} className={`border p-3 ${isCrit ? 'border-red-300 bg-red-50' : isBajo ? 'border-yellow-300 bg-yellow-50' : 'border-gray-200 bg-white'}`}>
-                  <p className="text-[10px] font-bold uppercase text-gray-500 truncate">{telaMap.get(s.telaId)?.nombre}</p>
-                  <p className="text-xs text-gray-600 truncate">{colorMap.get(s.colorId)?.nombre}</p>
-                  <p className={`text-xl font-black mt-1 ${isCrit ? 'text-red-700' : isBajo ? 'text-yellow-700' : ''}`}>{s.rollos} <span className="text-xs font-normal">rollos</span></p>
-                </div>
+                <>
+                  <div className="border border-[#B66F35] bg-[#FDF8F3] p-3 col-span-2 lg:col-span-4">
+                    <p className="text-[10px] font-bold uppercase text-[#B66F35] tracking-widest">Valor Total Inventario</p>
+                    <p className="text-2xl font-black text-[#B66F35] mt-1">S/ {valorTotal.toFixed(0)}</p>
+                  </div>
+                  {stockSummary.map(s => {
+                    const isCrit = s.rollos <= config.umbralCritico;
+                    const isBajo = !isCrit && s.rollos <= config.umbralBajo;
+                    return (
+                      <div key={`${s.telaId}|${s.colorId}`} className={`border p-3 ${isCrit ? 'border-red-300 bg-red-50' : isBajo ? 'border-yellow-300 bg-yellow-50' : 'border-gray-200 bg-white'}`}>
+                        <p className="text-[10px] font-bold uppercase text-gray-500 truncate">{telaMap.get(s.telaId)?.nombre}</p>
+                        <p className="text-xs text-gray-600 truncate">{colorMap.get(s.colorId)?.nombre}</p>
+                        <p className={`text-xl font-black mt-1 ${isCrit ? 'text-red-700' : isBajo ? 'text-yellow-700' : ''}`}>{s.rollos} <span className="text-xs font-normal">rollos</span></p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">{s.kgTotal.toFixed(0)} kg</p>
+                        {s.precioKg !== null && (
+                          <p className="text-[10px] text-gray-400 mt-0.5">Valor aprox. S/ {(s.kgTotal * s.precioKg).toFixed(0)}</p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </>
               );
-            })}
+            })()}
           </div>
         )}
       </div>
@@ -281,7 +330,7 @@ export function InventarioTelas() {
                     <table className="texajo-table">
                       <thead>
                         <tr>
-                          {['Fecha', 'Tipo', 'Tela', 'Color', 'Cat.', 'Rollos', 'Kg', 'S/. Kg', 'Total S/.', 'Stock Post', 'Responsable', 'Notas'].map(h => (
+                          {['Fecha', 'Tipo', 'Tela', 'Color', 'Cat.', 'Rollos', 'Kg', 'S/. Kg', 'Total S/.', 'Dif. %', 'Stock Post', 'Responsable', 'Notas', ''].map(h => (
                             <th key={h}>{h}</th>
                           ))}
                         </tr>
@@ -305,9 +354,34 @@ export function InventarioTelas() {
                             <td className="font-mono text-right">{m.kgTotal.toFixed(1)}</td>
                             <td className="font-mono text-right">{m.precioKg.toFixed(2)}</td>
                             <td className="font-mono text-right">{m.totalSoles.toFixed(2)}</td>
+                            <td className="text-center">
+                              {m.tipo === 'INGRESO' && m.costoRealFact && m.costoRealFact > 0 && m.totalSoles > 0 ? (() => {
+                                const dif = ((m.costoRealFact - m.totalSoles) / m.totalSoles) * 100;
+                                const cls = dif <= 0
+                                  ? 'bg-green-100 text-green-800'
+                                  : dif <= 10
+                                    ? 'bg-yellow-100 text-yellow-800'
+                                    : 'bg-red-100 text-red-800';
+                                const label = (dif >= 0 ? '+' : '') + dif.toFixed(1) + '%';
+                                return <span className={`inline-block px-2 py-0.5 text-[10px] font-bold ${cls}`}>{label}</span>;
+                              })() : <span className="text-gray-300 text-[10px]">—</span>}
+                            </td>
                             <td className="font-mono text-right font-bold">{m.stockRollosDespues}</td>
                             <td className="whitespace-nowrap">{m.responsable}</td>
                             <td className="text-gray-500 max-w-[12rem] truncate">{m.notas}</td>
+                            <td className="px-2">
+                              {confirmDelete === m.id ? (
+                                <span className="flex items-center gap-1 whitespace-nowrap">
+                                  <button onClick={() => { deleteMovimientoTela(m.id); setConfirmDelete(null); addToast('Movimiento eliminado', 'success'); }} className="text-[10px] font-bold text-red-600 hover:text-red-800 uppercase">Sí</button>
+                                  <span className="text-gray-300">/</span>
+                                  <button onClick={() => setConfirmDelete(null)} className="text-[10px] font-bold text-gray-400 hover:text-gray-600 uppercase">No</button>
+                                </span>
+                              ) : (
+                                <button onClick={() => setConfirmDelete(m.id)} className="text-gray-300 hover:text-red-500 transition-colors">
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -352,11 +426,31 @@ export function InventarioTelas() {
                 </F>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <F label="Rollos"><input type="number" min={1} value={form.rollos} onChange={set('rollos')} className="input-base" required /></F>
-                <F label="Kg Total"><input type="number" min={0} step={0.1} value={form.kgTotal} onChange={set('kgTotal')} className="input-base" required /></F>
+                <F label="Rollos">
+                  <input type="number" min={1} value={form.rollos} onChange={e => {
+                    const val = e.target.value;
+                    setForm(f => {
+                      const rollosNum = parseInt(val);
+                      const kgCalc = form.telaId && rollosNum ? (telaMap.get(form.telaId)?.kgPorRollo ?? config.kgPorRolloDefault) * rollosNum : undefined;
+                      return { ...f, rollos: val, kgTotal: kgCalc !== undefined ? String(kgCalc) : f.kgTotal };
+                    });
+                  }} className="input-base" required />
+                </F>
+                <F label={kgSugerido !== null ? `Kg Total (sugerido: ${kgSugerido})` : 'Kg Total'}>
+                  <input type="number" min={0} step={0.1} value={form.kgTotal} onChange={set('kgTotal')} className="input-base" required />
+                </F>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <F label="Precio / Kg (S/.)"><input type="number" min={0} step={0.01} value={form.precioKg} onChange={set('precioKg')} className="input-base" /></F>
+                <F label={precioSugerido !== null ? `Precio / Kg (sugerido: S/ ${precioSugerido})` : 'Precio / Kg (S/.)'}>
+                  <div className="flex gap-2">
+                    <input type="number" min={0} step={0.01} value={form.precioKg} onChange={set('precioKg')} className="input-base flex-1" />
+                    {precioSugerido !== null && form.precioKg === '' && (
+                      <button type="button" onClick={() => setForm(f => ({ ...f, precioKg: String(precioSugerido) }))} className="text-[10px] font-bold uppercase text-blue-600 hover:text-blue-800 whitespace-nowrap border border-blue-200 px-2">
+                        Usar
+                      </button>
+                    )}
+                  </div>
+                </F>
                 <F label="Cliente">
                   <select value={form.clienteId} onChange={set('clienteId')} className="input-base">
                     <option value="">—</option>
@@ -385,7 +479,7 @@ export function InventarioTelas() {
           </div>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }
 

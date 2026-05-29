@@ -2,7 +2,8 @@ import {
   Cliente, Proveedor, Tela, Color, PrecioTela, Producto,
   TarifaOperacion, Operario, Config,
   MovimientoTela, CobroDiario, ProgramaZurzam, CompraHilo,
-  ProgramaDetalle, Corte, SeguimientoFila, BoletaLinea, PrecioComplemento
+  ProgramaDetalle, Corte, SeguimientoFila, BoletaLinea, PrecioComplemento,
+  MovimientoComplemento
 } from './types';
 
 // ─── Clientes ─────────────────────────────────────────────────────────────
@@ -339,6 +340,8 @@ export const initialConfig: Config = {
   tipoCambioUsd: 3.75,
   kgPorRolloDefault: 20,
   comisionJoseKg: 0,
+  mermaMaxTej: 5,
+  mermaMaxTint: 3,
 };
 
 // ─── Datos iniciales vacíos ────────────────────────────────────────────────
@@ -346,6 +349,7 @@ export const initialMovimientosTela: MovimientoTela[] = [];
 export const initialCortes: Corte[] = [];
 export const initialSeguimientoFilas: SeguimientoFila[] = [];
 export const initialBoletaLineas: BoletaLinea[] = [];
+export const initialMovimientosComplemento: MovimientoComplemento[] = [];
 export const initialProgramas: ProgramaZurzam[] = [];
 export const initialProgramaDetalles: ProgramaDetalle[] = [];
 export const initialComprasHilo: CompraHilo[] = [];

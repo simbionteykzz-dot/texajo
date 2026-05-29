@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react';
+import { motion } from 'motion/react';
 import { AlertTriangle, ArrowRight, CheckCircle2, Coins, Factory, FileSpreadsheet, History, PackagePlus, Receipt, RotateCcw, Scissors, Truck, Upload, UserCheck, X } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
-import { AsignacionOperacion, CobroDiario, Corte, MovimientoTela, ProgramaZurzam } from '../types';
+import { BoletaLinea, CobroDiario, Corte, MovimientoTela, ProgramaZurzam } from '../types';
 import { generateId, todayDate } from '../lib/storage';
 
 type ActionKey = 'ingreso' | 'corte' | 'entrega' | 'cobro' | 'liquidacion' | 'proveedor' | 'cierre' | 'correccion' | 'exportar' | 'importar';
@@ -22,26 +23,23 @@ export function PanelOperativo() {
     movimientosTela,
     cortes,
     tarifasOperaciones,
-    asignacionesOperacion,
+    boletaLineas,
     cobrosDiarios,
     comprasHilo,
     programaDetalles,
     programasZurzam,
-    auditLogs,
     config,
     addMovimientoTela,
     updateMovimientoTela,
     addCorte,
-    addAsignacionesOperacion,
-    updateAsignacionOperacion,
-    clearAsignacionesPendientes,
+    addBoletaLinea,
+    updateBoletaLinea,
     addCobroDiario,
     updateCobroDiario,
     updateCorte,
     updateCompraHilo,
     updateProgramaDetalle,
     updatePrograma,
-    addAuditLog,
   } = useAppContext();
   const { addToast } = useToast();
   const [activeAction, setActiveAction] = useState<ActionKey | null>(null);
@@ -88,9 +86,9 @@ export function PanelOperativo() {
     }, 0);
 
   const activeOperarios = operarios.filter(o => o.estado === 'ACTIVO');
-  const cortesPendientesEntrega = cortes.filter(corte => !cobrosDiarios.some(c => c.corteId === corte.id || c.nCorte === corte.nCorte));
+  const cortesPendientesEntrega = cortes.filter(corte => !cobrosDiarios.some(c => c.nCorte === corte.nCorte));
   const cobrosPendientes = cobrosDiarios.filter(cobro => cobro.estado === 'PENDIENTE');
-  const asignacionesPendientes = asignacionesOperacion.filter(item => item.estadoPago !== 'PAGADO' && item.estadoPago !== 'ANULADO');
+  const asignacionesPendientes = boletaLineas.filter(item => item.estadoPago !== 'PAGADO');
   const movimientosActivos = movimientosTela.filter(item => !item.notas.toLowerCase().includes('anulado'));
   const correccionOptions = correccion.tipo === 'CORTE'
     ? cortes.filter(c => c.estado !== 'ANULADO').map(c => [c.id, `${c.nCorte} · ${productoNombre(productos, c.productoId)}`] as [string, string])
@@ -149,38 +147,29 @@ export function PanelOperativo() {
   ];
 
   const totalDestajoOperario = useMemo(
-    () => asignacionesOperacion
-      .filter(item => item.operarioId === operarioId && item.estadoPago !== 'PAGADO' && item.estadoPago !== 'ANULADO')
+    () => boletaLineas
+      .filter(item => item.operarioId === operarioId && item.estadoPago !== 'PAGADO')
       .reduce((sum, item) => sum + item.importe, 0),
-    [asignacionesOperacion, operarioId]
+    [boletaLineas, operarioId]
   );
 
   const resumenLiquidacion = useMemo(() =>
     activeOperarios.map(o => {
-      const pendientes = asignacionesOperacion.filter(a =>
-        a.operarioId === o.id && a.estadoPago !== 'PAGADO' && a.estadoPago !== 'ANULADO'
+      const pendientes = boletaLineas.filter(a =>
+        a.operarioId === o.id && a.estadoPago !== 'PAGADO'
       );
       return {
         operario: o,
         operaciones: pendientes.length,
-        prendas: pendientes.reduce((s, a) => s + a.totalPrendas, 0),
+        prendas: pendientes.reduce((s, a) => s + a.cantPrendas, 0),
         importe: pendientes.reduce((s, a) => s + a.importe, 0),
       };
     }).filter(item => item.importe > 0),
-    [activeOperarios, asignacionesOperacion]
+    [activeOperarios, boletaLineas]
   );
 
-  const log = (accion: string, entidad: Parameters<typeof addAuditLog>[0]['entidad'], detalle: string, entidadId?: string, monto?: number) => {
-    addAuditLog({
-      id: generateId('LOG'),
-      fecha: new Date().toISOString(),
-      accion,
-      entidad,
-      entidadId,
-      detalle,
-      responsable: 'Panel operativo',
-      monto,
-    });
+  const log = (_accion: string, _entidad: string, _detalle: string, _entidadId?: string, _monto?: number) => {
+    // audit log removed from schema — kept as no-op to preserve handler signatures
   };
 
   const precioKgTela = (telaId: string, colorId: string) => {
@@ -196,11 +185,12 @@ export function PanelOperativo() {
       return;
     }
     const precioKg = precioKgTela(ingreso.telaId, ingreso.colorId);
-    const stockAntes = stockRollos(ingreso.telaId, ingreso.colorId);
+    const stockRollosAntes = stockRollos(ingreso.telaId, ingreso.colorId);
     const movimiento: MovimientoTela = {
       id: generateId('MOV'),
       fecha: todayDate(),
       tipo: 'INGRESO',
+      clienteId: '',
       telaId: ingreso.telaId,
       colorId: ingreso.colorId,
       rollos: ingreso.rollos,
@@ -208,14 +198,13 @@ export function PanelOperativo() {
       categoriaColor: colores.find(c => c.id === ingreso.colorId)?.categoria ?? 'OSCURO',
       precioKg,
       totalSoles: ingreso.kgTotal * precioKg,
-      stockAntes,
-      stockDespues: stockAntes + ingreso.rollos,
+      stockRollosAntes,
+      stockRollosDespues: stockRollosAntes + ingreso.rollos,
       responsable: 'Panel operativo',
       notas: 'Ingreso guiado',
       proveedorId: ingreso.proveedorId || undefined,
       nFactura: ingreso.nFactura.trim() || undefined,
       costoRealFact: ingreso.costoReal || undefined,
-      diferenciaPct: ingreso.costoReal > 0 && precioKg > 0 ? (ingreso.costoReal - ingreso.kgTotal * precioKg) / (ingreso.kgTotal * precioKg) : undefined,
     };
     addMovimientoTela(movimiento);
     log('Ingreso de tela', 'TELA', `${telaNombre(telas, ingreso.telaId)} / ${colorNombre(colores, ingreso.colorId)}: ${ingreso.rollos} rollos, ${ingreso.kgTotal} kg`, movimiento.id, movimiento.totalSoles);
@@ -230,10 +219,11 @@ export function PanelOperativo() {
       addToast('Completa producto, kg, prendas y operario.', 'error');
       return;
     }
-    const tela = telas.find(t => t.id === producto.telaBaseId);
+    const telaId = telas.find(t => t.nombre === producto.telaBase)?.id ?? '';
+    const tela = telas.find(t => t.id === telaId);
     const rollosUsados = corte.rollos || Number((corte.kg / (tela?.kgPorRollo || 20)).toFixed(2));
-    const stockAntes = stockRollos(producto.telaBaseId, corte.colorId);
-    if (rollosUsados > stockAntes) {
+    const stockAntes = telaId ? stockRollos(telaId, corte.colorId) : 0;
+    if (telaId && rollosUsados > stockAntes) {
       addToast(`Stock insuficiente: disponible ${stockAntes} rollos.`, 'error');
       return;
     }
@@ -247,9 +237,9 @@ export function PanelOperativo() {
       clienteId: corte.clienteId,
       productoId: corte.productoId,
       colorId: corte.colorId,
-      cortadorId: corte.operarioId,
-      ayudanteId: corte.operarioId,
-      telaUsada: corte.kg,
+      cortador: operarios.find(o => o.id === corte.operarioId)?.nombre ?? corte.operarioId,
+      ayudante: '',
+      kgUsados: corte.kg,
       rollosUsados,
       tendidas: 0,
       mtsPorTendida: 0,
@@ -262,50 +252,54 @@ export function PanelOperativo() {
       consumo: Number((corte.kg / totalPrendas).toFixed(3)),
       rendimiento: Number((totalPrendas / corte.kg).toFixed(2)),
       revision: 'PENDIENTE',
+      traslado: false,
       estado: 'EN_PROCESO',
+      pagoCliente: 'PENDIENTE',
+      pagoPlanilla: 'PENDIENTE',
+      costoMoCorte: 0,
+      notas: '',
     };
     addCorte(nuevoCorte);
 
-    const precioKg = precioKgTela(producto.telaBaseId, corte.colorId);
+    const precioKg = precioKgTela(telaId, corte.colorId);
     addMovimientoTela({
       id: generateId('MOV'),
       fecha: todayDate(),
       tipo: 'A_CORTE',
       clienteId: corte.clienteId,
-      telaId: producto.telaBaseId,
+      telaId,
       colorId: corte.colorId,
       rollos: rollosUsados,
       kgTotal: corte.kg,
       categoriaColor: colores.find(c => c.id === corte.colorId)?.categoria ?? 'OSCURO',
       precioKg,
       totalSoles: corte.kg * precioKg,
-      stockAntes,
-      stockDespues: stockAntes - rollosUsados,
+      stockRollosAntes: stockAntes,
+      stockRollosDespues: stockAntes - rollosUsados,
       responsable: 'Panel operativo',
       notas: `Consumo automatico ${nCorte}`,
       corteId,
       nCorte,
     });
 
+    const mesActual = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; })();
     const tarifas = tarifasOperaciones.filter(t => t.productoId === corte.productoId).sort((a, b) => a.orden - b.orden);
-    const asignaciones: AsignacionOperacion[] = tarifas.map(tarifa => ({
-      id: generateId(`ASIG-${tarifa.orden}`),
-      corteId,
-      productoId: corte.productoId,
+    const boletasNuevas: BoletaLinea[] = tarifas.map(tarifa => ({
+      id: generateId(`BL-${tarifa.orden}`),
       operarioId: corte.operarioId,
-      operacionId: tarifa.id,
+      corteId,
+      nCorte,
+      productoId: corte.productoId,
+      tarifaId: tarifa.id,
       operacion: tarifa.operacion,
       orden: tarifa.orden,
       tarifa: tarifa.tarifa,
-      cantS: corte.cantS,
-      cantM: corte.cantM,
-      cantL: corte.cantL,
-      cantXL: corte.cantXL,
-      totalPrendas,
+      cantPrendas: totalPrendas,
       importe: Number((totalPrendas * tarifa.tarifa).toFixed(2)),
+      periodo: mesActual,
       estadoPago: 'PENDIENTE',
     }));
-    addAsignacionesOperacion(asignaciones);
+    boletasNuevas.forEach(b => addBoletaLinea(b));
     log('Creacion de corte', 'CORTE', `${nCorte}: ${totalPrendas} prendas, ${corte.kg} kg descontados`, corteId);
     addToast('Corte creado, tela descontada y destajo generado.', 'success');
     close();
@@ -340,10 +334,9 @@ export function PanelOperativo() {
       disponible90Pct: bruto - detraccion,
       estado: 'PENDIENTE',
       notas: 'Entrega guiada desde panel operativo',
-      corteId: selected.id,
     };
     addCobroDiario(cobro);
-    updateCorte(selected.id, { estado: 'ENTREGADO', revision: 'VERIFICADO' });
+    updateCorte(selected.id, { estado: 'COMPLETADO', revision: 'VERIFICADO' });
     log('Entrega de corte', 'COBRO', `${selected.nCorte}: cobro pendiente por ${money(bruto)}`, cobro.id, bruto);
     addToast('Entrega creada y corte marcado como entregado.', 'success');
     close();
@@ -362,23 +355,19 @@ export function PanelOperativo() {
   };
 
   const handleLiquidarOperario = () => {
-    const pendientes = asignacionesOperacion.filter(item =>
-      item.operarioId === operarioId &&
-      item.estadoPago !== 'PAGADO' &&
-      item.estadoPago !== 'ANULADO'
+    const pendientes = boletaLineas.filter(item =>
+      item.operarioId === operarioId && item.estadoPago !== 'PAGADO'
     );
     if (!pendientes.length) {
       addToast('No hay destajos pendientes para este operario.', 'error');
       return;
     }
-    const liquidacionId = generateId('LIQ');
-    pendientes.forEach(item => updateAsignacionOperacion(item.id, {
+    pendientes.forEach(item => updateBoletaLinea(item.id, {
       estadoPago: 'PAGADO',
-      liquidacionId,
       fechaPago: todayDate(),
     }));
     const total = pendientes.reduce((sum, item) => sum + item.importe, 0);
-    log('Liquidacion de operario', 'OPERARIO', `${operarioNombre(operarios, operarioId)}: ${pendientes.length} operaciones pagadas`, liquidacionId, total);
+    log('Liquidacion de operario', 'OPERARIO', `${operarioNombre(operarios, operarioId)}: ${pendientes.length} operaciones pagadas`, undefined, total);
     addToast('Liquidacion registrada y operaciones marcadas como pagadas.', 'success');
     close();
   };
@@ -411,45 +400,44 @@ export function PanelOperativo() {
 
     const normName = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 
-    if (importLimpiar) clearAsignacionesPendientes();
+    if (importLimpiar) {
+      boletaLineas
+        .filter(b => b.estadoPago !== 'PAGADO')
+        .forEach(b => updateBoletaLinea(b.id, { estadoPago: 'PAGADO', fechaPago: todayDate() }));
+    }
 
-    const nuevas: AsignacionOperacion[] = [];
+    const nuevas: BoletaLinea[] = [];
     const errores: string[] = [];
+    const mesActual = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; })();
 
     for (const row of rows) {
       const corte = cortes.find(c => c.nCorte.trim().toLowerCase() === row.nCorte.toLowerCase());
       if (!corte) { errores.push(`Corte no encontrado: "${row.nCorte}"`); continue; }
 
       const opNorm = normName(row.operario);
-      const operario = operarios.find(o =>
-        normName(o.nombres).includes(opNorm) ||
-        normName(o.apellidos).includes(opNorm) ||
-        normName(`${o.nombres} ${o.apellidos}`).includes(opNorm)
-      );
+      const operario = operarios.find(o => normName(o.nombre).includes(opNorm));
       if (!operario) { errores.push(`Operario no encontrado: "${row.operario}"`); continue; }
 
       const tarifa = corte.totalPrendas > 0 ? Number((row.importe / corte.totalPrendas).toFixed(4)) : 0;
 
       nuevas.push({
-        id: generateId('ASIG-IMP'),
-        corteId: corte.id,
-        productoId: corte.productoId,
+        id: generateId('BL-IMP'),
         operarioId: operario.id,
-        operacionId: '',
+        corteId: corte.id,
+        nCorte: corte.nCorte,
+        productoId: corte.productoId,
+        tarifaId: '',
         operacion: row.operacion,
         orden: 1,
         tarifa,
-        cantS: corte.cantS,
-        cantM: corte.cantM,
-        cantL: corte.cantL,
-        cantXL: corte.cantXL,
-        totalPrendas: corte.totalPrendas,
+        cantPrendas: corte.totalPrendas,
         importe: row.importe,
+        periodo: mesActual,
         estadoPago: 'PENDIENTE',
       });
     }
 
-    if (nuevas.length) addAsignacionesOperacion(nuevas);
+    if (nuevas.length) nuevas.forEach(b => addBoletaLinea(b));
 
     if (errores.length) {
       addToast(`Importado con ${errores.length} error(es): ${errores[0]}`, 'error');
@@ -461,21 +449,17 @@ export function PanelOperativo() {
   };
 
   const handleLiquidarTodos = () => {
-    const pendientes = asignacionesOperacion.filter(item =>
-      item.estadoPago !== 'PAGADO' && item.estadoPago !== 'ANULADO'
-    );
+    const pendientes = boletaLineas.filter(item => item.estadoPago !== 'PAGADO');
     if (!pendientes.length) {
       addToast('No hay destajos pendientes.', 'error');
       return;
     }
-    const liquidacionId = generateId('LIQ');
-    pendientes.forEach(item => updateAsignacionOperacion(item.id, {
+    pendientes.forEach(item => updateBoletaLinea(item.id, {
       estadoPago: 'PAGADO',
-      liquidacionId,
       fechaPago: todayDate(),
     }));
     const total = pendientes.reduce((sum, item) => sum + item.importe, 0);
-    log('Liquidacion masiva', 'OPERARIO', `${pendientes.length} operaciones liquidadas — ${resumenLiquidacion.length} operarios`, liquidacionId, total);
+    log('Liquidacion masiva', 'OPERARIO', `${pendientes.length} operaciones liquidadas — ${resumenLiquidacion.length} operarios`, undefined, total);
     addToast(`${pendientes.length} operaciones liquidadas — ${money(total)}`, 'success');
     close();
   };
@@ -499,19 +483,17 @@ export function PanelOperativo() {
       return;
     }
     const detalles = programaDetalles.filter(item => item.programaId === selected.id);
-    const kgFinal = detalles.reduce((sum, item) => sum + item.kgTintRetornado, 0) || selected.kgTelaFinal;
+    const kgFinal = detalles.reduce((sum, item) => sum + item.kgTintRetornado, 0);
     const costoProcesos = detalles.reduce((sum, item) => sum + item.costoTejido + item.costoTint, 0);
     const comisionJose = kgFinal * config.comisionJoseKg;
-    const inversionTotal = selected.costoHiloTotal + costoProcesos + comisionJose;
+    const inversionTotal = costoProcesos + comisionJose;
     const updates: Partial<ProgramaZurzam> = {
-      kgTelaFinal: kgFinal,
       comisionJose,
-      inversionTotal,
-      costoPromedioSolesKg: kgFinal > 0 ? Number((inversionTotal / kgFinal).toFixed(2)) : 0,
+      kgObjetivo: kgFinal || selected.kgObjetivo,
       estado: 'CERRADO',
     };
     updatePrograma(selected.id, updates);
-    log('Cierre de programa', 'PROGRAMA', `${selected.id}: inversion ${money(inversionTotal)}, costo kg ${money(updates.costoPromedioSolesKg ?? 0)}`, selected.id, inversionTotal);
+    log('Cierre de programa', 'PROGRAMA', `${selected.nombre}: inversion ${money(inversionTotal)}`, selected.id, inversionTotal);
     addToast('Programa cerrado con costos recalculados.', 'success');
     close();
   };
@@ -527,11 +509,11 @@ export function PanelOperativo() {
       if (!selected) return;
       updateCorte(selected.id, { estado: 'ANULADO' });
       cobrosDiarios
-        .filter(cobro => cobro.corteId === selected.id || cobro.nCorte === selected.nCorte)
+        .filter(cobro => cobro.nCorte === selected.nCorte)
         .forEach(cobro => updateCobroDiario(cobro.id, { estado: 'ANULADO', notas: `${cobro.notas} | Anulado: ${motivo}` }));
-      asignacionesOperacion
+      boletaLineas
         .filter(item => item.corteId === selected.id)
-        .forEach(item => updateAsignacionOperacion(item.id, { estadoPago: 'ANULADO' }));
+        .forEach(item => updateBoletaLinea(item.id, { estadoPago: 'PAGADO', fechaPago: todayDate() }));
       movimientosTela
         .filter(item => item.corteId === selected.id && item.tipo === 'A_CORTE')
         .forEach(item => addMovimientoTela({
@@ -539,8 +521,8 @@ export function PanelOperativo() {
           id: generateId('AJUSTE'),
           fecha: todayDate(),
           tipo: 'AJUSTE_POS',
-          stockAntes: stockRollos(item.telaId, item.colorId),
-          stockDespues: stockRollos(item.telaId, item.colorId) + item.rollos,
+          stockRollosAntes: stockRollos(item.telaId, item.colorId),
+          stockRollosDespues: stockRollos(item.telaId, item.colorId) + item.rollos,
           responsable: 'Panel operativo',
           notas: `Reingreso por anulacion ${selected.nCorte}: ${motivo}`,
         }));
@@ -563,8 +545,8 @@ export function PanelOperativo() {
         id: generateId('AJUSTE'),
         fecha: todayDate(),
         tipo: reverseType,
-        stockAntes,
-        stockDespues: stockAntes + sign * selected.rollos,
+        stockRollosAntes: stockAntes,
+        stockRollosDespues: stockAntes + sign * selected.rollos,
         responsable: 'Panel operativo',
         notas: `Ajuste por anulacion de ${selected.id}: ${motivo}`,
       });
@@ -599,17 +581,9 @@ export function PanelOperativo() {
       corte: cortes.find(c => c.id === item.corteId)?.nCorte ?? item.corteId,
       operario: operarioNombre(operarios, item.operarioId),
       operacion: item.operacion,
-      prendas: item.totalPrendas,
+      prendas: item.cantPrendas,
       importe: item.importe,
-      estado: item.estadoPago ?? 'PENDIENTE',
-    })),
-    Historial: auditLogs.map(item => ({
-      fecha: item.fecha,
-      accion: item.accion,
-      entidad: item.entidad,
-      detalle: item.detalle,
-      responsable: item.responsable,
-      monto: item.monto ?? '',
+      estado: item.estadoPago,
     })),
   });
 
@@ -807,7 +781,12 @@ export function PanelOperativo() {
   ];
 
   return (
-    <div className="space-y-12">
+    <motion.div
+      className="space-y-12"
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.28, ease: 'easeOut' }}
+    >
       <div className="border-b border-gray-300 pb-8">
         <h2 className="text-5xl uppercase">Panel Operativo</h2>
         <p className="mt-4 text-sm font-mono uppercase tracking-widest text-gray-500 leading-relaxed">
@@ -864,22 +843,22 @@ export function PanelOperativo() {
         <div className="flex items-center justify-between border-b border-gray-200 pb-4 mb-4">
           <h3 className="text-[11px] font-bold uppercase tracking-widest flex items-center gap-2">
             <History className="h-4 w-4" />
-            Historial reciente
+            Resumen de actividad
           </h3>
-          <span className="text-[10px] font-mono uppercase tracking-widest text-gray-500">{auditLogs.length} eventos</span>
         </div>
         <div className="space-y-3">
-          {auditLogs.slice(0, 8).map(item => (
-            <div key={item.id} className="bg-white border border-gray-200 p-4">
-              <div className="flex items-center justify-between gap-4 text-[10px] uppercase tracking-widest font-bold text-gray-500">
-                <span>{new Date(item.fecha).toLocaleString()}</span>
-                <span>{item.entidad}</span>
-              </div>
-              <div className="mt-2 text-sm font-bold">{item.accion}</div>
-              <div className="mt-1 text-xs font-mono text-gray-600">{item.detalle}</div>
-            </div>
-          ))}
-          {auditLogs.length === 0 && <div className="text-xs font-mono uppercase tracking-widest text-gray-500">Aun no hay eventos registrados.</div>}
+          <div className="bg-white border border-gray-200 p-4">
+            <div className="text-[10px] uppercase tracking-widest font-bold text-gray-500">Cortes en proceso</div>
+            <div className="mt-1 text-sm font-bold">{cortes.filter(c => c.estado === 'EN_PROCESO').length} cortes activos</div>
+          </div>
+          <div className="bg-white border border-gray-200 p-4">
+            <div className="text-[10px] uppercase tracking-widest font-bold text-gray-500">Destajo pendiente</div>
+            <div className="mt-1 text-sm font-bold">{money(asignacionesPendientes.reduce((s, b) => s + b.importe, 0))}</div>
+          </div>
+          <div className="bg-white border border-gray-200 p-4">
+            <div className="text-[10px] uppercase tracking-widest font-bold text-gray-500">Cobros pendientes</div>
+            <div className="mt-1 text-sm font-bold">{money(cobrosPendientes.reduce((s, c) => s + c.bruto, 0))}</div>
+          </div>
         </div>
       </div>
 
@@ -907,7 +886,7 @@ export function PanelOperativo() {
                   <Select label="Cliente" value={corte.clienteId} onChange={value => setCorte({ ...corte, clienteId: value })} options={clientes.map(c => [c.id, c.nombre])} />
                   <Select label="Producto" value={corte.productoId} onChange={value => setCorte({ ...corte, productoId: value })} options={productos.map(p => [p.id, p.nombre])} />
                   <Select label="Color" value={corte.colorId} onChange={value => setCorte({ ...corte, colorId: value })} options={colores.map(c => [c.id, c.nombre])} />
-                  <Select label="Operario" value={corte.operarioId} onChange={value => setCorte({ ...corte, operarioId: value })} options={activeOperarios.map(o => [o.id, `${o.nombres} ${o.apellidos}`])} />
+                  <Select label="Operario" value={corte.operarioId} onChange={value => setCorte({ ...corte, operarioId: value })} options={activeOperarios.map(o => [o.id, o.nombre])} />
                   <NumberInput label="Kg usados" value={corte.kg} onChange={value => setCorte({ ...corte, kg: value })} />
                   <NumberInput label="Rollos usados" value={corte.rollos} onChange={value => setCorte({ ...corte, rollos: value })} />
                   <NumberInput label="Talla S" value={corte.cantS} onChange={value => setCorte({ ...corte, cantS: value })} />
@@ -943,7 +922,7 @@ export function PanelOperativo() {
                           }`}
                         >
                           <div>
-                            <div className="text-sm font-bold">{item.operario.nombres} {item.operario.apellidos}</div>
+                            <div className="text-sm font-bold">{item.operario.nombre}</div>
                             <div className={`text-[9px] uppercase tracking-widest font-mono mt-0.5 ${
                               operarioId === item.operario.id ? 'text-gray-400' : 'text-gray-500'
                             }`}>
@@ -988,7 +967,7 @@ export function PanelOperativo() {
                 <Select label="Pago pendiente" value={pagoKey} onChange={setPagoKey} options={pagosPendientes.map(p => [p.key, p.label])} />
               )}
               {activeAction === 'cierre' && (
-                <Select label="Programa activo" value={programaId} onChange={setProgramaId} options={programasZurzam.filter(p => p.estado !== 'CERRADO').map(p => [p.id, `${p.id} · ${p.tipoTejido}`])} />
+                <Select label="Programa activo" value={programaId} onChange={setProgramaId} options={programasZurzam.filter(p => p.estado !== 'CERRADO').map(p => [p.id, `${p.nombre} · ${p.estado}`])} />
               )}
               {activeAction === 'correccion' && (
                 <div className="space-y-5">
@@ -1098,7 +1077,7 @@ export function PanelOperativo() {
           </div>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }
 
@@ -1157,9 +1136,8 @@ function colorNombre(colores: { id: string; nombre: string }[], id: string) {
   return colores.find(color => color.id === id)?.nombre ?? id;
 }
 
-function operarioNombre(operarios: { id: string; nombres: string; apellidos: string }[], id: string) {
-  const operario = operarios.find(item => item.id === id);
-  return operario ? `${operario.nombres} ${operario.apellidos}` : id;
+function operarioNombre(operarios: { id: string; nombre: string }[], id: string) {
+  return operarios.find(item => item.id === id)?.nombre ?? id;
 }
 
 function renderPrintableTable(title: string, rows: Record<string, unknown>[]) {

@@ -40,6 +40,12 @@ export interface PrecioTela {
   precioKg: number;
 }
 
+export interface PrecioTejeduria {
+  id: string;
+  tipoTejido: string;   // Ej: "Jersey 24/1", "Rib 1x1", "Interlock"
+  precioKg: number;
+}
+
 export interface PrecioComplemento {
   id: string;
   clave: string; // TIPO_ORIGEN composite key
@@ -54,6 +60,9 @@ export interface Producto {
   nombre: string;
   costoMoTotal: number; // suma de todas sus tarifas
   precioServicio: number; // precio cobrado al cliente por prenda
+  telaBase?: string;           // nombre de tela típica → auto-relleno en cortes
+  limiteConsumo?: number;      // kg/prenda máximo permitido
+  limiteRendimiento?: number;  // prendas/rollo mínimo permitido
   notas: string;
 }
 
@@ -72,6 +81,11 @@ export interface Operario {
   codigo: string; // OP001..OP024
   nombre: string; // nombres y apellidos combinados
   estado: 'ACTIVO' | 'INACTIVO';
+  dni?: string;
+  telefono?: string;
+  modulo?: string;
+  maquina?: string;
+  fechaIngreso?: string;
 }
 
 // ─── Inventario ────────────────────────────────────────────────────────────
@@ -117,6 +131,7 @@ export interface Corte {
   clienteId: string;
   productoId: string;
   colorId: string;
+  telaId?: string; // referencia a Tela.id para descuento automático de inventario
   cortador: string; // nombre libre, no referencia Operario.id
   ayudante: string;
   kgUsados: number;
@@ -302,6 +317,60 @@ export interface Config {
   tipoCambioUsd: number;
   kgPorRolloDefault: number; // 20
   comisionJoseKg: number;
+  mermaMaxTej: number;       // % máximo merma tejeduría antes de alerta (default 5)
+  mermaMaxTint: number;      // % máximo merma tintorería antes de alerta (default 3)
+}
+
+// ─── Stock Extorno (conos hilo sobrantes devueltos por tejeduría) ──────────
+
+export interface StockExtorno {
+  id: string;
+  programaId: string;
+  programaDetalleId?: string;
+  fecha: string;
+  kgConos: number;
+  precioKgHilo: number;  // precio del hilo del programa para valorizar
+  totalSoles: number;    // kgConos × precioKgHilo
+  usado: boolean;        // true cuando se reutiliza en otro programa
+  notas: string;
+}
+
+// ─── Descuentos de Boleta (por operario + período) ─────────────────────────
+
+export type TipoDescuentoBoleta = 'ADELANTO' | 'CAFETÍN' | 'PRÉSTAMO' | 'FALTA' | 'OTRO';
+
+export interface DescuentoBoleta {
+  id: string;
+  operarioId: string;
+  periodo: string;   // YYYY-MM
+  tipo: TipoDescuentoBoleta;
+  monto: number;
+  notas: string;
+}
+
+// ─── Complementos ─────────────────────────────────────────────────────────
+
+export type TipoComplemento = 'CUELLO' | 'PUÑO' | 'PRETINA';
+export type TipoMovimientoComplemento = 'INGRESO' | 'CONSUMO' | 'AJUSTE_POS' | 'AJUSTE_NEG';
+
+export interface MovimientoComplemento {
+  id: string;
+  fecha: string;
+  tipo: TipoMovimientoComplemento;
+  tipoComplemento: TipoComplemento;
+  colorId: string;
+  talla: 'S' | 'M' | 'L' | 'XL';
+  cantidad: number;
+  precioUnit: number;
+  totalSoles: number;
+  stockAntes: number;
+  stockDespues: number;
+  corteId?: string;
+  nCorte?: string;
+  proveedorId?: string;
+  nFactura?: string;
+  responsable: string;
+  notas: string;
 }
 
 // ─── Import/Export ────────────────────────────────────────────────────────
@@ -320,9 +389,13 @@ export interface TexajoImportPayload {
   cortes?: Corte[];
   seguimientoFilas?: SeguimientoFila[];
   boletaLineas?: BoletaLinea[];
+  descuentosBoleta?: DescuentoBoleta[];
+  movimientosComplemento?: MovimientoComplemento[];
   programasZurzam?: ProgramaZurzam[];
   programaDetalles?: ProgramaDetalle[];
   comprasHilo?: CompraHilo[];
+  stockExtornos?: StockExtorno[];
   cobrosDiarios?: CobroDiario[];
+  preciosTejeduria?: PrecioTejeduria[];
   config?: Partial<Config>;
 }

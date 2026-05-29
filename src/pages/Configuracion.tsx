@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion } from 'motion/react';
 import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
 
@@ -20,6 +21,8 @@ export function Configuracion() {
       tipoCambioUsd: Number(form.tipoCambioUsd),
       kgPorRolloDefault: Number(form.kgPorRolloDefault),
       comisionJoseKg: Number(form.comisionJoseKg),
+      mermaMaxTej: Number(form.mermaMaxTej),
+      mermaMaxTint: Number(form.mermaMaxTint),
     });
     addToast('Configuración guardada', 'success');
   };
@@ -46,7 +49,12 @@ export function Configuracion() {
     setForm(f => ({ ...f, [field]: parseFloat(e.target.value) || 0 }));
 
   return (
-    <div className="space-y-8 w-full max-w-2xl">
+    <motion.div
+      className="space-y-8 w-full max-w-2xl"
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.28, ease: 'easeOut' }}
+    >
       <div>
         <h2 className="text-2xl font-black uppercase tracking-tight">Configuración</h2>
         <p className="text-xs text-gray-500 mt-1">Parámetros globales del sistema</p>
@@ -95,6 +103,16 @@ export function Configuracion() {
           <label htmlFor="incluirIgv" className="text-xs font-bold uppercase tracking-widest">Incluir IGV en cálculos</label>
         </div>
 
+        <h3 className="text-[11px] font-bold uppercase tracking-widest text-gray-500 pt-2">Producción</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Field label="Merma máx. Tejeduría %">
+            <input type="number" min={0} max={100} step={0.5} value={form.mermaMaxTej} onChange={num('mermaMaxTej')} className="input-base" />
+          </Field>
+          <Field label="Merma máx. Tintorería %">
+            <input type="number" min={0} max={100} step={0.5} value={form.mermaMaxTint} onChange={num('mermaMaxTint')} className="input-base" />
+          </Field>
+        </div>
+
         <button onClick={handleSave} className="btn-primary mt-2">Guardar Configuración</button>
       </div>
 
@@ -126,7 +144,7 @@ export function Configuracion() {
           )}
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 

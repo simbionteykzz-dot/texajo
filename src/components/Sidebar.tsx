@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, PackageSearch, Receipt, Factory,
   Scissors, Settings, Tag, CreditCard, ClipboardList,
-  PanelLeftClose, PanelLeftOpen, LogOut, X,
+  PanelLeftClose, PanelLeftOpen, LogOut, X, Layers, Zap,
 } from 'lucide-react';
 import logoDashboard from '../assets/branding/logo-dashboard.png';
 
@@ -14,7 +14,9 @@ const NAV_ITEMS = [
   { name: 'Destajo', href: '/destajo', icon: CreditCard },
   { name: 'Programas Zurzam', href: '/programas', icon: Factory },
   { name: 'Cobros y Entregas', href: '/cobros', icon: Receipt },
+  { name: 'Complementos', href: '/complementos', icon: Layers },
   { name: 'Catalogos', href: '/catalogos', icon: Tag },
+  { name: 'Panel Operativo', href: '/panel', icon: Zap },
 ];
 
 interface SidebarProps {

@@ -158,6 +158,8 @@ export interface BoletaPdfData {
   totalesPrendas: number;
   totalesPendiente: number;
   totalesImporte: number;
+  /** Suma de descuentos manuales (override del 1% fijo). Si se omite se usa 1% del bruto. */
+  descuentoOverride?: number;
   lineas: {
     fecha: string;
     nCorte: string;
@@ -454,7 +456,7 @@ export function exportBoletaToPdf(data: BoletaPdfData) {
   // RESUMEN FINANCIERO
   // ══════════════════════════════════════════════════════════
   const totalBruto = data.totalesImporte;
-  const descuento  = totalBruto * 0.01;
+  const descuento  = data.descuentoOverride !== undefined ? data.descuentoOverride : totalBruto * 0.01;
   const totalNeto  = totalBruto - descuento;
 
   let fy = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 7;
@@ -484,7 +486,7 @@ export function exportBoletaToPdf(data: BoletaPdfData) {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(6.5);
   doc.setTextColor(196, 72, 18);
-  doc.text('DESC. 1%', BOX_X + 5, fy + ROW_H / 2 + 1.5);
+  doc.text(data.descuentoOverride !== undefined ? 'DESCUENTOS' : 'DESC. 1%', BOX_X + 5, fy + ROW_H / 2 + 1.5);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(196, 72, 18);

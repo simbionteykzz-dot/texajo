@@ -1,14 +1,16 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { motion } from 'motion/react';
 import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
-import { Download, Plus, X, CheckCircle, Clock, XCircle, FileText } from 'lucide-react';
-import { Corte } from '../types';
+import { Download, Plus, X, CheckCircle, Clock, XCircle, FileText, Trash2 } from 'lucide-react';
+import { Corte, SeguimientoAsignacion, SeguimientoFila, MovimientoTela } from '../types';
 import { exportRowsToXlsx, exportTableToPdf } from '../lib/export';
 
 const uid = () => crypto.randomUUID();
 
 interface CorteForm {
   nCorte: string; fecha: string; clienteId: string; productoId: string; colorId: string;
+  telaId: string;
   cortador: string; ayudante: string; kgUsados: string; rollosUsados: string;
   tendidas: string; mtsPorTendida: string; ancho: string;
   cantS: string; cantM: string; cantL: string; cantXL: string;
@@ -17,7 +19,7 @@ interface CorteForm {
 
 const emptyForm = (): CorteForm => ({
   nCorte: '', fecha: new Date().toISOString().slice(0, 10),
-  clienteId: '', productoId: '', colorId: '',
+  clienteId: '', productoId: '', colorId: '', telaId: '',
   cortador: '', ayudante: '', kgUsados: '', rollosUsados: '',
   tendidas: '', mtsPorTendida: '', ancho: '',
   cantS: '0', cantM: '0', cantL: '0', cantXL: '0',
@@ -31,16 +33,42 @@ const ESTADO_ICON: Record<string, React.ReactNode> = {
 };
 
 export function Cortes() {
-  const { cortes, clientes, productos, colores, tarifasOperaciones, addCorte, updateCorte } = useAppContext();
+  const {
+    cortes, clientes, productos, colores, telas, tarifasOperaciones,
+    movimientosTela, seguimientoFilas,
+    addCorte, updateCorte, deleteCorte,
+    addMovimientoTela, addSeguimientoFila,
+  } = useAppContext();
   const { addToast } = useToast();
   const [showForm, setShowForm] = useState(false);
   const [filterEstado, setFilterEstado] = useState('');
   const [filterCliente, setFilterCliente] = useState('');
   const [form, setForm] = useState<CorteForm>(emptyForm());
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   const clienteMap = useMemo(() => new Map(clientes.map(c => [c.id, c.nombre])), [clientes]);
   const productoMap = useMemo(() => new Map(productos.map(p => [p.id, p])), [productos]);
   const colorMap = useMemo(() => new Map(colores.map(c => [c.id, c.nombre])), [colores]);
+  const telaMap = useMemo(() => new Map(telas.map(t => [t.id, t])), [telas]);
+
+  // Stock actual de telas para el movimiento A_CORTE
+  const stockActualTelas = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const m of [...movimientosTela].sort((a, b) => a.fecha.localeCompare(b.fecha))) {
+      map.set(`${m.telaId}|${m.colorId}`, m.stockRollosDespues);
+    }
+    return map;
+  }, [movimientosTela]);
+
+  useEffect(() => {
+    if (!form.productoId) return;
+    const prod = productoMap.get(form.productoId);
+    if (!prod?.telaBase) return;
+    const telaMatch = telas.find(t => t.nombre.toLowerCase() === prod.telaBase!.toLowerCase());
+    if (telaMatch && !form.telaId) {
+      setForm(f => ({ ...f, telaId: telaMatch.id }));
+    }
+  }, [form.productoId, form.telaId, productoMap, telas]);
 
   const cortesFiltrados = useMemo(() =>
     [...cortes]
@@ -56,6 +84,70 @@ export function Cortes() {
     const tarifas = tarifasOperaciones.filter(t => t.productoId === productoId);
     const sumTarifas = tarifas.reduce((s, t) => s + t.tarifa, 0);
     return sumTarifas * total;
+  };
+
+  // Crea filas de seguimiento automáticamente para un corte completado
+  const crearFilasSeguimiento = (corte: Corte) => {
+    const tarifas = tarifasOperaciones.filter(t => t.productoId === corte.productoId).sort((a, b) => a.orden - b.orden);
+    const tallasMap: Array<{ talla: 'S' | 'M' | 'L' | 'XL'; cantidad: number }> = [
+      { talla: 'S', cantidad: corte.cantS },
+      { talla: 'M', cantidad: corte.cantM },
+      { talla: 'L', cantidad: corte.cantL },
+      { talla: 'XL', cantidad: corte.cantXL },
+    ];
+    for (const { talla, cantidad } of tallasMap) {
+      if (cantidad <= 0) continue;
+      const yaExiste = seguimientoFilas.some(f => f.corteId === corte.id && f.talla === talla);
+      if (yaExiste) continue;
+      const asignaciones: SeguimientoAsignacion[] = tarifas.map(t => ({
+        tarifaId: t.id, operacion: t.operacion, orden: t.orden, operarioId: '', pago: 0,
+      }));
+      const fila: SeguimientoFila = {
+        id: uid(),
+        corteId: corte.id,
+        nCorte: corte.nCorte,
+        productoId: corte.productoId,
+        fecha: corte.fecha,
+        colorId: corte.colorId,
+        talla,
+        cantidad,
+        asignaciones,
+        pctAvance: 0,
+        estado: 'PENDIENTE',
+        totalPago: 0,
+      };
+      addSeguimientoFila(fila);
+    }
+  };
+
+  // Descuenta inventario automáticamente al completar un corte
+  const descontarInventario = (corte: Corte) => {
+    if (!corte.telaId || !corte.colorId) return;
+    const key = `${corte.telaId}|${corte.colorId}`;
+    const stockAntes = stockActualTelas.get(key) ?? 0;
+    const rollos = corte.rollosUsados || 0;
+    const kgTotal = corte.kgUsados || 0;
+    const color = colores.find(c => c.id === corte.colorId);
+    const mov: MovimientoTela = {
+      id: uid(),
+      fecha: corte.fecha,
+      tipo: 'A_CORTE',
+      clienteId: corte.clienteId,
+      telaId: corte.telaId,
+      colorId: corte.colorId,
+      rollos,
+      kgTotal,
+      categoriaColor: color?.categoria ?? 'OSCURO',
+      precioKg: 0,
+      totalSoles: 0,
+      stockRollosAntes: stockAntes,
+      stockRollosDespues: stockAntes - rollos,
+      responsable: corte.cortador,
+      corteId: corte.id,
+      nCorte: corte.nCorte,
+      notas: `Auto-descuento por corte ${corte.nCorte}`,
+    };
+    addMovimientoTela(mov);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -80,6 +172,7 @@ export function Cortes() {
       clienteId: form.clienteId,
       productoId: form.productoId,
       colorId: form.colorId,
+      telaId: form.telaId || undefined,
       cortador: form.cortador,
       ayudante: form.ayudante,
       kgUsados,
@@ -152,7 +245,12 @@ export function Cortes() {
   };
 
   return (
-    <div className="space-y-8">
+    <motion.div
+      className="space-y-8"
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.28, ease: 'easeOut' }}
+    >
       <div className="flex items-start justify-between">
         <div>
           <h2 className="text-2xl font-black uppercase tracking-tight">Cortes</h2>
@@ -207,7 +305,9 @@ export function Cortes() {
                   <td className="px-3 py-2 whitespace-nowrap">{colorMap.get(c.colorId) ?? c.colorId}</td>
                   <td className="px-3 py-2 font-mono text-right">{c.totalPrendas}</td>
                   <td className="px-3 py-2 font-mono text-right">{c.kgUsados.toFixed(1)}</td>
-                  <td className="px-3 py-2 font-mono text-right">S/ {c.costoMoCorte.toFixed(2)}</td>
+                  <td className="px-3 py-2 font-mono text-right text-xs">
+                    {c.costoMoCorte > 0 ? `S/ ${c.costoMoCorte.toFixed(2)}` : '—'}
+                  </td>
                   <td className="px-3 py-2">
                     <span className="flex items-center gap-1">
                       {ESTADO_ICON[c.estado]}
@@ -235,16 +335,43 @@ export function Cortes() {
                     </select>
                   </td>
                   <td className="px-3 py-2">
-                    {c.estado === 'EN_PROCESO' && (
-                      <button
-                        onClick={() => updateCorte(c.id, { estado: 'COMPLETADO' })}
-                        className="text-[10px] font-bold uppercase text-blue-600 hover:text-blue-800"
-                      >Completar</button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {c.estado === 'EN_PROCESO' && (
+                        <button
+                          onClick={() => {
+                            updateCorte(c.id, { estado: 'COMPLETADO' });
+                            descontarInventario(c);
+                            crearFilasSeguimiento(c);
+                            addToast(`Corte ${c.nCorte} completado — inventario descontado y seguimiento creado`, 'success');
+                          }}
+                          className="text-[10px] font-bold uppercase text-blue-600 hover:text-blue-800"
+                        >Completar</button>
+                      )}
+                      {confirmDelete === c.id ? (
+                        <span className="flex items-center gap-1 whitespace-nowrap">
+                          <button onClick={() => { deleteCorte(c.id); setConfirmDelete(null); addToast('Corte eliminado', 'success'); }} className="text-[10px] font-bold text-red-600 hover:text-red-800 uppercase">Sí</button>
+                          <span className="text-gray-300">/</span>
+                          <button onClick={() => setConfirmDelete(null)} className="text-[10px] font-bold text-gray-400 hover:text-gray-600 uppercase">No</button>
+                        </span>
+                      ) : (
+                        <button onClick={() => setConfirmDelete(c.id)} className="text-gray-300 hover:text-red-500 transition-colors">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
             </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-gray-300 bg-gray-50">
+                <td colSpan={7} className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">Total</td>
+                <td className="px-3 py-2 font-mono text-right text-xs font-bold">
+                  S/ {cortesFiltrados.reduce((s, c) => s + c.costoMoCorte, 0).toFixed(2)}
+                </td>
+                <td colSpan={4} />
+              </tr>
+            </tfoot>
           </table>
         </div>
       )}
@@ -268,7 +395,7 @@ export function Cortes() {
                   </select>
                 </F>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <F label="Producto">
                   <select value={form.productoId} onChange={set('productoId')} className="input-base" required>
                     <option value="">Seleccionar…</option>
@@ -281,10 +408,28 @@ export function Cortes() {
                     {colores.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                   </select>
                 </F>
+                <F label="Tela">
+                  <select value={form.telaId} onChange={set('telaId')} className="input-base">
+                    <option value="">— (opcional)</option>
+                    {telas.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+                  </select>
+                </F>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <F label="Cortador"><input type="text" value={form.cortador} onChange={set('cortador')} className="input-base" /></F>
-                <F label="Ayudante"><input type="text" value={form.ayudante} onChange={set('ayudante')} className="input-base" /></F>
+                <F label="Cortador">
+                  <select value={form.cortador} onChange={set('cortador')} className="input-base">
+                    <option value="">Seleccionar…</option>
+                    <option value="Yerson">Yerson</option>
+                    <option value="Jose">Jose</option>
+                  </select>
+                </F>
+                <F label="Ayudante">
+                  <select value={form.ayudante} onChange={set('ayudante')} className="input-base">
+                    <option value="">Seleccionar…</option>
+                    <option value="Yerson">Yerson</option>
+                    <option value="Jose">Jose</option>
+                  </select>
+                </F>
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <F label="Kg Usados"><input type="number" min={0} step={0.1} value={form.kgUsados} onChange={set('kgUsados')} className="input-base" /></F>
@@ -313,6 +458,28 @@ export function Cortes() {
                 <label htmlFor="traslado" className="text-[10px] font-bold uppercase tracking-widest">Traslado</label>
               </div>
               <F label="Notas"><textarea value={form.notas} onChange={set('notas')} rows={2} className="input-base" /></F>
+              {(() => {
+                const kgU = parseFloat(form.kgUsados) || 0;
+                const rollosU = parseFloat(form.rollosUsados) || 0;
+                const totalP = (parseInt(form.cantS)||0)+(parseInt(form.cantM)||0)+(parseInt(form.cantL)||0)+(parseInt(form.cantXL)||0);
+                const consumoActual = totalP > 0 ? kgU / totalP : 0;
+                const rendimientoActual = rollosU > 0 ? totalP / rollosU : 0;
+                const prodSeleccionado = productoMap.get(form.productoId);
+                return (
+                  <>
+                    {prodSeleccionado?.limiteConsumo && consumoActual > 0 && consumoActual > prodSeleccionado.limiteConsumo && (
+                      <div className="bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2 text-[11px] font-bold">
+                        ⚠ Consumo {consumoActual.toFixed(3)} kg/prenda supera el límite de {prodSeleccionado.limiteConsumo} kg/prenda
+                      </div>
+                    )}
+                    {prodSeleccionado?.limiteRendimiento && rendimientoActual > 0 && rendimientoActual < prodSeleccionado.limiteRendimiento && (
+                      <div className="bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2 text-[11px] font-bold">
+                        ⚠ Rendimiento {rendimientoActual.toFixed(1)} prendas/rollo está por debajo del mínimo de {prodSeleccionado.limiteRendimiento}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setShowForm(false)} className="btn-secondary">Cancelar</button>
                 <button type="submit" className="btn-primary">Guardar Corte</button>
@@ -321,7 +488,7 @@ export function Cortes() {
           </div>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }
 
