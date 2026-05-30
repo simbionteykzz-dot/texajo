@@ -64,6 +64,19 @@ export default function App() {
     );
   }
 
+  // Sesión activa pero email sin confirmar — forzar logout
+  if (autenticado && authUser === null) {
+    supabase.auth.signOut();
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#FFFFFF] px-6">
+        <div className="w-full max-w-md border px-8 py-10" style={{ borderColor: '#F5C4B0', background: '#FEF0EC' }}>
+          <p className="text-sm font-bold" style={{ color: '#7A2C0E' }}>Tu cuenta aún no ha sido confirmada.</p>
+          <p className="mt-2 text-xs" style={{ color: '#7A2C0E' }}>Revisa tu correo electrónico y confirma tu cuenta antes de ingresar al sistema.</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!autenticado) {
     return (
       <Login

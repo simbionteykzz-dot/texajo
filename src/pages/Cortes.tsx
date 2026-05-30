@@ -121,11 +121,16 @@ export function Cortes() {
   };
 
   // Descuenta inventario automáticamente al completar un corte
-  const descontarInventario = (corte: Corte) => {
-    if (!corte.telaId || !corte.colorId) return;
+  const descontarInventario = (corte: Corte): boolean => {
+    if (!corte.telaId || !corte.colorId) return true;
     const key = `${corte.telaId}|${corte.colorId}`;
     const stockAntes = stockActualTelas.get(key) ?? 0;
     const rollos = corte.rollosUsados || 0;
+    const stockDespues = stockAntes - rollos;
+    if (stockDespues < 0) {
+      addToast(`Stock insuficiente: se necesitan ${rollos} rollos pero hay ${stockAntes} disponibles`, 'error');
+      return false;
+    }
     const kgTotal = corte.kgUsados || 0;
     const color = colores.find(c => c.id === corte.colorId);
     const mov: MovimientoTela = {
@@ -141,13 +146,14 @@ export function Cortes() {
       precioKg: 0,
       totalSoles: 0,
       stockRollosAntes: stockAntes,
-      stockRollosDespues: stockAntes - rollos,
+      stockRollosDespues: stockDespues,
       responsable: corte.cortador,
       corteId: corte.id,
       nCorte: corte.nCorte,
       notas: `Auto-descuento por corte ${corte.nCorte}`,
     };
     addMovimientoTela(mov);
+    return true;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -339,8 +345,14 @@ export function Cortes() {
                       {c.estado === 'EN_PROCESO' && (
                         <button
                           onClick={() => {
+                            const totalPrendas = (c.cantS ?? 0) + (c.cantM ?? 0) + (c.cantL ?? 0) + (c.cantXL ?? 0);
+                            if (totalPrendas === 0) {
+                              addToast('El corte no tiene prendas registradas', 'error');
+                              return;
+                            }
+                            const ok = descontarInventario(c);
+                            if (!ok) return;
                             updateCorte(c.id, { estado: 'COMPLETADO' });
-                            descontarInventario(c);
                             crearFilasSeguimiento(c);
                             addToast(`Corte ${c.nCorte} completado — inventario descontado y seguimiento creado`, 'success');
                           }}

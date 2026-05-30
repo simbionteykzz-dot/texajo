@@ -22,8 +22,9 @@ export function useAuthUser(): AuthUser | null {
     return raw;
   };
 
-  const fromSession = (session: { user: { id: string; email?: string; user_metadata?: Record<string, unknown> } } | null) => {
+  const fromSession = (session: { user: { id: string; email?: string; email_confirmed_at?: string | null; user_metadata?: Record<string, unknown> } } | null) => {
     if (!session) return null;
+    if (!session.user.email_confirmed_at) return null;
     const meta = session.user.user_metadata ?? {};
     const rawRol = (meta.rol as string) || (meta.role as string) || '';
     const emailPrefix = (session.user.email ?? '').split('@')[0];

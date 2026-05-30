@@ -189,6 +189,10 @@ export function Destajo() {
       addToast('Completa al menos una línea con corte, operación y cantidad', 'error');
       return;
     }
+    const conTarifaCero = nuevas.filter(l => l.tarifa === 0).length;
+    if (conTarifaCero > 0) {
+      addToast(`${conTarifaCero} línea${conTarifaCero > 1 ? 's' : ''} con tarifa S/ 0.00 — verifica las tarifas antes de confirmar`, 'info');
+    }
     addBoletaLineas(nuevas);
     const nOps = draftSecciones.filter(s => buildLineasParaOperario(s.operarioId, s.lineas).length > 0).length;
     addToast(`${nuevas.length} línea${nuevas.length !== 1 ? 's' : ''} guardada${nuevas.length !== 1 ? 's' : ''} para ${nOps} operario${nOps > 1 ? 's' : ''}`, 'success');

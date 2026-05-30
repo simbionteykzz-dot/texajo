@@ -332,19 +332,20 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     dbUpdate: (id: string, updates: Partial<T>, cur: T) => Promise<void>
   ) {
     return (id: string, updates: Partial<T>) => {
+      let cur: T | undefined;
       set(p => {
         const arr = (p[field] as unknown) as T[];
-        const cur = arr.find(x => x.id === id);
-        if (cur) {
-          dbUpdate(id, updates, cur).catch(err => logDbError('UPDATE', field, err));
-          const entidad = FIELD_TO_TABLE[field] ?? String(field);
-          auditLog('UPDATE', entidad, id, describeRecord(entidad, cur as Record<string, unknown>),
-            cur as Record<string, unknown>,
-            { ...cur, ...updates } as Record<string, unknown>
-          );
-        }
+        cur = arr.find(x => x.id === id);
         return { ...p, [field]: arr.map(x => x.id === id ? { ...x, ...updates } : x) };
       });
+      if (cur) {
+        const entidad = FIELD_TO_TABLE[field] ?? String(field);
+        dbUpdate(id, updates, cur).catch(err => logDbError('UPDATE', field, err));
+        auditLog('UPDATE', entidad, id, describeRecord(entidad, cur as Record<string, unknown>),
+          cur as Record<string, unknown>,
+          { ...cur, ...updates } as Record<string, unknown>
+        );
+      }
     };
   }
 
@@ -353,16 +354,17 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     dbDel: (id: string) => Promise<void>
   ) {
     return (id: string) => {
+      let cur: { id: string } | undefined;
       set(p => {
         const arr = p[field] as { id: string }[];
-        const cur = arr.find(x => x.id === id);
-        if (cur) {
-          const entidad = FIELD_TO_TABLE[field] ?? String(field);
-          auditLog('DELETE', entidad, id, describeRecord(entidad, cur as Record<string, unknown>), cur as Record<string, unknown>, undefined);
-        }
+        cur = arr.find(x => x.id === id);
         return { ...p, [field]: arr.filter(x => x.id !== id) };
       });
       dbDel(id).catch(err => logDbError('DELETE', field, err));
+      if (cur) {
+        const entidad = FIELD_TO_TABLE[field] ?? String(field);
+        auditLog('DELETE', entidad, id, describeRecord(entidad, cur as Record<string, unknown>), cur as Record<string, unknown>, undefined);
+      }
     };
   }
 
@@ -463,9 +465,19 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   const deleteTarifaOperacion = makeDelete('tarifasOperaciones', db.tarifasOperaciones.delete);
 
   const updatePrecioComplemento = (id: string, updates: Partial<PrecioComplemento>) => {
-    set(p => ({ ...p, preciosComplementos: p.preciosComplementos.map(x => x.id === id ? { ...x, ...updates } : x) }));
-    const cur = state.preciosComplementos.find(x => x.id === id);
-    if (cur) db.preciosComplementos.update(id, updates, cur).catch(console.error);
+    let cur: PrecioComplemento | undefined;
+    set(p => {
+      cur = p.preciosComplementos.find(x => x.id === id);
+      return { ...p, preciosComplementos: p.preciosComplementos.map(x => x.id === id ? { ...x, ...updates } : x) };
+    });
+    if (cur) {
+      db.preciosComplementos.update(id, updates, cur).catch(err => logDbError('UPDATE', 'preciosComplementos', err));
+      const curRec = cur as unknown as Record<string, unknown>;
+      auditLog('UPDATE', 'precios_complementos', id, describeRecord('precios_complementos', curRec),
+        curRec,
+        { ...curRec, ...(updates as unknown as Record<string, unknown>) }
+      );
+    }
   };
 
   const addOperario = makeAdd<Operario>('operarios', db.operarios.add);
@@ -477,8 +489,12 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
 
   // ─── Config ──────────────────────────────────────────────────────────────
   const updateConfig = (updates: Partial<Config>) => {
-    set(p => ({ ...p, config: { ...p.config, ...updates } }));
-    db.config.upsert({ ...state.config, ...updates }).catch(console.error);
+    let newConfig: Config | undefined;
+    set(p => {
+      newConfig = { ...p.config, ...updates };
+      return { ...p, config: newConfig };
+    });
+    if (newConfig) db.config.upsert(newConfig).catch(err => logDbError('UPSERT', 'config', err));
   };
 
   // ─── Import / Reset ──────────────────────────────────────────────────────

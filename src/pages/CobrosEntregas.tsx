@@ -152,6 +152,10 @@ export function CobrosEntregas() {
       addToast('Selecciona cliente y producto', 'error');
       return;
     }
+    if (form.nFactura && cobrosDiarios.some(c => c.nFactura === form.nFactura.trim())) {
+      addToast(`La factura ${form.nFactura} ya está registrada`, 'error');
+      return;
+    }
     const cantS = parseInt(form.cantS) || 0;
     const cantM = parseInt(form.cantM) || 0;
     const cantL = parseInt(form.cantL) || 0;

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { DollarSign, Plus, Trash2, X, ChevronDown, ChevronRight } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
@@ -30,6 +31,7 @@ function F({ label, children }: { label: string; children: React.ReactNode }) {
 }
 
 export function TablaTarifas() {
+  const navigate = useNavigate();
   const {
     productos,
     tarifasOperaciones, addTarifaOperacion, updateTarifaOperacion, deleteTarifaOperacion,
@@ -498,7 +500,15 @@ export function TablaTarifas() {
             </div>
           ))}
           <p className="text-[11px] font-mono" style={{ color: '#9A8F87' }}>
-            Los complementos sin precio (—) no tienen registro en el sistema. Puedes agregarlos desde la sección de catálogos.
+            Los complementos sin precio (—) no tienen registro.{' '}
+            <button
+              type="button"
+              onClick={() => navigate('/catalogos')}
+              className="underline font-bold"
+              style={{ color: '#173A25' }}
+            >
+              Ir a Catalogos → Precios Complementos
+            </button>
           </p>
         </div>
       )}
