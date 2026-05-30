@@ -221,6 +221,8 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
 
   // ── Carga inicial desde Supabase ──────────────────────────────────────────
   useEffect(() => {
+    // Limpia caché local para evitar mezcla entre sesiones distintas
+    localStorage.removeItem(STORAGE_KEY);
     loadAllFromDb()
       .then(async (remote) => {
         const isFirstTime =

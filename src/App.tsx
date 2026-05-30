@@ -113,7 +113,7 @@ export default function App() {
   };
 
   return (
-    <AppProvider authUser={authUser}>
+    <AppProvider key={authUser?.id ?? 'guest'} authUser={authUser}>
       <ToastProvider>
         <Router>
           <div className="flex h-screen overflow-hidden bg-[#F4F2EE] font-sans text-[#1A1A1A]">
