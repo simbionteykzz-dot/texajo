@@ -75,6 +75,7 @@ create table if not exists productos (
   tela_base           text,
   limite_consumo      numeric,
   limite_rendimiento  numeric,
+  receta_complementos jsonb,          -- RecetaComplemento[]
   notas               text not null default '',
   created_at          timestamptz default now()
 );
@@ -319,24 +320,25 @@ create table if not exists cobros_diarios (
 -- ─── Complementos ───────────────────────────────────────────
 
 create table if not exists movimientos_complemento (
-  id               text primary key,
-  fecha            text not null,
-  tipo             text not null check (tipo in ('INGRESO','CONSUMO','AJUSTE_POS','AJUSTE_NEG')),
-  tipo_complemento text not null check (tipo_complemento in ('CUELLO','PUÑO','PRETINA')),
-  color_id         text not null,
-  talla            text not null check (talla in ('S','M','L','XL')),
-  cantidad         integer not null default 0,
-  precio_unit      numeric not null default 0,
-  total_soles      numeric not null default 0,
-  stock_antes      integer not null default 0,
-  stock_despues    integer not null default 0,
-  corte_id         text,
-  n_corte          text,
-  proveedor_id     text,
-  n_factura        text,
-  responsable      text not null default '',
-  notas            text not null default '',
-  created_at       timestamptz default now()
+  id                   text primary key,
+  fecha                text not null,
+  tipo                 text not null check (tipo in ('INGRESO','CONSUMO','AJUSTE_POS','AJUSTE_NEG')),
+  tipo_complemento     text not null check (tipo_complemento in ('CUELLO','PUÑO','PRETINA')),
+  color_id             text not null,
+  talla                text not null check (talla in ('S','M','L','XL')),
+  cantidad             integer not null default 0,
+  precio_unit          numeric not null default 0,
+  total_soles          numeric not null default 0,
+  stock_antes          integer not null default 0,
+  stock_despues        integer not null default 0,
+  corte_id             text,
+  n_corte              text,
+  producto_destino_id  text,          -- producto que consumió estos complementos
+  proveedor_id         text,
+  n_factura            text,
+  responsable          text not null default '',
+  notas                text not null default '',
+  created_at           timestamptz default now()
 );
 
 -- ─── Configuración ──────────────────────────────────────────
@@ -356,6 +358,18 @@ create table if not exists config (
   merma_max_tint       numeric not null default 3,
   created_at           timestamptz default now(),
   constraint config_singleton check (id = 'singleton')
+);
+
+-- ─── Precios Tintorería ─────────────────────────────────────
+
+create table if not exists precios_tintoreria (
+  id            text primary key,
+  tipo_servicio text not null check (tipo_servicio in ('REACTIVO','DIRECTO','PPT','LAVADO','TERMOFIJADO','COMPACTADO_EN_RAMA')),
+  tipo_tela     text not null,
+  precio_kg     numeric not null default 0,
+  moneda        text not null check (moneda in ('PEN','USD')) default 'PEN',
+  notas         text not null default '',
+  created_at    timestamptz default now()
 );
 
 -- ─── Acceso público (anon key puede leer/escribir) ──────────
@@ -381,6 +395,7 @@ alter table programa_detalles      disable row level security;
 alter table compras_hilo           disable row level security;
 alter table stock_extornos         disable row level security;
 alter table cobros_diarios         disable row level security;
+alter table precios_tintoreria      disable row level security;
 alter table movimientos_complemento disable row level security;
 alter table config                 disable row level security;
 
