@@ -225,10 +225,13 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     localStorage.removeItem(STORAGE_KEY);
     loadAllFromDb()
       .then(async (remote) => {
+        // Solo sembrar datos mock si Supabase respondió sin errores Y las tablas están vacías
+        // (primera vez que se usa el sistema). Si hay error en loadAllFromDb, lanza y va al catch.
         const isFirstTime =
           remote.clientes.length === 0 &&
           remote.telas.length === 0 &&
-          remote.productos.length === 0;
+          remote.productos.length === 0 &&
+          remote.operarios.length === 0;
 
         if (isFirstTime) {
           // Primer login: sembrar datos maestros en Supabase
@@ -287,7 +290,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         setDbReady(true);
       })
       .catch((err) => {
-        console.warn('Supabase no disponible, usando caché local:', err);
+        console.error('[Supabase] loadAllFromDb falló — usando caché local:', err);
         setDbReady(true);
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -306,13 +309,18 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
 
   // ─── Helpers de mutación con Supabase ────────────────────────────────────
 
+  const logDbError = (op: string, field: keyof AppState, err: unknown) => {
+    const msg = err instanceof Error ? err.message : JSON.stringify(err);
+    console.error(`[Supabase] ${op} en ${String(field)} falló:`, msg, err);
+  };
+
   function makeAdd<T>(
     field: keyof AppState,
     dbAdd: (v: T) => Promise<void>
   ) {
     return (v: T) => {
       set(p => ({ ...p, [field]: [...(p[field] as T[]), v] }));
-      dbAdd(v).catch(console.error);
+      dbAdd(v).catch(err => logDbError('INSERT', field, err));
       const entidad = FIELD_TO_TABLE[field] ?? String(field);
       const rec = v as Record<string, unknown>;
       auditLog('CREATE', entidad, String(rec['id'] ?? ''), describeRecord(entidad, rec), undefined, rec);
@@ -328,7 +336,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         const arr = (p[field] as unknown) as T[];
         const cur = arr.find(x => x.id === id);
         if (cur) {
-          dbUpdate(id, updates, cur).catch(console.error);
+          dbUpdate(id, updates, cur).catch(err => logDbError('UPDATE', field, err));
           const entidad = FIELD_TO_TABLE[field] ?? String(field);
           auditLog('UPDATE', entidad, id, describeRecord(entidad, cur as Record<string, unknown>),
             cur as Record<string, unknown>,
@@ -354,7 +362,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         }
         return { ...p, [field]: arr.filter(x => x.id !== id) };
       });
-      dbDel(id).catch(console.error);
+      dbDel(id).catch(err => logDbError('DELETE', field, err));
     };
   }
 

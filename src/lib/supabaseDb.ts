@@ -116,7 +116,7 @@ export interface DbAppState {
 export async function loadAllFromDb(): Promise<DbAppState> {
   const [
     c, p, te, co, pt, pc, ptej, pr, to, op,
-    mt, cor, sf, bl, db,
+    mt, cor, sf, bl, dbesc,
     pz, pd, ch, se, cd, mc, cfg
   ] = await Promise.all([
     supabase.from('clientes').select('*'),
@@ -143,6 +143,18 @@ export async function loadAllFromDb(): Promise<DbAppState> {
     supabase.from('config').select('*').eq('id', 'singleton').maybeSingle(),
   ]);
 
+  // Loguear errores individuales para diagnóstico
+  const checks = { c, p, te, co, pt, pc, ptej, pr, to, op, mt, cor, sf, bl, dbesc, pz, pd, ch, se, cd, mc };
+  for (const [name, res] of Object.entries(checks)) {
+    if (res.error) console.error(`[Supabase] SELECT ${name} error:`, res.error);
+  }
+  if (cfg.error) console.error('[Supabase] SELECT config error:', cfg.error);
+
+  // Si alguna tabla crítica tiene error (no solo vacía), lanzar para que AppContext use caché
+  if (c.error || te.error || pr.error) {
+    throw new Error(`Supabase SELECT falló: ${c.error?.message ?? te.error?.message ?? pr.error?.message}`);
+  }
+
   return {
     clientes:               (c.data    ?? []).map(toCliente),
     proveedores:            (p.data    ?? []).map(toProveedor),
@@ -158,7 +170,7 @@ export async function loadAllFromDb(): Promise<DbAppState> {
     cortes:                 (cor.data  ?? []).map(toCorte),
     seguimientoFilas:       (sf.data   ?? []).map(toSeguimientoFila),
     boletaLineas:           (bl.data   ?? []).map(toBoletaLinea),
-    descuentosBoleta:       (db.data   ?? []).map(toDescuento),
+    descuentosBoleta:       (dbesc.data   ?? []).map(toDescuento),
     programasZurzam:        (pz.data   ?? []).map(toPrograma),
     programaDetalles:       (pd.data   ?? []).map(toDetalle),
     comprasHilo:            (ch.data   ?? []).map(toCompraHilo),
