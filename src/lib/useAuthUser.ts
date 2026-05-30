@@ -13,14 +13,24 @@ export interface AuthUser {
 export function useAuthUser(): AuthUser | null {
   const [user, setUser] = useState<AuthUser | null>(null);
 
+  const normalizeRol = (raw: string): Rol => {
+    const s = (raw ?? '').trim().toUpperCase();
+    if (s === 'ADMINISTRADOR GENERAL') return 'Administrador General';
+    if (s === 'SUPERVISOR') return 'Supervisor';
+    if (s === 'ENCARGADO DE ÁREA' || s === 'ENCARGADO DE AREA') return 'Encargado de Área';
+    return raw;
+  };
+
   const fromSession = (session: { user: { id: string; email?: string; user_metadata?: Record<string, unknown> } } | null) => {
     if (!session) return null;
     const meta = session.user.user_metadata ?? {};
+    const rawRol = (meta.rol as string) || (meta.role as string) || '';
+    const emailPrefix = (session.user.email ?? '').split('@')[0];
     return {
       id: session.user.id,
       email: session.user.email ?? '',
-      nombre: (meta.nombre as string) || (session.user.email ?? '').split('@')[0],
-      rol: (meta.rol as string) || 'Usuario',
+      nombre: (meta.nombre as string) || (meta.name as string) || emailPrefix,
+      rol: normalizeRol(rawRol) || 'Usuario',
     };
   };
 

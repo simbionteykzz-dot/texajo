@@ -49,8 +49,9 @@ export function PanelAdmin() {
       );
       setSavedMsg('Permisos guardados correctamente.');
       setLocal(null);
-    } catch {
-      setSavedMsg('Error al guardar. Intenta de nuevo.');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : JSON.stringify(err);
+      setSavedMsg(`Error al guardar: ${msg}`);
     } finally {
       setSaving(false);
     }
