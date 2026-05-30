@@ -4,6 +4,7 @@ import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
 import { Download, Plus, X, ChevronDown, ChevronRight, FileText, Trash2 } from 'lucide-react';
 import { ProgramaZurzam, ProgramaDetalle, CompraHilo, EstadoPrograma, EstadoPago, StockExtorno } from '../types';
+import { ModuleInfoBox } from '../components/ModuleInfoBox';
 import { exportRowsToXlsx, exportTableToPdf } from '../lib/export';
 
 const uid = () => crypto.randomUUID();
@@ -339,6 +340,17 @@ export function ProgramasZurzam() {
           <p className="text-xs text-gray-500 mt-1">Tejeduría y tintorería por programa</p>
         </div>
         <div className="flex items-center gap-2">
+          <ModuleInfoBox
+            accent="#7B5EA7"
+            titulo="Programas Zurzam"
+            descripcion="Gestiona los programas de producción de hilo, tejeduría y tintorería coordinados con Zurzam. Controla kg enviados/retornados, costos por etapa, pagos y extornos de conos sobrantes."
+            items={[
+              { label: 'Flujo', detail: 'NUEVO → EN_COMPRA → EN_TEJEDURIA → EN_TINTORERIA → EN_PLANTA → CERRADO' },
+              { label: 'Detalles por color', detail: 'Kg, precio, TC, costo y estado de pago para tejeduría y tintorería' },
+              { label: 'Compras de hilo', detail: 'Registro de facturas con diferencia costo real vs. estimado' },
+              { label: 'Extornos', detail: 'Conos devueltos por tejeduría: kg × precio hilo = valor recuperado' },
+            ]}
+          />
           <button onClick={exportarProgramas} className="btn-secondary flex items-center gap-2">
             <Download className="h-4 w-4" /> Excel
           </button>

@@ -4,6 +4,7 @@ import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
 import { Download, Plus, X, FileText, Trash2 } from 'lucide-react';
 import { TipoMovimientoTela, CategoriaColor } from '../types';
+import { ModuleInfoBox } from '../components/ModuleInfoBox';
 import { exportRowsToXlsx, exportTableToPdf } from '../lib/export';
 
 type InvTab = 'movimientos' | 'matriz' | 'criticos' | 'historico';
@@ -264,6 +265,17 @@ export function InventarioTelas() {
           <p className="text-xs text-gray-500 mt-1">Movimientos y stock por tela/color</p>
         </div>
         <div className="flex items-center gap-2">
+          <ModuleInfoBox
+            accent="#4B7FA3"
+            titulo="Inventario de Telas"
+            descripcion="Controla el stock de rollos de tela agrupado por tipo y color. Registra ingresos, consumos a corte, reprocesos y ajustes. Genera alertas cuando el stock cae por debajo de umbrales configurables."
+            items={[
+              { label: 'Movimientos', detail: 'Ingreso, A Corte, Reproceso, Muestra, Ajuste +/−' },
+              { label: 'Matriz Color × Tela', detail: 'Vista cruzada del stock con semáforo crítico/bajo/ok' },
+              { label: 'Tab Críticos', detail: 'Lista filtrada de combinaciones bajo el umbral de alerta' },
+              { label: 'Histórico Mensual', detail: 'Ingresos, consumo y balance por mes (últimos 24)' },
+            ]}
+          />
           <button onClick={exportarMovimientos} className="btn-secondary flex items-center gap-2">
             <Download className="h-4 w-4" /> Excel
           </button>

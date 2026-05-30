@@ -6,6 +6,7 @@ import {
   AlertTriangle, TrendingUp, Scissors, Users, Package, DollarSign,
   ClipboardList, CreditCard, Factory, Tag, Settings,
 } from 'lucide-react';
+import { ModuleInfoBox } from '../components/ModuleInfoBox';
 
 function StatCard({ title, value, sub, icon: Icon, accent }: {
   title: string; value: string | number; sub?: string;
@@ -198,9 +199,22 @@ export function Dashboard() {
             Resumen operativo
           </p>
         </div>
-        <p className="font-mono capitalize" style={{ fontSize: '10px', letterSpacing: '0.08em', color: '#9A8F87' }}>
-          {today}
-        </p>
+        <div className="flex items-center gap-3">
+          <ModuleInfoBox
+            accent="#1A1A1A"
+            titulo="Dashboard"
+            descripcion="Panel central con indicadores clave del negocio en tiempo real. Muestra stock crítico, producción activa, cobros del mes, ranking de operarios por importe y eficiencia de avance por producto."
+            items={[
+              { label: 'KPIs', detail: 'Stock crítico, cortes activos, cobros del mes, operarios activos' },
+              { label: 'Ranking Operarios', detail: 'Top 10 por importe generado — barras proporcionales' },
+              { label: 'Eficiencia por Producto', detail: 'Barras de avance (verde ≥80%, ámbar ≥50%, rojo <50%)' },
+              { label: 'Últimos movimientos', detail: 'Feed de los 12 movimientos de tela más recientes' },
+            ]}
+          />
+          <p className="font-mono capitalize" style={{ fontSize: '10px', letterSpacing: '0.08em', color: '#9A8F87' }}>
+            {today}
+          </p>
+        </div>
       </motion.div>
 
       <motion.div

@@ -4,6 +4,7 @@ import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
 import { Download, Plus, X, FileText, Receipt, Users, BarChart2 } from 'lucide-react';
 import { BoletaLinea, TipoDescuentoBoleta } from '../types';
+import { ModuleInfoBox } from '../components/ModuleInfoBox';
 import { exportRowsToXlsx, exportTableToPdf } from '../lib/export';
 import { BoletaOperario } from '../components/BoletaOperario';
 
@@ -297,8 +298,23 @@ export function Destajo() {
     >
       {/* Encabezado + tabs */}
       <div>
-        <h2 className="text-2xl font-black uppercase tracking-tight">Destajo</h2>
-        <p className="text-xs text-gray-500 mt-1">Pago por destajo — prendas × tarifa con descuentos configurables por operario</p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h2 className="text-2xl font-black uppercase tracking-tight">Destajo</h2>
+            <p className="text-xs text-gray-500 mt-1">Pago por destajo — prendas × tarifa con descuentos configurables por operario</p>
+          </div>
+          <ModuleInfoBox
+            accent="#3E8C5F"
+            titulo="Destajo"
+            descripcion="Liquida el pago de cada operario por período. Calcula el importe como prendas × tarifa, aplica descuentos (adelantos, préstamos, faltas) y genera una boleta imprimible por operario."
+            items={[
+              { label: 'Mi Boleta', detail: 'Líneas de pago por operario y período con descuentos desglosados' },
+              { label: 'Resumen', detail: 'Totales por período con rango de fechas libre y ranking de pago' },
+              { label: 'Vista General', detail: 'Tabla consolidada de todas las boletas con estado PENDIENTE/PAGADO' },
+              { label: 'Boleta imprimible', detail: 'PDF con detalle de operaciones, tarifas, descuentos y neto a pagar' },
+            ]}
+          />
+        </div>
         <div className="flex gap-1 mt-4 border-b border-[#DDD8CF]">
           {([
             { key: 'boleta', label: 'Mi Boleta', icon: Receipt },

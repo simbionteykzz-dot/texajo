@@ -4,6 +4,7 @@ import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
 import { Download, Plus, X, ChevronDown, ChevronRight, FileText, Trash2 } from 'lucide-react';
 import { SeguimientoFila, SeguimientoAsignacion } from '../types';
+import { ModuleInfoBox } from '../components/ModuleInfoBox';
 import { exportRowsToXlsx, exportTableToPdf } from '../lib/export';
 
 const uid = () => crypto.randomUUID();
@@ -212,6 +213,17 @@ export function ProduccionConfeccion() {
           <p className="text-xs text-gray-500 mt-1">Asignación de operarios por operación y talla</p>
         </div>
         <div className="flex items-center gap-2">
+          <ModuleInfoBox
+            accent="#B89B5E"
+            titulo="Seguimiento Confección"
+            descripcion="Asigna operarios a cada operación de confección por talla y corte. Calcula el avance porcentual y el pago por destajo generado. Agrupa las filas por corte con vista expandible."
+            items={[
+              { label: 'Por Corte', detail: 'Filas agrupadas por N° de corte con totales de prendas y pago' },
+              { label: 'Por Producto', detail: 'Filtro por producto: muestra todos sus cortes, avance y pago total' },
+              { label: 'Avance', detail: 'Calculado como promedio ponderado de asignaciones completadas' },
+              { label: 'Estado', detail: 'PENDIENTE → EN_PROCESO → LISTO → PAGADO' },
+            ]}
+          />
           <button onClick={exportarSeguimiento} className="btn-secondary flex items-center gap-2">
             <Download className="h-4 w-4" /> Excel
           </button>

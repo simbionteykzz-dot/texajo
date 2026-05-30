@@ -4,6 +4,7 @@ import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
 import { Download, Plus, X, FileText, Trash2, BarChart2 } from 'lucide-react';
 import { CobroDiario } from '../types';
+import { ModuleInfoBox } from '../components/ModuleInfoBox';
 import { exportRowsToXlsx, exportTableToPdf } from '../lib/export';
 
 const uid = () => crypto.randomUUID();
@@ -255,6 +256,17 @@ export function CobrosEntregas() {
           <p className="text-xs text-gray-500 mt-1">Registro de facturación y cobros al cliente</p>
         </div>
         <div className="flex items-center gap-2">
+          <ModuleInfoBox
+            accent="#C4612A"
+            titulo="Cobros y Entregas"
+            descripcion="Registra cada entrega/factura al cliente con cantidad por talla. Calcula automáticamente el bruto, la detracción 10% y el disponible 90%. Incluye dashboard mensual con totales y estado de cobro."
+            items={[
+              { label: 'Precio unitario', detail: 'Se toma del precioServicio del producto seleccionado' },
+              { label: 'Detracción', detail: 'Bruto × 10% → descontado automáticamente del disponible' },
+              { label: 'Estados', detail: 'PENDIENTE → COBRADO / ANULADO con fecha de cobro' },
+              { label: 'Dashboard mensual', detail: 'Totales de prendas, bruto, detracción y disponible por mes' },
+            ]}
+          />
           <button onClick={exportarCobros} className="btn-secondary flex items-center gap-2">
             <Download className="h-4 w-4" /> Excel
           </button>

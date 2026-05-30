@@ -4,6 +4,7 @@ import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
 import { Download, Plus, X, FileText, Trash2 } from 'lucide-react';
 import { TipoComplemento, TipoMovimientoComplemento, MovimientoComplemento } from '../types';
+import { ModuleInfoBox } from '../components/ModuleInfoBox';
 import { exportRowsToXlsx, exportTableToPdf } from '../lib/export';
 
 const uid = () => crypto.randomUUID();
@@ -208,6 +209,17 @@ export function Complementos() {
           <p className="text-xs text-gray-500 mt-1">Inventario de cuellos, puños y pretinas</p>
         </div>
         <div className="flex items-center gap-2">
+          <ModuleInfoBox
+            accent="#7B5EA7"
+            titulo="Complementos"
+            descripcion="Gestiona el stock de cuellos, puños y pretinas por color y talla. Registra ingresos de compra o corte interno, consumos vinculados a un producto destino y ajustes de inventario."
+            items={[
+              { label: 'Tipos', detail: 'CUELLO · PUÑO · PRETINA — cada uno con talla S/M/L/XL' },
+              { label: 'Movimientos', detail: 'Ingreso, Consumo (vinculado a producto), Ajuste +/−' },
+              { label: 'Producto Destino', detail: 'En tipo CONSUMO indica el producto que usó los complementos' },
+              { label: 'Stock automático', detail: 'stockAntes y stockDespues calculados al registrar cada movimiento' },
+            ]}
+          />
           <button onClick={exportarExcel} className="btn-secondary flex items-center gap-2">
             <Download className="h-4 w-4" /> Excel
           </button>

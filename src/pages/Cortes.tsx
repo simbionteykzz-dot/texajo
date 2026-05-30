@@ -4,6 +4,7 @@ import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
 import { Download, Plus, X, CheckCircle, Clock, XCircle, FileText, Trash2 } from 'lucide-react';
 import { Corte, SeguimientoAsignacion, SeguimientoFila, MovimientoTela } from '../types';
+import { ModuleInfoBox } from '../components/ModuleInfoBox';
 import { exportRowsToXlsx, exportTableToPdf } from '../lib/export';
 
 const uid = () => crypto.randomUUID();
@@ -263,6 +264,17 @@ export function Cortes() {
           <p className="text-xs text-gray-500 mt-1">Registro y seguimiento de órdenes de corte</p>
         </div>
         <div className="flex items-center gap-2">
+          <ModuleInfoBox
+            accent="#C4612A"
+            titulo="Cortes"
+            descripcion="Registra cada orden de corte con sus datos físicos (kg, rollos, tendidas) y calcula automáticamente el consumo por prenda y el rendimiento. Al guardar descuenta el inventario de telas y genera las filas de seguimiento en confección."
+            items={[
+              { label: 'Cálculo automático', detail: 'Consumo = kg / prendas · Rendimiento = prendas / rollos' },
+              { label: 'Descuento inventario', detail: 'Crea un movimiento A_CORTE en inventario de telas al guardar' },
+              { label: 'Cortador / Ayudante', detail: 'Selección desde catálogo de operarios activos' },
+              { label: 'Estados', detail: 'En Proceso → Completado / Anulado con indicador visual' },
+            ]}
+          />
           <button onClick={exportarCortes} className="btn-secondary flex items-center gap-2">
             <Download className="h-4 w-4" /> Excel
           </button>

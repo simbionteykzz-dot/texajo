@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DollarSign, Plus, Trash2, X, ChevronDown, ChevronRight } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
+import { ModuleInfoBox } from '../components/ModuleInfoBox';
 import { useToast } from '../components/ToastProvider';
 import type { CategoriaColor, TipoServicioTint } from '../types';
 
@@ -155,6 +156,17 @@ export function TablaTarifas() {
             Precios y tarifas maestras del sistema
           </p>
         </div>
+        <ModuleInfoBox
+          accent="#173A25"
+          titulo="Tabla de Tarifas"
+          descripcion="Vista consolidada y editable de todos los precios del sistema. Centraliza tarifas de operación por producto, precios de tela por categoría de color, complementos por talla y tipo, tejeduría y tintorería."
+          items={[
+            { label: 'Tarifas Operación', detail: 'Costo S/. por operación de confección agrupado por producto' },
+            { label: 'Precios Tela', detail: 'S/./kg por tipo de tela y categoría (OSCURO, CLARO, MELANGE, PPT)' },
+            { label: 'Precios Complementos', detail: 'S/. unitario por tipo (CUELLO/PUÑO/PRETINA), origen y talla' },
+            { label: 'Tintorería', detail: 'S/./kg o USD/kg por tipo de servicio (Reactivo, PPT, Lavado, etc.)' },
+          ]}
+        />
       </div>
 
       {/* Tabs de sección */}

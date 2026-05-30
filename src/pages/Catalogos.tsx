@@ -3,6 +3,7 @@ import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
 import { Plus, X, Trash2, ChevronRight, ChevronDown } from 'lucide-react';
 import { CategoriaColor, Operario, TipoComplemento, RecetaComplemento } from '../types';
+import { ModuleInfoBox } from '../components/ModuleInfoBox';
 
 const TIPOS_COMPLEMENTO: TipoComplemento[] = ['CUELLO', 'PUÑO', 'PRETINA'];
 
@@ -167,8 +168,23 @@ export function Catalogos() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-black uppercase tracking-tight">Costos y Catálogos</h2>
-        <p className="text-xs text-gray-500 mt-1">Catálogos maestros del sistema</p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h2 className="text-2xl font-black uppercase tracking-tight">Costos y Catálogos</h2>
+            <p className="text-xs text-gray-500 mt-1">Catálogos maestros del sistema</p>
+          </div>
+          <ModuleInfoBox
+            accent="#B89B5E"
+            titulo="Costos y Catálogos"
+            descripcion="Administra todos los catálogos maestros del sistema: productos con receta de complementos y cálculo automático de precio de servicio, telas, colores, operarios, tarifas de operación, clientes, proveedores y precios de tejeduría."
+            items={[
+              { label: 'Productos', detail: 'Receta de complementos expandible + cálculo precioServicio = costoMO × (1+margen) / (1−detracción)' },
+              { label: 'Operarios', detail: 'Código, módulo, máquina, estado ACTIVO/INACTIVO y fecha de ingreso' },
+              { label: 'Tarifas', detail: 'Costo por operación agrupado por producto y ordenado por secuencia' },
+              { label: 'Precios Tej.', detail: 'Tarifa S/./kg pagada a Zurzam por tipo de tejido (Jersey, Rib, etc.)' },
+            ]}
+          />
+        </div>
       </div>
 
       {/* Tabs */}
