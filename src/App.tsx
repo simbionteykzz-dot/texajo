@@ -16,7 +16,10 @@ import { Catalogos } from './pages/Catalogos';
 import { Complementos } from './pages/Complementos';
 import { Configuracion } from './pages/Configuracion';
 import { PanelOperativo } from './pages/PanelOperativo';
+import { PanelAdmin } from './pages/PanelAdmin';
 import { supabase } from './lib/supabase';
+import { useAuthUser } from './lib/useAuthUser';
+import { usePermisos, permisosParaRol } from './lib/usePermisos';
 import introAnim from './assets/login/logo-animado-texajo.gif';
 
 export default function App() {
@@ -26,14 +29,17 @@ export default function App() {
   const [sidebarColapsado, setSidebarColapsado] = useState(false);
   const [sidebarMobileOpen, setSidebarMobileOpen] = useState(false);
 
-  // Verificar sesión existente al arrancar
+  const authUser = useAuthUser();
+  const { permisosPorRol } = usePermisos();
+  const permisos = authUser ? permisosParaRol(permisosPorRol, authUser.rol) : null;
+  const esAdmin = authUser?.rol === 'Administrador General';
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setAutenticado(!!session);
       setAuthChecked(true);
     });
 
-    // Escuchar cambios de sesión (login / logout / token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setAutenticado(!!session);
     });
@@ -47,7 +53,6 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, [mostrarIntro]);
 
-  // Mientras verifica la sesión guardada, pantalla en blanco (evita flash de login)
   if (!authChecked) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#FFFFFF]">
@@ -92,7 +97,6 @@ export default function App() {
         <Router>
           <div className="flex h-screen overflow-hidden bg-[#F4F2EE] font-sans text-[#1A1A1A]">
 
-            {/* Overlay móvil */}
             {sidebarMobileOpen && (
               <div
                 className="fixed inset-0 z-40 bg-black/40 md:hidden"
@@ -100,7 +104,6 @@ export default function App() {
               />
             )}
 
-            {/* Sidebar */}
             <div className={`
               fixed inset-y-0 left-0 z-50 transition-transform duration-200
               md:relative md:translate-x-0 md:z-auto md:flex md:shrink-0
@@ -111,12 +114,16 @@ export default function App() {
                 onToggle={() => setSidebarColapsado(prev => !prev)}
                 onLogout={handleLogout}
                 onMobileClose={() => setSidebarMobileOpen(false)}
+                permisos={permisos}
+                esAdmin={esAdmin}
               />
             </div>
 
-            {/* Contenido principal */}
             <div className="flex flex-1 flex-col overflow-hidden min-w-0" style={{ borderLeft: '1px solid #DDD8CF' }}>
-              <Header onMenuClick={() => setSidebarMobileOpen(prev => !prev)} />
+              <Header
+                onMenuClick={() => setSidebarMobileOpen(prev => !prev)}
+                authUser={authUser}
+              />
               <main className="flex-1 overflow-y-auto px-3 py-4 sm:px-6 sm:py-6 lg:px-12 lg:py-10">
                 <div className="mx-auto max-w-7xl">
                   <Routes>
@@ -131,6 +138,7 @@ export default function App() {
                     <Route path="/catalogos" element={<Catalogos />} />
                     <Route path="/configuracion" element={<Configuracion />} />
                     <Route path="/panel" element={<PanelOperativo />} />
+                    {esAdmin && <Route path="/admin" element={<PanelAdmin />} />}
                   </Routes>
                 </div>
               </main>
