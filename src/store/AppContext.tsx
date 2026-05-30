@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
 import {
   Cliente, Proveedor, Tela, Color, PrecioTela, PrecioComplemento, PrecioTejeduria, Producto,
   TarifaOperacion, Operario, Config,
@@ -13,6 +13,8 @@ import {
   initialConfig,
 } from '../data';
 import { db, loadAllFromDb, seedInitialData } from '../lib/supabaseDb';
+import { supabase } from '../lib/supabase';
+import type { AuthUser } from '../lib/useAuthUser';
 
 const STORAGE_KEY = 'texajo_v3';
 
@@ -159,9 +161,63 @@ interface AppContextProps extends AppState {
 
 const AppContext = createContext<AppContextProps | undefined>(undefined);
 
-export function AppProvider({ children }: { children: ReactNode }) {
+// Mapeo de campo de AppState → nombre de tabla en Supabase
+const FIELD_TO_TABLE: Partial<Record<keyof AppState, string>> = {
+  movimientosTela:       'movimientos_tela',
+  cortes:                'cortes',
+  seguimientoFilas:      'seguimiento_filas',
+  movimientosComplemento:'movimientos_complemento',
+  boletaLineas:          'boleta_lineas',
+  descuentosBoleta:      'descuentos_boleta',
+  cobrosDiarios:         'cobros_diarios',
+  programasZurzam:       'programas_zurzam',
+  programaDetalles:      'programa_detalles',
+  comprasHilo:           'compras_hilo',
+  stockExtornos:         'stock_extornos',
+  clientes:              'clientes',
+  proveedores:           'proveedores',
+  telas:                 'telas',
+  colores:               'colores',
+  preciosTelas:          'precios_telas',
+  preciosComplementos:   'precios_complementos',
+  productos:             'productos',
+  tarifasOperaciones:    'tarifas_operaciones',
+  operarios:             'operarios',
+  preciosTejeduria:      'precios_tejeduria',
+};
+
+// Extrae una descripción legible de un registro
+function describeRecord(entidad: string, record: Record<string, unknown>): string {
+  const r = record as Record<string, unknown>;
+  return (r['nombre'] || r['id'] || r['nCorte'] || r['nFactura'] || entidad) as string;
+}
+
+export function AppProvider({ children, authUser }: { children: ReactNode; authUser?: AuthUser | null }) {
   const [state, setState] = useState<AppState>(() => loadLocalState() ?? defaultState());
   const [dbReady, setDbReady] = useState(false);
+  const authUserRef = useRef(authUser);
+  useEffect(() => { authUserRef.current = authUser; }, [authUser]);
+
+  const auditLog = useCallback(async (
+    accion: 'CREATE' | 'UPDATE' | 'DELETE',
+    entidad: string,
+    entidad_id: string,
+    entidad_desc: string,
+    valores_ant?: Record<string, unknown>,
+    valores_new?: Record<string, unknown>,
+  ) => {
+    const u = authUserRef.current;
+    try {
+      await supabase.from('audit_logs').insert({
+        user_id:     u?.id ?? null,
+        user_email:  u?.email ?? '',
+        user_nombre: u?.nombre ?? '',
+        accion, entidad, entidad_id, entidad_desc,
+        valores_ant: valores_ant ?? null,
+        valores_new: valores_new ?? null,
+      });
+    } catch { /* silencioso */ }
+  }, []);
 
   // ── Carga inicial desde Supabase ──────────────────────────────────────────
   useEffect(() => {
@@ -255,6 +311,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return (v: T) => {
       set(p => ({ ...p, [field]: [...(p[field] as T[]), v] }));
       dbAdd(v).catch(console.error);
+      const entidad = FIELD_TO_TABLE[field] ?? String(field);
+      const rec = v as Record<string, unknown>;
+      auditLog('CREATE', entidad, String(rec['id'] ?? ''), describeRecord(entidad, rec), undefined, rec);
     };
   }
 
@@ -266,7 +325,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       set(p => {
         const arr = (p[field] as unknown) as T[];
         const cur = arr.find(x => x.id === id);
-        if (cur) dbUpdate(id, updates, cur).catch(console.error);
+        if (cur) {
+          dbUpdate(id, updates, cur).catch(console.error);
+          const entidad = FIELD_TO_TABLE[field] ?? String(field);
+          auditLog('UPDATE', entidad, id, describeRecord(entidad, cur as Record<string, unknown>),
+            cur as Record<string, unknown>,
+            { ...cur, ...updates } as Record<string, unknown>
+          );
+        }
         return { ...p, [field]: arr.map(x => x.id === id ? { ...x, ...updates } : x) };
       });
     };
@@ -277,7 +343,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     dbDel: (id: string) => Promise<void>
   ) {
     return (id: string) => {
-      set(p => ({ ...p, [field]: (p[field] as { id: string }[]).filter(x => x.id !== id) }));
+      set(p => {
+        const arr = p[field] as { id: string }[];
+        const cur = arr.find(x => x.id === id);
+        if (cur) {
+          const entidad = FIELD_TO_TABLE[field] ?? String(field);
+          auditLog('DELETE', entidad, id, describeRecord(entidad, cur as Record<string, unknown>), cur as Record<string, unknown>, undefined);
+        }
+        return { ...p, [field]: arr.filter(x => x.id !== id) };
+      });
       dbDel(id).catch(console.error);
     };
   }

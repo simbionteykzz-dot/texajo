@@ -52,9 +52,10 @@ const DEFAULT_PERMISOS_ENCARGADO: PermisosRol = {
 };
 
 export const DEFAULTS_POR_ROL: Record<string, PermisosRol> = {
+  'Super Admin':           DEFAULT_PERMISOS_ADMIN,
   'Administrador General': DEFAULT_PERMISOS_ADMIN,
-  'Supervisor': DEFAULT_PERMISOS_SUPERVISOR,
-  'Encargado de Área': DEFAULT_PERMISOS_ENCARGADO,
+  'Supervisor':            DEFAULT_PERMISOS_SUPERVISOR,
+  'Encargado de Área':     DEFAULT_PERMISOS_ENCARGADO,
 };
 
 export interface PermisosFull {

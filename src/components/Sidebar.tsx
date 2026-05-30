@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, PackageSearch, Receipt, Factory,
   Scissors, Settings, Tag, CreditCard, ClipboardList,
-  PanelLeftClose, PanelLeftOpen, LogOut, X, Layers, Zap, Shield,
+  PanelLeftClose, PanelLeftOpen, LogOut, X, Layers, Zap, Shield, History,
 } from 'lucide-react';
 import logoDashboard from '../assets/branding/logo-dashboard.png';
 import type { PermisosRol } from '../lib/usePermisos';
@@ -27,9 +27,10 @@ interface SidebarProps {
   onMobileClose?: () => void;
   permisos: PermisosRol | null;
   esAdmin: boolean;
+  esSuperAdmin: boolean;
 }
 
-export function Sidebar({ colapsado, onToggle, onLogout, onMobileClose, permisos, esAdmin }: SidebarProps) {
+export function Sidebar({ colapsado, onToggle, onLogout, onMobileClose, permisos, esAdmin, esSuperAdmin }: SidebarProps) {
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -123,6 +124,18 @@ export function Sidebar({ colapsado, onToggle, onLogout, onMobileClose, permisos
             <span className="font-mono font-medium flex-shrink-0" style={{ fontSize: '9px', color: '#3A342E', minWidth: '18px' }}>›</span>
             <Shield className="h-3.5 w-3.5 flex-shrink-0" />
             {!colapsado && <span>Panel Admin</span>}
+          </NavLink>
+        )}
+
+        {esSuperAdmin && (
+          <NavLink
+            to="/historial"
+            onClick={handleNavClick}
+            className={({ isActive }) => `sidebar-link${isActive ? ' sidebar-link--active' : ''}`}
+          >
+            <span className="font-mono font-medium flex-shrink-0" style={{ fontSize: '9px', color: '#3A342E', minWidth: '18px' }}>›</span>
+            <History className="h-3.5 w-3.5 flex-shrink-0" />
+            {!colapsado && <span>Historial General</span>}
           </NavLink>
         )}
 

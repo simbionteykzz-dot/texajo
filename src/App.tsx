@@ -17,6 +17,7 @@ import { Complementos } from './pages/Complementos';
 import { Configuracion } from './pages/Configuracion';
 import { PanelOperativo } from './pages/PanelOperativo';
 import { PanelAdmin } from './pages/PanelAdmin';
+import { HistorialGeneral } from './pages/HistorialGeneral';
 import { supabase } from './lib/supabase';
 import { useAuthUser } from './lib/useAuthUser';
 import { usePermisos, permisosParaRol } from './lib/usePermisos';
@@ -32,7 +33,8 @@ export default function App() {
   const authUser = useAuthUser();
   const { permisosPorRol } = usePermisos();
   const permisos = authUser ? permisosParaRol(permisosPorRol, authUser.rol) : null;
-  const esAdmin = authUser?.rol === 'Administrador General';
+  const esAdmin = authUser?.rol === 'Administrador General' || authUser?.rol === 'Super Admin';
+  const esSuperAdmin = authUser?.rol === 'Super Admin';
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -64,9 +66,21 @@ export default function App() {
   if (!autenticado) {
     return (
       <Login
-        onLogin={() => {
+        onLogin={async () => {
           setAutenticado(true);
           setMostrarIntro(true);
+          // Registrar login — el authUser aún no está disponible, se lee directo de la sesión
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session) {
+            const meta = session.user.user_metadata ?? {};
+            await supabase.from('audit_logs').insert({
+              user_id: session.user.id,
+              user_email: session.user.email ?? '',
+              user_nombre: (meta['nombre'] as string) || (session.user.email ?? '').split('@')[0],
+              accion: 'LOGIN', entidad: 'session', entidad_id: session.user.id,
+              entidad_desc: `${(meta['nombre'] as string) || session.user.email} inició sesión`,
+            });
+          }
         }}
       />
     );
@@ -85,6 +99,13 @@ export default function App() {
   }
 
   const handleLogout = async () => {
+    if (authUser) {
+      await supabase.from('audit_logs').insert({
+        user_id: authUser.id, user_email: authUser.email, user_nombre: authUser.nombre,
+        accion: 'LOGOUT', entidad: 'session', entidad_id: authUser.id,
+        entidad_desc: `${authUser.nombre} cerró sesión`,
+      });
+    }
     await supabase.auth.signOut();
     setAutenticado(false);
     setMostrarIntro(false);
@@ -92,7 +113,7 @@ export default function App() {
   };
 
   return (
-    <AppProvider>
+    <AppProvider authUser={authUser}>
       <ToastProvider>
         <Router>
           <div className="flex h-screen overflow-hidden bg-[#F4F2EE] font-sans text-[#1A1A1A]">
@@ -116,6 +137,7 @@ export default function App() {
                 onMobileClose={() => setSidebarMobileOpen(false)}
                 permisos={permisos}
                 esAdmin={esAdmin}
+                esSuperAdmin={esSuperAdmin}
               />
             </div>
 
@@ -139,6 +161,7 @@ export default function App() {
                     <Route path="/configuracion" element={<Configuracion />} />
                     <Route path="/panel" element={<PanelOperativo />} />
                     {esAdmin && <Route path="/admin" element={<PanelAdmin />} />}
+                    {esSuperAdmin && <Route path="/historial" element={<HistorialGeneral />} />}
                   </Routes>
                 </div>
               </main>

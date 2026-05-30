@@ -11,6 +11,7 @@ interface HeaderProps {
 }
 
 const BADGE_COLORS: Record<string, { bg: string; text: string }> = {
+  'Super Admin':           { bg: '#0A0A0A', text: '#D4AF37' },
   'Administrador General': { bg: '#173A25', text: '#FFFFFF' },
   'Supervisor':            { bg: '#B6762A', text: '#FFFFFF' },
   'Encargado de Área':     { bg: '#4A6741', text: '#FFFFFF' },
