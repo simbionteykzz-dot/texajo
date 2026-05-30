@@ -1,4 +1,4 @@
--- Tabla para almacenar los permisos configurables por rol
+Eje-- Tabla para almacenar los permisos configurables por rol
 -- Ejecutar en Supabase Dashboard → SQL Editor
 
 create table if not exists permisos_roles (

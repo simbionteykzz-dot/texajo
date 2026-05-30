@@ -34,7 +34,7 @@ const ESTADO_ICON: Record<string, React.ReactNode> = {
 
 export function Cortes() {
   const {
-    cortes, clientes, productos, colores, telas, tarifasOperaciones,
+    cortes, clientes, productos, colores, telas, tarifasOperaciones, operarios,
     movimientosTela, seguimientoFilas,
     addCorte, updateCorte, deleteCorte,
     addMovimientoTela, addSeguimientoFila,
@@ -431,15 +431,17 @@ export function Cortes() {
                 <F label="Cortador">
                   <select value={form.cortador} onChange={set('cortador')} className="input-base">
                     <option value="">Seleccionar…</option>
-                    <option value="Yerson">Yerson</option>
-                    <option value="Jose">Jose</option>
+                    {[...operarios].filter(o => o.estado === 'ACTIVO').sort((a, b) => a.nombre.localeCompare(b.nombre)).map(o => (
+                      <option key={o.id} value={o.nombre}>{o.nombre}</option>
+                    ))}
                   </select>
                 </F>
                 <F label="Ayudante">
                   <select value={form.ayudante} onChange={set('ayudante')} className="input-base">
                     <option value="">Seleccionar…</option>
-                    <option value="Yerson">Yerson</option>
-                    <option value="Jose">Jose</option>
+                    {[...operarios].filter(o => o.estado === 'ACTIVO').sort((a, b) => a.nombre.localeCompare(b.nombre)).map(o => (
+                      <option key={o.id} value={o.nombre}>{o.nombre}</option>
+                    ))}
                   </select>
                 </F>
               </div>

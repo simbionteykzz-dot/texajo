@@ -3,18 +3,21 @@ import { useNavigate } from 'react-router-dom';
 import { DollarSign, Plus, Trash2, X, ChevronDown, ChevronRight } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
-import type { CategoriaColor } from '../types';
+import type { CategoriaColor, TipoServicioTint } from '../types';
 
 const uid = () => crypto.randomUUID();
 
-type Seccion = 'operacion' | 'telas' | 'complementos' | 'tejeduria';
+type Seccion = 'operacion' | 'telas' | 'complementos' | 'tejeduria' | 'tintoreria';
 
 const SECCIONES: { id: Seccion; label: string; desc: string }[] = [
   { id: 'operacion',    label: 'Tarifas de Operación',   desc: 'Costo por operación de confección, agrupado por producto' },
   { id: 'telas',        label: 'Precios de Tela',         desc: 'Precio S/./kg por tipo de tela y categoría de color' },
   { id: 'complementos', label: 'Precios de Complementos', desc: 'Precio unitario de cuellos, puños y pretinas por talla' },
   { id: 'tejeduria',    label: 'Precios de Tejeduría',    desc: 'Tarifa S/./kg pagada a Zurzam por tipo de tejido' },
+  { id: 'tintoreria',   label: 'Precios de Tintorería',   desc: 'Tarifa S/./kg o USD/kg por tipo de servicio y tipo de tela' },
 ];
+
+const TIPOS_SERVICIO_TINT: TipoServicioTint[] = ['REACTIVO', 'DIRECTO', 'PPT', 'LAVADO', 'TERMOFIJADO', 'COMPACTADO_EN_RAMA'];
 
 const CATEGORIAS: CategoriaColor[] = ['OSCURO', 'CLARO', 'MELANGE', 'PPT'];
 const TALLAS = ['S', 'M', 'L', 'XL'] as const;
@@ -39,6 +42,7 @@ export function TablaTarifas() {
     preciosTelas, addPrecioTela, updatePrecioTela, deletePrecioTela,
     preciosComplementos, updatePrecioComplemento,
     preciosTejeduria, addPrecioTejeduria, updatePrecioTejeduria, deletePrecioTejeduria,
+    preciosTintoreria, addPrecioTintoreria, updatePrecioTintoreria, deletePrecioTintoreria,
   } = useAppContext();
   const { addToast } = useToast();
 
@@ -54,6 +58,9 @@ export function TablaTarifas() {
 
   const [showTejForm, setShowTejForm] = useState(false);
   const [tejForm, setTejForm]         = useState({ tipoTejido: '', precioKg: '' });
+
+  const [showTintForm, setShowTintForm] = useState(false);
+  const [tintForm, setTintForm]         = useState({ tipoServicio: 'REACTIVO' as TipoServicioTint, tipoTela: '', precioKg: '', moneda: 'PEN' as 'PEN' | 'USD', notas: '' });
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
   const productoMap = new Map(productos.map(p => [p.id, p.nombre]));
@@ -99,6 +106,24 @@ export function TablaTarifas() {
     addToast('Precio de tela agregado', 'success');
     setShowPrecioTelaForm(false);
     setPrecioTelaForm({ telaId: '', categoriaColor: 'OSCURO', precioKg: '' });
+  };
+
+  const handleAddTintoreria = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!tintForm.tipoTela.trim()) { addToast('Tipo de tela requerido', 'error'); return; }
+    const existe = preciosTintoreria.find(p => p.tipoServicio === tintForm.tipoServicio && p.tipoTela.toLowerCase() === tintForm.tipoTela.toLowerCase());
+    if (existe) { addToast('Ya existe ese precio, edítalo en la tabla', 'error'); return; }
+    addPrecioTintoreria({
+      id: uid(),
+      tipoServicio: tintForm.tipoServicio,
+      tipoTela: tintForm.tipoTela.trim(),
+      precioKg: parseFloat(tintForm.precioKg) || 0,
+      moneda: tintForm.moneda,
+      notas: tintForm.notas,
+    });
+    addToast('Precio de tintorería agregado', 'success');
+    setShowTintForm(false);
+    setTintForm({ tipoServicio: 'REACTIVO', tipoTela: '', precioKg: '', moneda: 'PEN', notas: '' });
   };
 
   const handleAddTejido = (e: React.FormEvent) => {
@@ -596,6 +621,158 @@ export function TablaTarifas() {
                   </F>
                   <div className="flex justify-end gap-3 pt-2">
                     <button type="button" onClick={() => setShowTejForm(false)}
+                      className="px-4 py-2 text-xs font-bold border" style={{ borderColor: '#DDD8CF', color: '#6B6058' }}>
+                      Cancelar
+                    </button>
+                    <button type="submit"
+                      className="px-4 py-2 text-xs font-bold text-white" style={{ background: '#173A25' }}>
+                      Guardar
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          SECCIÓN 5 — PRECIOS DE TINTORERÍA (matriz tipoServicio × tipoTela)
+      ════════════════════════════════════════════════════════════════════════ */}
+      {seccion === 'tintoreria' && (
+        <div className="space-y-4">
+          <div className="flex justify-end">
+            <button
+              onClick={() => setShowTintForm(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold border transition-colors"
+              style={{ background: '#173A25', color: '#fff', borderColor: '#173A25' }}
+            >
+              <Plus className="h-3 w-3" /> Agregar Precio
+            </button>
+          </div>
+
+          {TIPOS_SERVICIO_TINT.map(servicio => {
+            const filas = preciosTintoreria.filter(p => p.tipoServicio === servicio);
+            return (
+              <div key={servicio}>
+                <h3 className="text-xs font-black uppercase tracking-widest mb-2" style={{ color: '#173A25' }}>
+                  {servicio.replace('_', ' ')}
+                </h3>
+                <div className="border" style={{ borderColor: '#DDD8CF' }}>
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr style={{ background: '#F7F4EF', borderBottom: '1px solid #DDD8CF' }}>
+                        <th className="px-4 py-3 text-left text-[10px] font-mono font-bold uppercase tracking-widest" style={{ color: '#9A8F87' }}>Tipo de Tela</th>
+                        <th className="px-4 py-3 text-right text-[10px] font-mono font-bold uppercase tracking-widest" style={{ color: '#9A8F87' }}>Precio/kg</th>
+                        <th className="px-4 py-3 text-center text-[10px] font-mono font-bold uppercase tracking-widest" style={{ color: '#9A8F87' }}>Moneda</th>
+                        <th className="px-4 py-3 text-left text-[10px] font-mono font-bold uppercase tracking-widest" style={{ color: '#9A8F87' }}>Notas</th>
+                        <th className="w-10" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filas.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="px-4 py-6 text-center text-xs italic" style={{ color: '#9A8F87' }}>
+                            Sin precios para este servicio
+                          </td>
+                        </tr>
+                      ) : filas.map((pt, i) => (
+                        <tr key={pt.id} style={{ borderTop: i > 0 ? '1px solid #F0EDE8' : undefined }}>
+                          <td className="px-4 py-2.5">
+                            <input
+                              type="text" value={pt.tipoTela}
+                              onChange={e => updatePrecioTintoreria(pt.id, { tipoTela: e.target.value })}
+                              className="w-full border-0 bg-transparent outline-none focus:bg-white focus:border focus:px-1 rounded-sm font-bold"
+                              style={{ color: '#1A1A1A', borderColor: '#DDD8CF' }}
+                            />
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <input
+                              type="number" min={0} step={0.01} value={pt.precioKg}
+                              onChange={e => updatePrecioTintoreria(pt.id, { precioKg: parseFloat(e.target.value) || 0 })}
+                              className="w-24 border px-2 py-0.5 text-right font-mono text-xs rounded-sm ml-auto block"
+                              style={{ borderColor: '#DDD8CF' }}
+                            />
+                          </td>
+                          <td className="px-4 py-2.5 text-center">
+                            <select
+                              value={pt.moneda}
+                              onChange={e => updatePrecioTintoreria(pt.id, { moneda: e.target.value as 'PEN' | 'USD' })}
+                              className="border px-1 py-0.5 text-xs rounded-sm"
+                              style={{ borderColor: '#DDD8CF' }}
+                            >
+                              <option value="PEN">S/.</option>
+                              <option value="USD">USD</option>
+                            </select>
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <input
+                              type="text" value={pt.notas}
+                              onChange={e => updatePrecioTintoreria(pt.id, { notas: e.target.value })}
+                              className="w-full border-0 bg-transparent outline-none focus:bg-white focus:border focus:px-1 rounded-sm text-xs"
+                              style={{ color: '#6B6058', borderColor: '#DDD8CF' }}
+                              placeholder="—"
+                            />
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <button
+                              onClick={() => { if (confirm(`¿Eliminar "${pt.tipoTela}" (${servicio})?`)) deletePrecioTintoreria(pt.id); }}
+                              className="p-1 transition-colors"
+                              style={{ color: '#C0977A' }}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })}
+
+          {showTintForm && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+              <div className="bg-white border w-full max-w-sm" style={{ borderColor: '#DDD8CF' }}>
+                <div className="flex items-center justify-between border-b px-6 py-4" style={{ borderColor: '#DDD8CF' }}>
+                  <h3 className="text-sm font-black uppercase tracking-widest">Nuevo Precio Tintorería</h3>
+                  <button onClick={() => setShowTintForm(false)}><X className="h-4 w-4" /></button>
+                </div>
+                <form onSubmit={handleAddTintoreria} className="p-6 space-y-4">
+                  <F label="Tipo de Servicio">
+                    <select value={tintForm.tipoServicio} onChange={e => setTintForm(f => ({ ...f, tipoServicio: e.target.value as TipoServicioTint }))}
+                      className="w-full border px-3 py-2 text-sm" style={{ borderColor: '#DDD8CF' }}>
+                      {TIPOS_SERVICIO_TINT.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+                    </select>
+                  </F>
+                  <F label="Tipo de Tela">
+                    <input type="text" value={tintForm.tipoTela}
+                      onChange={e => setTintForm(f => ({ ...f, tipoTela: e.target.value }))}
+                      className="w-full border px-3 py-2 text-sm" style={{ borderColor: '#DDD8CF' }}
+                      placeholder="Ej: Jersey, Wafle, Pique..." required />
+                  </F>
+                  <div className="grid grid-cols-2 gap-3">
+                    <F label="Precio/kg">
+                      <input type="number" step="0.01" min={0} value={tintForm.precioKg}
+                        onChange={e => setTintForm(f => ({ ...f, precioKg: e.target.value }))}
+                        className="w-full border px-3 py-2 text-sm" style={{ borderColor: '#DDD8CF' }} />
+                    </F>
+                    <F label="Moneda">
+                      <select value={tintForm.moneda} onChange={e => setTintForm(f => ({ ...f, moneda: e.target.value as 'PEN' | 'USD' }))}
+                        className="w-full border px-3 py-2 text-sm" style={{ borderColor: '#DDD8CF' }}>
+                        <option value="PEN">S/. (PEN)</option>
+                        <option value="USD">USD</option>
+                      </select>
+                    </F>
+                  </div>
+                  <F label="Notas">
+                    <input type="text" value={tintForm.notas}
+                      onChange={e => setTintForm(f => ({ ...f, notas: e.target.value }))}
+                      className="w-full border px-3 py-2 text-sm" style={{ borderColor: '#DDD8CF' }} />
+                  </F>
+                  <div className="flex justify-end gap-3 pt-2">
+                    <button type="button" onClick={() => setShowTintForm(false)}
                       className="px-4 py-2 text-xs font-bold border" style={{ borderColor: '#DDD8CF', color: '#6B6058' }}>
                       Cancelar
                     </button>

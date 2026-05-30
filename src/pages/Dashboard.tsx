@@ -72,7 +72,7 @@ const sectionAnim = {
 export function Dashboard() {
   const navigate = useNavigate();
   const { movimientosTela, cortes, cobrosDiarios, operarios, telas, colores, config,
-    seguimientoFilas, boletaLineas, programasZurzam } = useAppContext();
+    seguimientoFilas, boletaLineas, programasZurzam, productos } = useAppContext();
 
   const stockResumen = useMemo(() => {
     const byKey = new Map<string, { telaId: string; colorId: string; rollos: number }>();
@@ -136,9 +136,40 @@ export function Dashboard() {
     };
   }, [cortes, seguimientoFilas, cobrosDiarios, boletaLineas]);
 
+  // Ranking operarios: prendas totales + importe total (de boletaLineas)
+  const rankingOperarios = useMemo(() => {
+    const map = new Map<string, { operarioId: string; prendas: number; importe: number; operaciones: number }>();
+    for (const b of boletaLineas) {
+      if (!map.has(b.operarioId)) map.set(b.operarioId, { operarioId: b.operarioId, prendas: 0, importe: 0, operaciones: 0 });
+      const r = map.get(b.operarioId)!;
+      r.prendas += b.cantPrendas;
+      r.importe += b.importe;
+      r.operaciones += 1;
+    }
+    return Array.from(map.values()).sort((a, b) => b.importe - a.importe).slice(0, 10);
+  }, [boletaLineas]);
+
+  // Eficiencia por producto: prendas LISTO / prendas total en seguimiento
+  const eficienciaProd = useMemo(() => {
+    const map = new Map<string, { productoId: string; total: number; listo: number }>();
+    for (const f of seguimientoFilas) {
+      if (!map.has(f.productoId)) map.set(f.productoId, { productoId: f.productoId, total: 0, listo: 0 });
+      const r = map.get(f.productoId)!;
+      r.total += f.cantidad;
+      if (f.estado === 'LISTO' || f.estado === 'PAGADO') r.listo += f.cantidad;
+    }
+    return Array.from(map.values())
+      .filter(r => r.total > 0)
+      .map(r => ({ ...r, pct: Math.round((r.listo / r.total) * 100) }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 8);
+  }, [seguimientoFilas]);
+
   const recentMovs = [...movimientosTela].sort((a, b) => b.fecha.localeCompare(a.fecha)).slice(0, 8);
   const telaMap = new Map(telas.map(t => [t.id, t.nombre]));
   const colorMap = new Map(colores.map(c => [c.id, c.nombre]));
+  const operarioMap = new Map(operarios.map(o => [o.id, o]));
+  const productoMapById = new Map(productos.map(p => [p.id, p.nombre]));
 
   const today = new Date().toLocaleDateString('es-PE', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
@@ -358,6 +389,65 @@ export function Dashboard() {
           ))}
         </motion.div>
       </motion.div>
+
+      {/* Ranking operarios + eficiencia por producto */}
+      {(rankingOperarios.length > 0 || eficienciaProd.length > 0) && (
+        <motion.div variants={sectionAnim} initial="initial" animate="animate" transition={{ duration: 0.4, delay: 0.3 }}>
+          <SectionRule>Eficiencia y ranking de producción</SectionRule>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {/* Ranking operarios */}
+            {rankingOperarios.length > 0 && (
+              <div className="bg-white border border-[#DDD8CF] p-4">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-3">Ranking Operarios (por importe acumulado)</p>
+                <div className="space-y-2">
+                  {rankingOperarios.map((r, idx) => {
+                    const op = operarioMap.get(r.operarioId);
+                    const maxImporte = rankingOperarios[0]?.importe ?? 1;
+                    return (
+                      <div key={r.operarioId} className="flex items-center gap-3">
+                        <span className="text-[10px] font-black text-gray-300 w-4 text-right">{idx + 1}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-0.5">
+                            <span className="text-xs font-bold truncate">{op?.nombre ?? r.operarioId}</span>
+                            <span className="text-[10px] font-mono text-gray-700 ml-2 whitespace-nowrap">S/ {r.importe.toFixed(0)}</span>
+                          </div>
+                          <div className="h-1 bg-gray-100 w-full">
+                            <div className="h-full bg-[#B66F35]" style={{ width: `${(r.importe / maxImporte) * 100}%` }} />
+                          </div>
+                          <span className="text-[9px] text-gray-400">{r.prendas.toLocaleString()} prendas · {r.operaciones} op.</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Eficiencia por producto */}
+            {eficienciaProd.length > 0 && (
+              <div className="bg-white border border-[#DDD8CF] p-4">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-3">Eficiencia por Producto (% completado)</p>
+                <div className="space-y-2">
+                  {eficienciaProd.map(r => (
+                    <div key={r.productoId} className="flex items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="text-xs font-bold truncate">{productoMapById.get(r.productoId) ?? r.productoId}</span>
+                          <span className={`text-[10px] font-mono font-bold ml-2 whitespace-nowrap ${r.pct >= 80 ? 'text-green-700' : r.pct >= 50 ? 'text-amber-700' : 'text-red-600'}`}>{r.pct}%</span>
+                        </div>
+                        <div className="h-1 bg-gray-100 w-full">
+                          <div className={`h-full ${r.pct >= 80 ? 'bg-green-500' : r.pct >= 50 ? 'bg-amber-400' : 'bg-red-400'}`} style={{ width: `${r.pct}%` }} />
+                        </div>
+                        <span className="text-[9px] text-gray-400">{r.listo.toLocaleString()} / {r.total.toLocaleString()} prendas</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </motion.div>
+      )}
 
       <motion.div variants={sectionAnim} initial="initial" animate="animate" transition={{ duration: 0.45, delay: 0.22 }}>
         <SectionRule>Ultimos movimientos de tela</SectionRule>

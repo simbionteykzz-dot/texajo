@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
 import {
-  Cliente, Proveedor, Tela, Color, PrecioTela, PrecioComplemento, PrecioTejeduria, Producto,
+  Cliente, Proveedor, Tela, Color, PrecioTela, PrecioComplemento, PrecioTejeduria, PrecioTintoreria, Producto,
   TarifaOperacion, Operario, Config,
   MovimientoTela, Corte, SeguimientoFila, BoletaLinea, DescuentoBoleta,
   ProgramaZurzam, ProgramaDetalle, CompraHilo, StockExtorno, CobroDiario,
@@ -40,6 +40,7 @@ interface AppState {
   stockExtornos: StockExtorno[];
   cobrosDiarios: CobroDiario[];
   preciosTejeduria: PrecioTejeduria[];
+  preciosTintoreria: PrecioTintoreria[];
   config: Config;
 }
 
@@ -65,6 +66,7 @@ const defaultState = (): AppState => ({
   stockExtornos: [],
   cobrosDiarios: [],
   preciosTejeduria: [],
+  preciosTintoreria: [],
   config: initialConfig,
 });
 
@@ -152,6 +154,10 @@ interface AppContextProps extends AppState {
   addPrecioTejeduria: (p: PrecioTejeduria) => void;
   updatePrecioTejeduria: (id: string, updates: Partial<PrecioTejeduria>) => void;
   deletePrecioTejeduria: (id: string) => void;
+  // Precios Tintorería
+  addPrecioTintoreria: (p: PrecioTintoreria) => void;
+  updatePrecioTintoreria: (id: string, updates: Partial<PrecioTintoreria>) => void;
+  deletePrecioTintoreria: (id: string) => void;
   // Config
   updateConfig: (updates: Partial<Config>) => void;
   // Import / Reset
@@ -184,6 +190,7 @@ const FIELD_TO_TABLE: Partial<Record<keyof AppState, string>> = {
   tarifasOperaciones:    'tarifas_operaciones',
   operarios:             'operarios',
   preciosTejeduria:      'precios_tejeduria',
+  preciosTintoreria:     'precios_tintoreria',
 };
 
 // Extrae una descripción legible de un registro
@@ -258,6 +265,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
             stockExtornos: [],
             cobrosDiarios: [],
             movimientosComplemento: [],
+            preciosTintoreria: [],
             config: base.config,
           });
           setState(base);
@@ -270,6 +278,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
             preciosTelas:          remote.preciosTelas.length       ? remote.preciosTelas          : defaultState().preciosTelas,
             preciosComplementos:   remote.preciosComplementos.length ? remote.preciosComplementos  : defaultState().preciosComplementos,
             preciosTejeduria:      remote.preciosTejeduria,
+            preciosTintoreria:     remote.preciosTintoreria,
             productos:             remote.productos.length          ? remote.productos             : defaultState().productos,
             tarifasOperaciones:    remote.tarifasOperaciones.length ? remote.tarifasOperaciones    : defaultState().tarifasOperaciones,
             operarios:             remote.operarios.length          ? remote.operarios             : defaultState().operarios,
@@ -487,6 +496,10 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   const updatePrecioTejeduria = makeUpdate<PrecioTejeduria>('preciosTejeduria', db.preciosTejeduria.update);
   const deletePrecioTejeduria = makeDelete('preciosTejeduria', db.preciosTejeduria.delete);
 
+  const addPrecioTintoreria = makeAdd<PrecioTintoreria>('preciosTintoreria', db.preciosTintoreria.add);
+  const updatePrecioTintoreria = makeUpdate<PrecioTintoreria>('preciosTintoreria', db.preciosTintoreria.update);
+  const deletePrecioTintoreria = makeDelete('preciosTintoreria', db.preciosTintoreria.delete);
+
   // ─── Config ──────────────────────────────────────────────────────────────
   const updateConfig = (updates: Partial<Config>) => {
     let newConfig: Config | undefined;
@@ -555,6 +568,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       updatePrecioComplemento,
       addOperario, updateOperario,
       addPrecioTejeduria, updatePrecioTejeduria, deletePrecioTejeduria,
+      addPrecioTintoreria, updatePrecioTintoreria, deletePrecioTintoreria,
       updateConfig, importData, clearAllData,
     }}>
       {children}

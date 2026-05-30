@@ -43,6 +43,8 @@ export function Destajo() {
 
   // ── Tab: Resumen ──
   const [rPeriodo, setRPeriodo] = useState(PERIODOS[0]);
+  const [rDesde, setRDesde] = useState('');
+  const [rHasta, setRHasta] = useState('');
 
   // ── Tab: Vista General ──
   const [gOperarioId, setGOperarioId] = useState('');
@@ -124,9 +126,17 @@ export function Destajo() {
 
   const totalGeneral = lineasGenerales.reduce((s, b) => s + b.importe, 0);
 
-  // Resumen por operario en un período dado
+  // Resumen por operario en un período dado (o rango libre)
   const resumenPorOperario = useMemo(() => {
-    const lineasPeriodo = boletaLineas.filter(b => b.periodo === rPeriodo);
+    const usaRango = rDesde || rHasta;
+    const lineasPeriodo = boletaLineas.filter(b => {
+      if (usaRango) {
+        if (rDesde && b.periodo < rDesde.slice(0, 7)) return false;
+        if (rHasta && b.periodo > rHasta.slice(0, 7)) return false;
+        return true;
+      }
+      return b.periodo === rPeriodo;
+    });
     const map = new Map<string, { total: number; prendas: number; pagado: number; pendiente: number; nLineas: number }>();
     for (const b of lineasPeriodo) {
       const prev = map.get(b.operarioId) ?? { total: 0, prendas: 0, pagado: 0, pendiente: 0, nLineas: 0 };
@@ -141,7 +151,7 @@ export function Destajo() {
     return Array.from(map.entries())
       .map(([operarioId, stats]) => ({ operarioId, ...stats }))
       .sort((a, b) => b.total - a.total);
-  }, [boletaLineas, rPeriodo]);
+  }, [boletaLineas, rPeriodo, rDesde, rHasta]);
 
   const totalBruto = lineasFiltradas.reduce((s, b) => s + b.importe, 0);
 
@@ -313,13 +323,29 @@ export function Destajo() {
       {/* ══════════════ TAB: RESUMEN ══════════════ */}
       {activeTab === 'resumen' && (
         <div className="space-y-6">
-          <div className="flex items-end gap-4">
+          <div className="flex flex-wrap items-end gap-4">
             <div>
               <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Período</label>
-              <select value={rPeriodo} onChange={e => setRPeriodo(e.target.value)} className="input-base w-36">
+              <select value={rPeriodo} onChange={e => { setRPeriodo(e.target.value); setRDesde(''); setRHasta(''); }} className="input-base w-36">
                 {PERIODOS.map(p => <option key={p} value={p}>{p}</option>)}
               </select>
             </div>
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">o rango</span>
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Desde</label>
+              <input type="month" value={rDesde} onChange={e => setRDesde(e.target.value)} className="input-base w-36" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Hasta</label>
+              <input type="month" value={rHasta} onChange={e => setRHasta(e.target.value)} className="input-base w-36" />
+            </div>
+            {(rDesde || rHasta) && (
+              <button onClick={() => { setRDesde(''); setRHasta(''); }} className="text-[10px] font-bold uppercase text-gray-400 border border-gray-200 px-2 py-1 hover:bg-gray-50">
+                Limpiar rango
+              </button>
+            )}
           </div>
           {resumenPorOperario.length === 0 ? (
             <p className="text-sm text-gray-400 italic">Sin datos para este período.</p>
@@ -352,8 +378,17 @@ export function Destajo() {
                             <button
                               onClick={() => {
                                 const hoy = new Date().toISOString().slice(0, 10);
+                                const usaRango = rDesde || rHasta;
                                 boletaLineas
-                                  .filter(b => b.operarioId === r.operarioId && b.periodo === rPeriodo && b.estadoPago === 'PENDIENTE')
+                                  .filter(b => {
+                                    if (b.operarioId !== r.operarioId || b.estadoPago !== 'PENDIENTE') return false;
+                                    if (usaRango) {
+                                      if (rDesde && b.periodo < rDesde.slice(0, 7)) return false;
+                                      if (rHasta && b.periodo > rHasta.slice(0, 7)) return false;
+                                      return true;
+                                    }
+                                    return b.periodo === rPeriodo;
+                                  })
                                   .forEach(b => updateBoletaLinea(b.id, { estadoPago: 'PAGADO', fechaPago: hoy }));
                                 addToast(`${op?.nombre ?? r.operarioId} marcado como pagado`, 'success');
                               }}

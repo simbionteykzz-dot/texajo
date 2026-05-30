@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
-import { Plus, X, Trash2 } from 'lucide-react';
-import { CategoriaColor, Operario, Cliente } from '../types';
+import { Plus, X, Trash2, ChevronRight, ChevronDown } from 'lucide-react';
+import { CategoriaColor, Operario, TipoComplemento, RecetaComplemento } from '../types';
+
+const TIPOS_COMPLEMENTO: TipoComplemento[] = ['CUELLO', 'PUÑO', 'PRETINA'];
 
 const uid = () => crypto.randomUUID();
 
@@ -71,6 +73,10 @@ export function Catalogos() {
   // --- Productos ---
   const [showProdForm, setShowProdForm] = useState(false);
   const [prodForm, setProdForm] = useState({ nombre: '', notas: '' });
+  const [expandedProd, setExpandedProd] = useState<string | null>(null);
+  const [recetaForms, setRecetaForms] = useState<Record<string, { tipoComplemento: TipoComplemento; origen: string; cantidad: string; notas: string }>>({});
+  // Auto-calc state per product
+  const [calcForms, setCalcForms] = useState<Record<string, { margen: string; detraccion: string }>>({});
 
   const handleAddProducto = (e: React.FormEvent) => {
     e.preventDefault();
@@ -191,51 +197,231 @@ export function Catalogos() {
               <table className="texajo-table">
                 <thead>
                   <tr>
-                    {['Producto', 'Costo MO Total', 'Precio Servicio', 'Tela Base', 'Lím. Consumo (kg/prenda)', 'Rend. mínimo (prendas/rollo)', 'Notas', ''].map(h => (
+                    {['', 'Producto', 'Costo MO Total', 'Precio Servicio', 'Utilidad S/.', 'Tela Base', 'Lím. Consumo (kg/prenda)', 'Rend. mínimo (prendas/rollo)', 'Notas', ''].map(h => (
                       <th key={h}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {productos.map(p => (
-                    <tr key={p.id}>
-                      <td className="font-bold">{p.nombre}</td>
-                      <td>
-                        <input type="number" min={0} step={0.01} value={p.costoMoTotal}
-                          onChange={e => updateProducto(p.id, { costoMoTotal: parseFloat(e.target.value) || 0 })}
-                          className="w-24 input-base text-right text-xs py-0.5" />
-                      </td>
-                      <td>
-                        <input type="number" min={0} step={0.01} value={p.precioServicio}
-                          onChange={e => updateProducto(p.id, { precioServicio: parseFloat(e.target.value) || 0 })}
-                          className="w-24 input-base text-right text-xs py-0.5" />
-                      </td>
-                      <td>
-                        <input type="text" value={p.telaBase ?? ''}
-                          onChange={e => updateProducto(p.id, { telaBase: e.target.value || undefined })}
-                          className="w-36 input-base text-xs py-0.5" placeholder="Ej: Jersey 24/1" />
-                      </td>
-                      <td>
-                        <input type="number" step="0.001" min={0} value={p.limiteConsumo ?? ''}
-                          onChange={e => updateProducto(p.id, { limiteConsumo: e.target.value ? parseFloat(e.target.value) : undefined })}
-                          className="w-28 input-base text-right text-xs py-0.5" placeholder="0.000" />
-                      </td>
-                      <td>
-                        <input type="number" step="1" min={0} value={p.limiteRendimiento ?? ''}
-                          onChange={e => updateProducto(p.id, { limiteRendimiento: e.target.value ? parseFloat(e.target.value) : undefined })}
-                          className="w-28 input-base text-right text-xs py-0.5" placeholder="0" />
-                      </td>
-                      <td>
-                        <input type="text" value={p.notas}
-                          onChange={e => updateProducto(p.id, { notas: e.target.value })}
-                          className="w-48 input-base text-xs py-0.5" />
-                      </td>
-                      <td>
-                        <button onClick={() => { if (confirm(`¿Eliminar producto "${p.nombre}"? Se eliminarán sus tarifas.`)) deleteProducto(p.id); }}
-                          className="text-red-400 hover:text-red-700 p-1"><Trash2 className="h-3 w-3" /></button>
-                      </td>
-                    </tr>
-                  ))}
+                  {productos.map(p => {
+                    const isOpen = expandedProd === p.id;
+                    const receta = p.recetaComplementos ?? [];
+                    const calcF = calcForms[p.id] ?? { margen: '', detraccion: '10' };
+                    return (
+                      <React.Fragment key={p.id}>
+                        <tr>
+                          <td className="w-6 px-1">
+                            <button
+                              type="button"
+                              onClick={() => setExpandedProd(isOpen ? null : p.id)}
+                              className="text-gray-400 hover:text-gray-700"
+                              title="Receta complementos"
+                            >
+                              {isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                            </button>
+                          </td>
+                          <td className="font-bold whitespace-nowrap">
+                            {p.nombre}
+                            {receta.length > 0 && (
+                              <span className="ml-1 text-[10px] text-blue-600 font-normal">{receta.length} compl.</span>
+                            )}
+                          </td>
+                          <td>
+                            <input type="number" min={0} step={0.01} value={p.costoMoTotal}
+                              onChange={e => updateProducto(p.id, { costoMoTotal: parseFloat(e.target.value) || 0 })}
+                              className="w-24 input-base text-right text-xs py-0.5" />
+                          </td>
+                          <td>
+                            <div className="flex items-center gap-1">
+                              <input type="number" min={0} step={0.01} value={p.precioServicio}
+                                onChange={e => updateProducto(p.id, { precioServicio: parseFloat(e.target.value) || 0 })}
+                                className="w-24 input-base text-right text-xs py-0.5" />
+                              <button
+                                type="button"
+                                title="Calcular precio automático"
+                                onClick={() => setExpandedProd(isOpen ? p.id : p.id)}
+                                className="text-[10px] text-blue-500 hover:text-blue-700 font-bold px-1"
+                              >calc</button>
+                            </div>
+                          </td>
+                          <td className={`font-mono font-bold text-right pr-3 ${p.precioServicio - p.costoMoTotal >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                            {(p.precioServicio - p.costoMoTotal).toFixed(3)}
+                          </td>
+                          <td>
+                            <input type="text" value={p.telaBase ?? ''}
+                              onChange={e => updateProducto(p.id, { telaBase: e.target.value || undefined })}
+                              className="w-36 input-base text-xs py-0.5" placeholder="Ej: Jersey 24/1" />
+                          </td>
+                          <td>
+                            <input type="number" step="0.001" min={0} value={p.limiteConsumo ?? ''}
+                              onChange={e => updateProducto(p.id, { limiteConsumo: e.target.value ? parseFloat(e.target.value) : undefined })}
+                              className="w-28 input-base text-right text-xs py-0.5" placeholder="0.000" />
+                          </td>
+                          <td>
+                            <input type="number" step="1" min={0} value={p.limiteRendimiento ?? ''}
+                              onChange={e => updateProducto(p.id, { limiteRendimiento: e.target.value ? parseFloat(e.target.value) : undefined })}
+                              className="w-28 input-base text-right text-xs py-0.5" placeholder="0" />
+                          </td>
+                          <td>
+                            <input type="text" value={p.notas}
+                              onChange={e => updateProducto(p.id, { notas: e.target.value })}
+                              className="w-48 input-base text-xs py-0.5" />
+                          </td>
+                          <td>
+                            <button onClick={() => { if (confirm(`¿Eliminar producto "${p.nombre}"? Se eliminarán sus tarifas.`)) deleteProducto(p.id); }}
+                              className="text-red-400 hover:text-red-700 p-1"><Trash2 className="h-3 w-3" /></button>
+                          </td>
+                        </tr>
+
+                        {/* Expanded: Receta complementos + auto-calc precioServicio */}
+                        {isOpen && (
+                          <tr>
+                            <td colSpan={10} className="bg-gray-50 border-t border-gray-100 px-6 py-4">
+                              <div className="flex flex-col gap-4">
+
+                                {/* Auto-calc precioServicio */}
+                                <div className="border border-blue-200 bg-blue-50 p-3">
+                                  <p className="text-[10px] font-bold uppercase tracking-widest text-blue-700 mb-2">Calcular Precio de Servicio</p>
+                                  <p className="text-[10px] text-gray-500 mb-2">
+                                    Fórmula: PrecioServicio = costoMO × (1 + margen%) ÷ (1 − detracción%)
+                                  </p>
+                                  <div className="flex items-end gap-3 flex-wrap">
+                                    <div>
+                                      <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Costo MO (S/.)</label>
+                                      <input type="number" readOnly value={p.costoMoTotal} className="w-20 input-base text-right text-xs py-0.5 bg-gray-100" />
+                                    </div>
+                                    <div>
+                                      <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Margen (%)</label>
+                                      <input type="number" min={0} step={1} value={calcF.margen}
+                                        onChange={e => setCalcForms(f => ({ ...f, [p.id]: { ...calcF, margen: e.target.value } }))}
+                                        className="w-20 input-base text-right text-xs py-0.5" placeholder="30" />
+                                    </div>
+                                    <div>
+                                      <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Detracción (%)</label>
+                                      <input type="number" min={0} max={99} step={1} value={calcF.detraccion}
+                                        onChange={e => setCalcForms(f => ({ ...f, [p.id]: { ...calcF, detraccion: e.target.value } }))}
+                                        className="w-20 input-base text-right text-xs py-0.5" placeholder="10" />
+                                    </div>
+                                    {calcF.margen !== '' && (() => {
+                                      const margen = parseFloat(calcF.margen) / 100;
+                                      const detrac = parseFloat(calcF.detraccion || '0') / 100;
+                                      if (detrac >= 1) return null;
+                                      const precio = (p.costoMoTotal * (1 + margen)) / (1 - detrac);
+                                      return (
+                                        <div>
+                                          <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Resultado</label>
+                                          <div className="flex items-center gap-2">
+                                            <span className="font-black text-blue-700 text-sm">S/ {precio.toFixed(3)}</span>
+                                            <button
+                                              type="button"
+                                              onClick={() => { updateProducto(p.id, { precioServicio: parseFloat(precio.toFixed(3)) }); addToast('Precio actualizado', 'success'); }}
+                                              className="text-[10px] font-bold uppercase border border-blue-400 text-blue-700 hover:bg-blue-100 px-2 py-1"
+                                            >Aplicar</button>
+                                          </div>
+                                        </div>
+                                      );
+                                    })()}
+                                  </div>
+                                </div>
+
+                                {/* Receta complementos */}
+                                <div>
+                                  <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">Receta de Complementos por Prenda</p>
+                                  {receta.length === 0 ? (
+                                    <p className="text-xs text-gray-400 italic mb-2">Sin complementos definidos.</p>
+                                  ) : (
+                                    <table className="text-xs mb-3">
+                                      <thead>
+                                        <tr className="border-b border-gray-200">
+                                          {['Tipo', 'Origen', 'Cant./Prenda', 'Notas', ''].map(h => (
+                                            <th key={h} className="text-left px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-gray-500">{h}</th>
+                                          ))}
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {receta.map((r, idx) => (
+                                          <tr key={idx} className="border-b border-gray-100">
+                                            <td className="px-2 py-1 font-bold">{r.tipoComplemento}</td>
+                                            <td className="px-2 py-1">{r.origen}</td>
+                                            <td className="px-2 py-1 font-mono text-right">{r.cantidad}</td>
+                                            <td className="px-2 py-1 text-gray-500">{r.notas}</td>
+                                            <td className="px-2 py-1">
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  const newReceta = receta.filter((_, i) => i !== idx);
+                                                  updateProducto(p.id, { recetaComplementos: newReceta });
+                                                }}
+                                                className="text-red-400 hover:text-red-700"
+                                              ><X className="h-3 w-3" /></button>
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  )}
+
+                                  {/* Inline add form */}
+                                  {(() => {
+                                    const rf = recetaForms[p.id] ?? { tipoComplemento: 'CUELLO' as TipoComplemento, origen: 'COMPRA', cantidad: '1', notas: '' };
+                                    return (
+                                      <div className="flex items-end gap-2 flex-wrap">
+                                        <div>
+                                          <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Tipo</label>
+                                          <select value={rf.tipoComplemento}
+                                            onChange={e => setRecetaForms(f => ({ ...f, [p.id]: { ...rf, tipoComplemento: e.target.value as TipoComplemento } }))}
+                                            className="input-base text-xs py-0.5 w-28">
+                                            {TIPOS_COMPLEMENTO.map(t => <option key={t} value={t}>{t}</option>)}
+                                          </select>
+                                        </div>
+                                        <div>
+                                          <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Origen</label>
+                                          <select value={rf.origen}
+                                            onChange={e => setRecetaForms(f => ({ ...f, [p.id]: { ...rf, origen: e.target.value } }))}
+                                            className="input-base text-xs py-0.5 w-32">
+                                            <option value="COMPRA">COMPRA</option>
+                                            <option value="CORTE_INTERNO">CORTE_INTERNO</option>
+                                          </select>
+                                        </div>
+                                        <div>
+                                          <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Cant.</label>
+                                          <input type="number" min={1} step={1} value={rf.cantidad}
+                                            onChange={e => setRecetaForms(f => ({ ...f, [p.id]: { ...rf, cantidad: e.target.value } }))}
+                                            className="w-16 input-base text-right text-xs py-0.5" />
+                                        </div>
+                                        <div>
+                                          <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Notas</label>
+                                          <input type="text" value={rf.notas}
+                                            onChange={e => setRecetaForms(f => ({ ...f, [p.id]: { ...rf, notas: e.target.value } }))}
+                                            className="w-36 input-base text-xs py-0.5" />
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const newEntry: RecetaComplemento = {
+                                              tipoComplemento: rf.tipoComplemento,
+                                              origen: rf.origen,
+                                              cantidad: parseFloat(rf.cantidad) || 1,
+                                              notas: rf.notas,
+                                            };
+                                            updateProducto(p.id, { recetaComplementos: [...receta, newEntry] });
+                                            setRecetaForms(f => ({ ...f, [p.id]: { tipoComplemento: 'CUELLO', origen: 'COMPRA', cantidad: '1', notas: '' } }));
+                                            addToast('Complemento agregado', 'success');
+                                          }}
+                                          className="btn-primary text-xs py-1 px-3 flex items-center gap-1 self-end"
+                                        ><Plus className="h-3 w-3" /> Agregar</button>
+                                      </div>
+                                    );
+                                  })()}
+                                </div>
+
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -414,7 +600,7 @@ export function Catalogos() {
               <table className="texajo-table">
                 <thead>
                   <tr>
-                    {['Código', 'Nombre', 'Estado'].map(h => (
+                    {['Código', 'Nombre', 'Módulo', 'Máquina', 'Estado'].map(h => (
                       <th key={h}>{h}</th>
                     ))}
                   </tr>
@@ -426,7 +612,17 @@ export function Catalogos() {
                       <td>
                         <input type="text" value={o.nombre}
                           onChange={e => updateOperario(o.id, { nombre: e.target.value })}
-                          className="w-64 input-base text-xs py-0.5" />
+                          className="w-52 input-base text-xs py-0.5" />
+                      </td>
+                      <td>
+                        <input type="text" value={o.modulo ?? ''}
+                          onChange={e => updateOperario(o.id, { modulo: e.target.value || undefined })}
+                          className="w-24 input-base text-xs py-0.5" placeholder="M1" />
+                      </td>
+                      <td>
+                        <input type="text" value={o.maquina ?? ''}
+                          onChange={e => updateOperario(o.id, { maquina: e.target.value || undefined })}
+                          className="w-24 input-base text-xs py-0.5" placeholder="MQ01" />
                       </td>
                       <td>
                         <select value={o.estado}

@@ -46,6 +46,15 @@ export interface PrecioTejeduria {
   precioKg: number;
 }
 
+export interface PrecioTintoreria {
+  id: string;
+  tipoServicio: TipoServicioTint;  // REACTIVO | DIRECTO | PPT | LAVADO | TERMOFIJADO | COMPACTADO_EN_RAMA
+  tipoTela: string;                // nombre libre: "Jersey", "Wafle", "Pique", etc.
+  precioKg: number;
+  moneda: 'PEN' | 'USD';
+  notas: string;
+}
+
 export interface PrecioComplemento {
   id: string;
   clave: string; // TIPO_ORIGEN composite key
@@ -53,6 +62,13 @@ export interface PrecioComplemento {
   origen: string; // COMPRA, CORTE_INTERNO
   talla: 'S' | 'M' | 'L' | 'XL';
   precio: number;
+}
+
+export interface RecetaComplemento {
+  tipoComplemento: TipoComplemento;
+  origen: string;        // COMPRA | CORTE_INTERNO
+  cantidad: number;      // unidades por prenda (ej: 1 cuello, 2 puños)
+  notas: string;
 }
 
 export interface Producto {
@@ -63,6 +79,7 @@ export interface Producto {
   telaBase?: string;           // nombre de tela típica → auto-relleno en cortes
   limiteConsumo?: number;      // kg/prenda máximo permitido
   limiteRendimiento?: number;  // prendas/rollo mínimo permitido
+  recetaComplementos?: RecetaComplemento[]; // complementos requeridos por prenda
   notas: string;
 }
 
@@ -367,6 +384,7 @@ export interface MovimientoComplemento {
   stockDespues: number;
   corteId?: string;
   nCorte?: string;
+  productoDestinoId?: string;
   proveedorId?: string;
   nFactura?: string;
   responsable: string;
@@ -397,5 +415,6 @@ export interface TexajoImportPayload {
   stockExtornos?: StockExtorno[];
   cobrosDiarios?: CobroDiario[];
   preciosTejeduria?: PrecioTejeduria[];
+  preciosTintoreria?: PrecioTintoreria[];
   config?: Partial<Config>;
 }

@@ -16,12 +16,14 @@ export function ProduccionConfeccion() {
     addBoletaLinea, updateBoletaLinea,
   } = useAppContext();
   const { addToast } = useToast();
+  const [activeTab, setActiveTab] = useState<'seguimiento' | 'porProducto'>('seguimiento');
   const [expandedCorte, setExpandedCorte] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [filterCorteId, setFilterCorteId] = useState('');
   const [filterDesde, setFilterDesde] = useState('');
   const [filterHasta, setFilterHasta] = useState('');
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [filtroProductoId, setFiltroProductoId] = useState('');
 
   const [form, setForm] = useState({
     corteId: '', talla: 'M' as 'S' | 'M' | 'L' | 'XL',
@@ -58,6 +60,21 @@ export function ProduccionConfeccion() {
       return true;
     }).sort((a, b) => b.fecha.localeCompare(a.fecha)),
     [cortes, filterCorteId, filterDesde, filterHasta]);
+
+  const filasPorProducto = useMemo(() => {
+    if (!filtroProductoId) return [];
+    return seguimientoFilas.filter(f => f.productoId === filtroProductoId)
+      .sort((a, b) => b.fecha.localeCompare(a.fecha));
+  }, [seguimientoFilas, filtroProductoId]);
+
+  const resumenPorProducto = useMemo(() => {
+    if (filasPorProducto.length === 0) return null;
+    const total = filasPorProducto.reduce((s, f) => s + f.cantidad, 0);
+    const avgAvance = total > 0
+      ? Math.round(filasPorProducto.reduce((s, f) => s + f.pctAvance * f.cantidad, 0) / total)
+      : 0;
+    return { total, avgAvance };
+  }, [filasPorProducto]);
 
   const handleAddFila = (e: React.FormEvent) => {
     e.preventDefault();
@@ -207,6 +224,27 @@ export function ProduccionConfeccion() {
         </div>
       </div>
 
+      {/* Tabs */}
+      <div className="flex gap-1 border-b border-gray-200">
+        {([
+          { id: 'seguimiento', label: 'Por Corte' },
+          { id: 'porProducto', label: 'Por Producto' },
+        ] as { id: 'seguimiento' | 'porProducto'; label: string }[]).map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`text-[11px] font-bold uppercase tracking-widest px-4 py-2 border-b-2 transition-colors ${
+              activeTab === tab.id
+                ? 'border-[#1a1a1a] text-[#1a1a1a]'
+                : 'border-transparent text-gray-400 hover:text-gray-600'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'seguimiento' && <>
       <div className="flex flex-wrap gap-3 items-end">
         <div>
           <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Corte</label>
@@ -342,6 +380,94 @@ export function ProduccionConfeccion() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      </>}
+
+      {/* Tab: Por Producto */}
+      {activeTab === 'porProducto' && (
+        <div className="space-y-4">
+          <div className="flex items-end gap-3">
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Producto</label>
+              <select
+                value={filtroProductoId}
+                onChange={e => setFiltroProductoId(e.target.value)}
+                className="input-base text-xs w-60"
+              >
+                <option value="">Seleccionar producto…</option>
+                {[...productos].sort((a, b) => a.nombre.localeCompare(b.nombre)).map(p => (
+                  <option key={p.id} value={p.id}>{p.nombre}</option>
+                ))}
+              </select>
+            </div>
+            {filtroProductoId && resumenPorProducto && (
+              <div className="flex gap-4 pb-1 text-xs">
+                <span className="text-gray-500">Total prendas: <span className="font-black text-gray-800">{resumenPorProducto.total}</span></span>
+                <span className="text-gray-500">Avance prom: <span className="font-black text-gray-800">{resumenPorProducto.avgAvance}%</span></span>
+              </div>
+            )}
+          </div>
+
+          {!filtroProductoId ? (
+            <p className="text-sm text-gray-400 italic">Selecciona un producto para ver su seguimiento.</p>
+          ) : filasPorProducto.length === 0 ? (
+            <p className="text-sm text-gray-400 italic">Sin filas de seguimiento para este producto.</p>
+          ) : (
+            <div className="texajo-table-shell">
+              <div className="texajo-table-scroll">
+                <table className="texajo-table">
+                  <thead>
+                    <tr>
+                      {['N° Corte', 'Fecha', 'Color', 'Talla', 'Cantidad', 'Avance', 'Estado', 'Total Pago'].map(h => (
+                        <th key={h}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filasPorProducto.map(fila => {
+                      const corte = corteMap.get(fila.corteId);
+                      return (
+                        <tr key={fila.id}>
+                          <td className="font-bold font-mono">{fila.nCorte}</td>
+                          <td className="font-mono whitespace-nowrap">{fila.fecha}</td>
+                          <td className="whitespace-nowrap">{colorMap.get(fila.colorId) ?? fila.colorId}</td>
+                          <td className="font-bold text-center">{fila.talla}</td>
+                          <td className="font-mono text-right">{fila.cantidad}</td>
+                          <td>
+                            <div className="flex items-center gap-2">
+                              <div className="w-16 h-1.5 bg-gray-200">
+                                <div className="h-full bg-black" style={{ width: `${fila.pctAvance}%` }} />
+                              </div>
+                              <span className="text-[10px] font-mono">{fila.pctAvance}%</span>
+                            </div>
+                          </td>
+                          <td>
+                            <span className={`inline-block px-2 py-0.5 text-[10px] font-bold uppercase ${
+                              fila.estado === 'LISTO' ? 'bg-green-100 text-green-800' :
+                              fila.estado === 'EN_PROCESO' ? 'bg-blue-100 text-blue-800' :
+                              'bg-gray-100 text-gray-700'
+                            }`}>{fila.estado}</span>
+                          </td>
+                          <td className="font-mono text-right font-bold">S/ {fila.totalPago.toFixed(2)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot className="border-t-2 border-gray-300 bg-gray-50">
+                    <tr>
+                      <td colSpan={4} className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">Total</td>
+                      <td className="font-mono text-right font-black">{resumenPorProducto?.total}</td>
+                      <td className="text-[10px] font-bold text-gray-700">{resumenPorProducto?.avgAvance}% prom.</td>
+                      <td />
+                      <td className="font-mono text-right font-black">S/ {filasPorProducto.reduce((s, f) => s + f.totalPago, 0).toFixed(2)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

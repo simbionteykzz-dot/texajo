@@ -6,6 +6,8 @@ import { Download, Plus, X, FileText, Trash2 } from 'lucide-react';
 import { TipoMovimientoTela, CategoriaColor } from '../types';
 import { exportRowsToXlsx, exportTableToPdf } from '../lib/export';
 
+type InvTab = 'movimientos' | 'matriz' | 'criticos' | 'historico';
+
 const TIPOS: TipoMovimientoTela[] = ['INGRESO', 'A_CORTE', 'A_REPROCESO', 'DE_REPROCESO', 'MUESTRA', 'AJUSTE_POS', 'AJUSTE_NEG'];
 const TIPO_LABEL: Record<string, string> = {
   INGRESO: 'Ingreso', A_CORTE: 'A Corte', A_REPROCESO: 'A Reproceso',
@@ -37,6 +39,7 @@ export function InventarioTelas() {
   const [filterColor, setFilterColor] = useState('');
   const [segmentMode, setSegmentMode] = useState<SegmentMode>('ninguno');
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<InvTab>('movimientos');
 
   const telaMap = useMemo(() => new Map(telas.map(t => [t.id, t])), [telas]);
   const colorMap = useMemo(() => new Map(colores.map(c => [c.id, c])), [colores]);
@@ -167,6 +170,40 @@ export function InventarioTelas() {
       .sort((a, b) => (telaMap.get(a.telaId)?.nombre ?? '').localeCompare(telaMap.get(b.telaId)?.nombre ?? ''));
   }, [stockActual, telaMap, colorMap, preciosTelas, config.kgPorRolloDefault]);
 
+  // Tab Matriz: grilla telas × colores
+  const matrizData = useMemo(() => {
+    const telasSorted = [...telas].sort((a, b) => a.nombre.localeCompare(b.nombre));
+    const coloresSorted = [...colores].sort((a, b) => (a.prioridad ?? 999) - (b.prioridad ?? 999) || a.nombre.localeCompare(b.nombre));
+    return { telasSorted, coloresSorted };
+  }, [telas, colores]);
+
+  // Tab Críticos: tela×color donde stock ≤ umbralCritico
+  const criticosList = useMemo(() => {
+    return Array.from(stockActual.entries())
+      .map(([k, rollos]) => {
+        const [telaId, colorId] = k.split('|');
+        return { telaId, colorId, rollos };
+      })
+      .filter(s => s.rollos <= config.umbralCritico)
+      .sort((a, b) => a.rollos - b.rollos);
+  }, [stockActual, config.umbralCritico]);
+
+  // Tab Histórico: resumen mensual (últimos 24 meses)
+  const historicoMensual = useMemo(() => {
+    const map = new Map<string, { periodo: string; ingresos: number; consumo: number; otros: number }>();
+    for (const m of movimientosTela) {
+      const periodo = m.fecha.slice(0, 7);
+      if (!map.has(periodo)) map.set(periodo, { periodo, ingresos: 0, consumo: 0, otros: 0 });
+      const row = map.get(periodo)!;
+      if (m.tipo === 'INGRESO') row.ingresos += m.kgTotal;
+      else if (m.tipo === 'A_CORTE') row.consumo += m.kgTotal;
+      else row.otros += m.kgTotal;
+    }
+    return Array.from(map.values())
+      .sort((a, b) => b.periodo.localeCompare(a.periodo))
+      .slice(0, 24);
+  }, [movimientosTela]);
+
   const buildRows = () => movsFiltrados.map((m) => ({
     Fecha: m.fecha,
     Tipo: TIPO_LABEL[m.tipo] ?? m.tipo,
@@ -239,6 +276,30 @@ export function InventarioTelas() {
         </div>
       </div>
 
+      {/* Tabs */}
+      <div className="flex gap-1 border-b border-gray-200">
+        {([
+          { id: 'movimientos', label: 'Movimientos' },
+          { id: 'matriz', label: 'Matriz Color × Tela' },
+          { id: 'criticos', label: `Críticos${criticosList.length > 0 ? ` (${criticosList.length})` : ''}` },
+          { id: 'historico', label: 'Histórico Mensual' },
+        ] as { id: InvTab; label: string }[]).map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`text-[11px] font-bold uppercase tracking-widest px-4 py-2 border-b-2 transition-colors ${
+              activeTab === tab.id
+                ? 'border-[#1a1a1a] text-[#1a1a1a]'
+                : 'border-transparent text-gray-400 hover:text-gray-600'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab: Movimientos */}
+      {activeTab === 'movimientos' && <>
       {/* Stock actual */}
       <div>
         <h3 className="text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-3">Stock Actual</h3>
@@ -393,6 +454,125 @@ export function InventarioTelas() {
           </div>
         )}
       </div>
+
+      </>}
+
+      {/* Tab: Matriz */}
+      {activeTab === 'matriz' && (
+        <div className="overflow-x-auto">
+          {matrizData.telasSorted.length === 0 || matrizData.coloresSorted.length === 0 ? (
+            <p className="text-sm text-gray-400 italic">Sin datos de telas o colores.</p>
+          ) : (
+            <table className="text-xs border-collapse">
+              <thead>
+                <tr>
+                  <th className="text-left px-3 py-2 bg-gray-50 border border-gray-200 text-[10px] font-bold uppercase tracking-widest text-gray-500 sticky left-0 z-10 min-w-[140px]">Tela \ Color</th>
+                  {matrizData.coloresSorted.map(c => (
+                    <th key={c.id} className="px-2 py-2 bg-gray-50 border border-gray-200 text-[10px] font-bold uppercase tracking-widest text-gray-500 whitespace-nowrap">{c.nombre}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {matrizData.telasSorted.map(t => (
+                  <tr key={t.id} className="hover:bg-gray-50">
+                    <td className="px-3 py-2 border border-gray-200 font-bold text-gray-700 sticky left-0 bg-white z-10 whitespace-nowrap">{t.nombre}</td>
+                    {matrizData.coloresSorted.map(c => {
+                      const rollos = stockActual.get(`${t.id}|${c.id}`) ?? 0;
+                      const isCrit = rollos > 0 && rollos <= config.umbralCritico;
+                      const isBajo = rollos > 0 && !isCrit && rollos <= config.umbralBajo;
+                      return (
+                        <td key={c.id} className={`px-2 py-2 border border-gray-200 text-center font-mono font-bold ${
+                          rollos === 0 ? 'text-gray-300' :
+                          isCrit ? 'text-red-700 bg-red-50' :
+                          isBajo ? 'text-yellow-700 bg-yellow-50' :
+                          'text-green-700 bg-green-50'
+                        }`}>
+                          {rollos === 0 ? '—' : rollos}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          <p className="text-[10px] text-gray-400 mt-3">Valores en rollos. Verde = sobre umbral, amarillo = bajo, rojo = crítico.</p>
+        </div>
+      )}
+
+      {/* Tab: Críticos */}
+      {activeTab === 'criticos' && (
+        <div>
+          {criticosList.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-sm font-bold text-green-700">Sin ítems críticos</p>
+              <p className="text-xs text-gray-400 mt-1">Todos los stocks están por encima del umbral crítico ({config.umbralCritico} rollos).</p>
+            </div>
+          ) : (
+            <div className="texajo-table-shell">
+              <div className="texajo-table-scroll">
+                <table className="texajo-table">
+                  <thead>
+                    <tr>
+                      {['Tela', 'Color', 'Stock Rollos', 'Umbral Crítico', 'Estado'].map(h => (
+                        <th key={h}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {criticosList.map(s => (
+                      <tr key={`${s.telaId}|${s.colorId}`}>
+                        <td className="font-bold">{telaMap.get(s.telaId)?.nombre ?? s.telaId}</td>
+                        <td>{colorMap.get(s.colorId)?.nombre ?? s.colorId}</td>
+                        <td className="font-mono text-right font-black text-red-700">{s.rollos}</td>
+                        <td className="font-mono text-right text-gray-500">{config.umbralCritico}</td>
+                        <td><span className="inline-block px-2 py-0.5 text-[10px] font-bold uppercase bg-red-100 text-red-800">CRÍTICO</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab: Histórico Mensual */}
+      {activeTab === 'historico' && (
+        <div>
+          {historicoMensual.length === 0 ? (
+            <p className="text-sm text-gray-400 italic">Sin movimientos registrados.</p>
+          ) : (
+            <div className="texajo-table-shell">
+              <div className="texajo-table-scroll">
+                <table className="texajo-table">
+                  <thead>
+                    <tr>
+                      {['Período', 'Ingresos (kg)', 'Consumo A Corte (kg)', 'Otros (kg)', 'Balance (kg)'].map(h => (
+                        <th key={h}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {historicoMensual.map(row => {
+                      const balance = row.ingresos - row.consumo - row.otros;
+                      return (
+                        <tr key={row.periodo}>
+                          <td className="font-mono font-bold">{row.periodo}</td>
+                          <td className="font-mono text-right text-green-700">{row.ingresos.toFixed(1)}</td>
+                          <td className="font-mono text-right text-blue-700">{row.consumo.toFixed(1)}</td>
+                          <td className="font-mono text-right text-gray-500">{row.otros.toFixed(1)}</td>
+                          <td className={`font-mono text-right font-bold ${balance >= 0 ? 'text-green-700' : 'text-red-600'}`}>{balance >= 0 ? '+' : ''}{balance.toFixed(1)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Modal / form */}
       {showForm && (

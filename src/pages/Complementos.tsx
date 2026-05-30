@@ -23,6 +23,7 @@ interface MovCompForm {
   talla: 'S' | 'M' | 'L' | 'XL';
   cantidad: string;
   precioUnit: string;
+  productoDestinoId: string;
   proveedorId: string;
   nFactura: string;
   responsable: string;
@@ -37,6 +38,7 @@ const emptyForm = (): MovCompForm => ({
   talla: 'M',
   cantidad: '',
   precioUnit: '',
+  productoDestinoId: '',
   proveedorId: '',
   nFactura: '',
   responsable: '',
@@ -45,7 +47,7 @@ const emptyForm = (): MovCompForm => ({
 
 export function Complementos() {
   const {
-    movimientosComplemento, colores, proveedores, preciosComplementos, config,
+    movimientosComplemento, colores, proveedores, productos, preciosComplementos, config,
     addMovimientoComplemento, deleteMovimientoComplemento,
   } = useAppContext();
   const { addToast } = useToast();
@@ -57,6 +59,7 @@ export function Complementos() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   const colorMap = useMemo(() => new Map(colores.map(c => [c.id, c])), [colores]);
+  const productoMap = useMemo(() => new Map(productos.map(p => [p.id, p.nombre])), [productos]);
 
   const set = (field: keyof MovCompForm) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
@@ -135,6 +138,7 @@ export function Complementos() {
       totalSoles: cantidad * precioUnit,
       stockAntes,
       stockDespues,
+      productoDestinoId: form.productoDestinoId || undefined,
       proveedorId: form.proveedorId || undefined,
       nFactura: form.nFactura || undefined,
       responsable: form.responsable,
@@ -267,7 +271,7 @@ export function Complementos() {
             <table className="texajo-table">
               <thead>
                 <tr>
-                  {['Fecha', 'Tipo', 'Complemento', 'Color', 'Talla', 'Cant.', 'S/. Unit', 'Total S/.', 'Stock Post.', 'Responsable', 'Notas', ''].map(h => (
+                  {['Fecha', 'Tipo', 'Complemento', 'Color', 'Talla', 'Cant.', 'S/. Unit', 'Total S/.', 'Stock Post.', 'Producto Destino', 'Responsable', 'Notas', ''].map(h => (
                     <th key={h}>{h}</th>
                   ))}
                 </tr>
@@ -290,6 +294,7 @@ export function Complementos() {
                     <td className="font-mono text-right">{m.precioUnit.toFixed(2)}</td>
                     <td className="font-mono text-right font-bold">{m.totalSoles.toFixed(2)}</td>
                     <td className="font-mono text-right font-bold">{m.stockDespues}</td>
+                    <td className="text-xs text-gray-500 whitespace-nowrap">{m.productoDestinoId ? productoMap.get(m.productoDestinoId) ?? '—' : '—'}</td>
                     <td className="whitespace-nowrap">{m.responsable}</td>
                     <td className="text-gray-500 max-w-[10rem] truncate">{m.notas}</td>
                     <td className="px-2">
@@ -371,6 +376,16 @@ export function Complementos() {
                   </F>
                   <F label="N° Factura"><input type="text" value={form.nFactura} onChange={set('nFactura')} className="input-base" /></F>
                 </div>
+              )}
+              {form.tipo === 'CONSUMO' && (
+                <F label="Producto Destino">
+                  <select value={form.productoDestinoId} onChange={set('productoDestinoId')} className="input-base">
+                    <option value="">—</option>
+                    {[...productos].sort((a, b) => a.nombre.localeCompare(b.nombre)).map(p => (
+                      <option key={p.id} value={p.id}>{p.nombre}</option>
+                    ))}
+                  </select>
+                </F>
               )}
               <F label="Responsable"><input type="text" value={form.responsable} onChange={set('responsable')} className="input-base" /></F>
               <F label="Notas"><textarea value={form.notas} onChange={set('notas')} rows={2} className="input-base" /></F>

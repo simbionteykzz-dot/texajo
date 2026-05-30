@@ -9,7 +9,7 @@ import type {
   Producto, TarifaOperacion, Operario, Config,
   MovimientoTela, Corte, SeguimientoFila, BoletaLinea, DescuentoBoleta,
   ProgramaZurzam, ProgramaDetalle, CompraHilo, StockExtorno, CobroDiario,
-  MovimientoComplemento,
+  MovimientoComplemento, PrecioTintoreria,
 } from '../types';
 
 // ─── Mappers DB → App ────────────────────────────────────────────────────────
@@ -68,6 +68,9 @@ const fromColor = (v: Color) => ({ id: v.id, nombre: v.nombre, categoria: v.cate
 const fromPrecioTela = (v: PrecioTela) => ({ id: v.id, tela_id: v.telaId, categoria_color: v.categoriaColor, precio_kg: v.precioKg });
 const fromPrecioComplemento = (v: PrecioComplemento) => ({ id: v.id, clave: v.clave, tipo: v.tipo, origen: v.origen, talla: v.talla, precio: v.precio });
 const fromPrecioTejeduria = (v: PrecioTejeduria) => ({ id: v.id, tipo_tejido: v.tipoTejido, precio_kg: v.precioKg });
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toPrecioTintoreria = (r: any): PrecioTintoreria => ({ id: r.id, tipoServicio: r.tipo_servicio, tipoTela: r.tipo_tela, precioKg: r.precio_kg, moneda: r.moneda, notas: r.notas ?? '' });
+const fromPrecioTintoreria = (v: PrecioTintoreria) => ({ id: v.id, tipo_servicio: v.tipoServicio, tipo_tela: v.tipoTela, precio_kg: v.precioKg, moneda: v.moneda, notas: v.notas });
 const fromProducto = (v: Producto) => ({ id: v.id, nombre: v.nombre, costo_mo_total: v.costoMoTotal, precio_servicio: v.precioServicio, tela_base: v.telaBase ?? null, limite_consumo: v.limiteConsumo ?? null, limite_rendimiento: v.limiteRendimiento ?? null, notas: v.notas });
 const fromTarifa = (v: TarifaOperacion) => ({ id: v.id, producto_id: v.productoId, orden: v.orden, operacion: v.operacion, tarifa: v.tarifa, notas: v.notas, clave: v.clave });
 const fromOperario = (v: Operario) => ({ id: v.id, codigo: v.codigo, nombre: v.nombre, estado: v.estado, dni: v.dni ?? null, telefono: v.telefono ?? null, modulo: v.modulo ?? null, maquina: v.maquina ?? null, fecha_ingreso: v.fechaIngreso ?? null });
@@ -94,6 +97,7 @@ export interface DbAppState {
   preciosTelas: PrecioTela[];
   preciosComplementos: PrecioComplemento[];
   preciosTejeduria: PrecioTejeduria[];
+  preciosTintoreria: PrecioTintoreria[];
   productos: Producto[];
   tarifasOperaciones: TarifaOperacion[];
   operarios: Operario[];
@@ -115,7 +119,7 @@ export interface DbAppState {
 
 export async function loadAllFromDb(): Promise<DbAppState> {
   const [
-    c, p, te, co, pt, pc, ptej, pr, to, op,
+    c, p, te, co, pt, pc, ptej, ptint, pr, to, op,
     mt, cor, sf, bl, dbesc,
     pz, pd, ch, se, cd, mc, cfg
   ] = await Promise.all([
@@ -126,6 +130,7 @@ export async function loadAllFromDb(): Promise<DbAppState> {
     supabase.from('precios_telas').select('*'),
     supabase.from('precios_complementos').select('*'),
     supabase.from('precios_tejeduria').select('*'),
+    supabase.from('precios_tintoreria').select('*'),
     supabase.from('productos').select('*'),
     supabase.from('tarifas_operaciones').select('*'),
     supabase.from('operarios').select('*'),
@@ -144,7 +149,7 @@ export async function loadAllFromDb(): Promise<DbAppState> {
   ]);
 
   // Loguear errores individuales para diagnóstico
-  const checks = { c, p, te, co, pt, pc, ptej, pr, to, op, mt, cor, sf, bl, dbesc, pz, pd, ch, se, cd, mc };
+  const checks = { c, p, te, co, pt, pc, ptej, ptint, pr, to, op, mt, cor, sf, bl, dbesc, pz, pd, ch, se, cd, mc };
   for (const [name, res] of Object.entries(checks)) {
     if (res.error) console.error(`[Supabase] SELECT ${name} error:`, res.error);
   }
@@ -163,6 +168,7 @@ export async function loadAllFromDb(): Promise<DbAppState> {
     preciosTelas:           (pt.data   ?? []).map(toPrecioTela),
     preciosComplementos:    (pc.data   ?? []).map(toPrecioComplemento),
     preciosTejeduria:       (ptej.data ?? []).map(toPrecioTejeduria),
+    preciosTintoreria:      (ptint.data ?? []).map(toPrecioTintoreria),
     productos:              (pr.data   ?? []).map(toProducto),
     tarifasOperaciones:     (to.data   ?? []).map(toTarifa),
     operarios:              (op.data   ?? []).map(toOperario),
@@ -260,6 +266,11 @@ export const db = {
     add: (v: PrecioTejeduria) => dbInsert('precios_tejeduria', v, fromPrecioTejeduria),
     update: (id: string, u: Partial<PrecioTejeduria>, cur: PrecioTejeduria) => dbUpdate('precios_tejeduria', id, u, fromPrecioTejeduria, cur),
     delete: (id: string) => dbDelete('precios_tejeduria', id),
+  },
+  preciosTintoreria: {
+    add: (v: PrecioTintoreria) => dbInsert('precios_tintoreria', v, fromPrecioTintoreria),
+    update: (id: string, u: Partial<PrecioTintoreria>, cur: PrecioTintoreria) => dbUpdate('precios_tintoreria', id, u, fromPrecioTintoreria, cur),
+    delete: (id: string) => dbDelete('precios_tintoreria', id),
   },
   productos: {
     add: (v: Producto) => dbInsert('productos', v, fromProducto),
