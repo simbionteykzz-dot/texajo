@@ -12,6 +12,7 @@ export const SECCIONES = [
   { key: 'complementos', label: 'Complementos',       href: '/complementos' },
   { key: 'catalogos',    label: 'Catalogos',          href: '/catalogos' },
   { key: 'panel',        label: 'Panel Operativo',    href: '/panel' },
+  { key: 'tarifas',      label: 'Tabla de Tarifas',   href: '/tarifas' },
   { key: 'configuracion',label: 'Configuracion',      href: '/configuracion' },
 ] as const;
 
@@ -34,6 +35,7 @@ const DEFAULT_PERMISOS_SUPERVISOR: PermisosRol = {
   complementos: true,
   catalogos: false,
   panel: true,
+  tarifas: true,
   configuracion: false,
 };
 
@@ -48,6 +50,7 @@ const DEFAULT_PERMISOS_ENCARGADO: PermisosRol = {
   complementos: false,
   catalogos: false,
   panel: true,
+  tarifas: false,
   configuracion: false,
 };
 

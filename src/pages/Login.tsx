@@ -6,42 +6,27 @@ interface LoginProps {
   onLogin: () => void;
 }
 
-type Mode = 'login' | 'register';
-
 export function Login({ onLogin }: LoginProps) {
-  const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [info, setInfo] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setInfo('');
     setLoading(true);
 
     try {
-      if (mode === 'login') {
-        const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
-        if (authError) throw authError;
-        onLogin();
-      } else {
-        const { error: authError } = await supabase.auth.signUp({ email, password });
-        if (authError) throw authError;
-        setInfo('Cuenta creada. Revisa tu correo para confirmar y luego inicia sesión.');
-        setMode('login');
-      }
+      const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
+      if (authError) throw authError;
+      onLogin();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error desconocido';
-      // Traducir mensajes comunes de Supabase
       if (msg.includes('Invalid login credentials')) {
         setError('Email o contraseña incorrectos');
       } else if (msg.includes('Email not confirmed')) {
         setError('Debes confirmar tu email antes de ingresar');
-      } else if (msg.includes('User already registered')) {
-        setError('Este email ya está registrado. Inicia sesión.');
       } else {
         setError(msg);
       }
@@ -108,12 +93,6 @@ export function Login({ onLogin }: LoginProps) {
             </div>
           )}
 
-          {info && (
-            <div className="border px-3 py-2" style={{ background: '#EFF8F2', borderColor: '#A8D5B5' }}>
-              <p className="m-0 text-xs font-semibold" style={{ color: '#173A25' }}>{info}</p>
-            </div>
-          )}
-
           <button
             type="submit"
             disabled={loading}
@@ -126,23 +105,8 @@ export function Login({ onLogin }: LoginProps) {
             onMouseEnter={e => { if (!loading) e.currentTarget.style.background = '#0F2418'; }}
             onMouseLeave={e => { if (!loading) e.currentTarget.style.background = '#173A25'; }}
           >
-            {loading
-              ? 'Verificando...'
-              : mode === 'login' ? 'Ingresar al sistema' : 'Crear cuenta'
-            }
+            {loading ? 'Verificando...' : 'Ingresar al sistema'}
           </button>
-
-          <p className="text-center text-xs" style={{ color: '#85878A' }}>
-            {mode === 'login' ? '¿Sin cuenta aún? ' : '¿Ya tienes cuenta? '}
-            <button
-              type="button"
-              onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); setInfo(''); }}
-              className="font-bold underline"
-              style={{ color: '#173A25' }}
-            >
-              {mode === 'login' ? 'Crear cuenta' : 'Iniciar sesión'}
-            </button>
-          </p>
         </form>
       </div>
     </div>

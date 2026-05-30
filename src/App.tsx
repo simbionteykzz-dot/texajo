@@ -18,6 +18,7 @@ import { Configuracion } from './pages/Configuracion';
 import { PanelOperativo } from './pages/PanelOperativo';
 import { PanelAdmin } from './pages/PanelAdmin';
 import { HistorialGeneral } from './pages/HistorialGeneral';
+import { TablaTarifas } from './pages/TablaTarifas';
 import { supabase } from './lib/supabase';
 import { useAuthUser } from './lib/useAuthUser';
 import { usePermisos, permisosParaRol } from './lib/usePermisos';
@@ -160,6 +161,7 @@ export default function App() {
                     <Route path="/catalogos" element={<Catalogos />} />
                     <Route path="/configuracion" element={<Configuracion />} />
                     <Route path="/panel" element={<PanelOperativo />} />
+                    <Route path="/tarifas" element={<TablaTarifas />} />
                     {esAdmin && <Route path="/admin" element={<PanelAdmin />} />}
                     {esSuperAdmin && <Route path="/historial" element={<HistorialGeneral />} />}
                   </Routes>
