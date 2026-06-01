@@ -492,17 +492,19 @@ export function Cortes() {
                 <F label="Cortador">
                   <select value={form.cortador} onChange={set('cortador')} className="input-base">
                     <option value="">Seleccionar…</option>
-                    {[...operarios].filter(o => o.estado === 'ACTIVO').sort((a, b) => a.nombre.localeCompare(b.nombre)).map(o => (
-                      <option key={o.id} value={o.nombre}>{o.nombre}</option>
-                    ))}
+                    {[...operarios]
+                      .filter(o => o.estado === 'ACTIVO' && (o.nombre === 'Yerson' || o.nombre === 'Jose'))
+                      .sort((a, b) => a.nombre.localeCompare(b.nombre))
+                      .map(o => <option key={o.id} value={o.nombre}>{o.nombre}</option>)}
                   </select>
                 </F>
                 <F label="Ayudante">
                   <select value={form.ayudante} onChange={set('ayudante')} className="input-base">
                     <option value="">Seleccionar…</option>
-                    {[...operarios].filter(o => o.estado === 'ACTIVO').sort((a, b) => a.nombre.localeCompare(b.nombre)).map(o => (
-                      <option key={o.id} value={o.nombre}>{o.nombre}</option>
-                    ))}
+                    {[...operarios]
+                      .filter(o => o.estado === 'ACTIVO' && (o.nombre === 'Yerson' || o.nombre === 'Jose'))
+                      .sort((a, b) => a.nombre.localeCompare(b.nombre))
+                      .map(o => <option key={o.id} value={o.nombre}>{o.nombre}</option>)}
                   </select>
                 </F>
               </div>

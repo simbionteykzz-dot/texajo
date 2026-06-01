@@ -57,6 +57,15 @@
     where fecha_registro is not null;
 
 
+  -- 6. Insertar operarios de corte: Yerson y Jose
+  -- ─────────────────────────────────────────────────────────────
+  insert into operarios (id, codigo, nombre, estado)
+  values
+    ('cortador-yerson-01', 'COR001', 'Yerson', 'ACTIVO'),
+    ('cortador-jose-01',   'COR002', 'Jose',   'ACTIVO')
+  on conflict (id) do nothing;
+
+
   -- ─── Fin de migración ───────────────────────────────────────
   -- Verificación: ejecuta esto para confirmar que todo existe:
   --
