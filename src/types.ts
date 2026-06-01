@@ -212,6 +212,7 @@ export interface BoletaLinea {
   cantPrendas: number;
   importe: number; // cantPrendas × tarifa
   periodo: string; // YYYY-MM
+  fechaRegistro?: string; // YYYY-MM-DD — fecha en que se registró la operación
   estadoPago: 'PENDIENTE' | 'PAGADO';
   fechaPago?: string;
 }

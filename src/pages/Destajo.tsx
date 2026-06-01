@@ -33,6 +33,8 @@ export function Destajo() {
   // ── Tab: Mi Boleta ──
   const [selectedOperario, setSelectedOperario] = useState('');
   const [selectedPeriodo, setSelectedPeriodo] = useState(PERIODOS[0]);
+  const [bDesde, setBDesde] = useState('');
+  const [bHasta, setBHasta] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [bulkCorteId, setBulkCorteId] = useState('');
   const [showBoleta, setShowBoleta] = useState(false);
@@ -102,9 +104,18 @@ export function Destajo() {
 
   const lineasFiltradas = useMemo(() =>
     boletaLineas
-      .filter(b => b.operarioId === selectedOperario && b.periodo === selectedPeriodo)
+      .filter(b => {
+        if (b.operarioId !== selectedOperario) return false;
+        if (bDesde || bHasta) {
+          const fecha = b.fechaRegistro ?? b.periodo + '-01';
+          if (bDesde && fecha < bDesde) return false;
+          if (bHasta && fecha > bHasta) return false;
+          return true;
+        }
+        return b.periodo === selectedPeriodo;
+      })
       .sort((a, b) => a.nCorte.localeCompare(b.nCorte) || a.orden - b.orden),
-    [boletaLineas, selectedOperario, selectedPeriodo]);
+    [boletaLineas, selectedOperario, selectedPeriodo, bDesde, bHasta]);
 
   // Vista general: todas las líneas con filtros opcionales
   const todasOperaciones = useMemo(() => {
@@ -187,6 +198,7 @@ export function Destajo() {
         cantPrendas: cant,
         importe: cant * tarifa.tarifa,
         periodo: selectedPeriodo,
+        fechaRegistro: new Date().toISOString().slice(0, 10),
         estadoPago: 'PENDIENTE',
       });
     }
@@ -236,6 +248,7 @@ export function Destajo() {
       cantPrendas: 0,
       importe: 0,
       periodo: selectedPeriodo,
+      fechaRegistro: new Date().toISOString().slice(0, 10),
       estadoPago: 'PENDIENTE',
     }));
     addBoletaLineas(lineas);
@@ -603,10 +616,25 @@ export function Destajo() {
         </div>
         <div>
           <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Período</label>
-          <select value={selectedPeriodo} onChange={e => setSelectedPeriodo(e.target.value)} className="input-base w-36">
+          <select value={selectedPeriodo} onChange={e => { setSelectedPeriodo(e.target.value); setBDesde(''); setBHasta(''); }} className="input-base w-36">
             {PERIODOS.map(p => <option key={p} value={p}>{p}</option>)}
           </select>
         </div>
+        <div>
+          <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Desde</label>
+          <input type="date" value={bDesde} onChange={e => setBDesde(e.target.value)} className="input-base w-36" />
+        </div>
+        <div>
+          <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Hasta</label>
+          <input type="date" value={bHasta} onChange={e => setBHasta(e.target.value)} className="input-base w-36" />
+        </div>
+        {(bDesde || bHasta) && (
+          <div className="flex items-end">
+            <button onClick={() => { setBDesde(''); setBHasta(''); }} className="text-[10px] font-bold uppercase text-gray-400 hover:text-gray-700 border border-gray-200 px-2 py-1">
+              Limpiar fechas
+            </button>
+          </div>
+        )}
         {selectedOperario && (
           <div className="flex items-end gap-2">
             <button onClick={() => { resetDraft(); setShowForm(true); }} className="btn-primary flex items-center gap-2 text-xs">
@@ -885,7 +913,7 @@ export function Destajo() {
       {/* Boleta operario */}
       {showBoleta && selectedOperario && (() => {
         const operario = operarioMap.get(selectedOperario);
-        return operario ? <BoletaOperario operario={operario} periodo={selectedPeriodo} onClose={() => setShowBoleta(false)} /> : null;
+        return operario ? <BoletaOperario operario={operario} periodo={selectedPeriodo} desde={bDesde || undefined} hasta={bHasta || undefined} onClose={() => setShowBoleta(false)} /> : null;
       })()}
 
       {/* Modal agregar líneas — secciones por operario */}

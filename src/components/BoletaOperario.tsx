@@ -9,6 +9,8 @@ import logoDashboard from '../assets/branding/logo-dashboard.png';
 interface BoletaOperarioProps {
   operario: Operario;
   periodo: string;
+  desde?: string; // YYYY-MM-DD — filtro de rango opcional
+  hasta?: string; // YYYY-MM-DD
   onClose: () => void;
 }
 
@@ -16,20 +18,34 @@ function soles(n: number) {
   return n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export function BoletaOperario({ operario, periodo, onClose }: BoletaOperarioProps) {
+export function BoletaOperario({ operario, periodo, desde, hasta, onClose }: BoletaOperarioProps) {
   const { boletaLineas, productos, descuentosBoleta } = useAppContext();
+
+  const usaRango = !!(desde || hasta);
 
   const lineas = useMemo(() =>
     boletaLineas
-      .filter(b => b.operarioId === operario.id && b.periodo === periodo)
+      .filter(b => {
+        if (b.operarioId !== operario.id) return false;
+        if (usaRango) {
+          const fecha = b.fechaRegistro ?? b.periodo + '-01';
+          if (desde && fecha < desde) return false;
+          if (hasta && fecha > hasta) return false;
+          return true;
+        }
+        return b.periodo === periodo;
+      })
       .sort((a, b) => a.nCorte.localeCompare(b.nCorte) || a.orden - b.orden),
-    [boletaLineas, operario.id, periodo]
+    [boletaLineas, operario.id, periodo, desde, hasta, usaRango]
   );
 
   const productoMap = useMemo(() => new Map(productos.map(p => [p.id, p])), [productos]);
 
   const totalBruto    = lineas.reduce((s, b) => s + b.importe, 0);
-  const descuentos    = descuentosBoleta.filter(d => d.operarioId === operario.id && d.periodo === periodo);
+  const descuentos    = descuentosBoleta.filter(d => {
+    if (d.operarioId !== operario.id) return false;
+    return usaRango ? true : d.periodo === periodo;
+  });
   const totalDescuentos = descuentos.reduce((s, d) => s + d.monto, 0);
   const totalNeto     = totalBruto - totalDescuentos;
   const pendiente     = lineas.filter(b => b.estadoPago === 'PENDIENTE').reduce((s, b) => s + b.importe, 0);
@@ -37,9 +53,12 @@ export function BoletaOperario({ operario, periodo, onClose }: BoletaOperarioPro
 
   const emitido       = new Date().toLocaleDateString('es-PE', { day: '2-digit', month: 'long', year: 'numeric' });
   const [anio, mes]   = periodo.split('-');
-  const periodoLabel  = new Date(parseInt(anio), parseInt(mes) - 1, 1)
-    .toLocaleDateString('es-PE', { month: 'long', year: 'numeric' });
-  const docId         = `BOL-${operario.codigo}-${periodo.replace('-', '')}`;
+  const periodoLabel  = usaRango
+    ? `${desde ?? '…'} al ${hasta ?? '…'}`
+    : new Date(parseInt(anio), parseInt(mes) - 1, 1).toLocaleDateString('es-PE', { month: 'long', year: 'numeric' });
+  const docId         = usaRango
+    ? `BOL-${operario.codigo}-${(desde ?? '').replace(/-/g, '')}-${(hasta ?? '').replace(/-/g, '')}`
+    : `BOL-${operario.codigo}-${periodo.replace('-', '')}`;
 
   const handlePrint = () => window.print();
 
