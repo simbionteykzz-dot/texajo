@@ -10,7 +10,7 @@ import { exportRowsToXlsx, exportTableToPdf } from '../lib/export';
 const uid = () => crypto.randomUUID();
 
 interface CorteForm {
-  nCorte: string; fecha: string; clienteId: string; productoId: string; colorId: string;
+  nCorte: string; fecha: string; clienteId: string; productoId: string; colorIds: string[];
   telaId: string;
   cortador: string; ayudante: string; kgUsados: string; rollosUsados: string;
   tendidas: string; mtsPorTendida: string; ancho: string;
@@ -20,7 +20,7 @@ interface CorteForm {
 
 const emptyForm = (): CorteForm => ({
   nCorte: '', fecha: new Date().toISOString().slice(0, 10),
-  clienteId: '', productoId: '', colorId: '', telaId: '',
+  clienteId: '', productoId: '', colorIds: [''], telaId: '',
   cortador: '', ayudante: '', kgUsados: '', rollosUsados: '',
   tendidas: '', mtsPorTendida: '', ancho: '',
   cantS: '0', cantM: '0', cantL: '0', cantXL: '0',
@@ -167,41 +167,48 @@ export function Cortes() {
     const kgUsados = parseFloat(form.kgUsados) || 0;
     const rollosUsados = parseFloat(form.rollosUsados) || 0;
 
-    if (!form.nCorte || !form.clienteId || !form.productoId || !form.colorId) {
-      addToast('Completa nCorte, cliente, producto y color', 'error');
+    const coloresValidos = form.colorIds.filter(c => c !== '');
+    if (!form.nCorte || !form.clienteId || !form.productoId || coloresValidos.length === 0) {
+      addToast('Completa nCorte, cliente, producto y al menos un color', 'error');
       return;
     }
 
-    const corte: Corte = {
-      id: uid(),
-      nCorte: form.nCorte,
-      fecha: form.fecha,
-      clienteId: form.clienteId,
-      productoId: form.productoId,
-      colorId: form.colorId,
-      telaId: form.telaId || undefined,
-      cortador: form.cortador,
-      ayudante: form.ayudante,
-      kgUsados,
-      rollosUsados,
-      tendidas: parseInt(form.tendidas) || 0,
-      mtsPorTendida: parseFloat(form.mtsPorTendida) || 0,
-      ancho: parseFloat(form.ancho) || 0,
-      cantS, cantM, cantL, cantXL,
-      totalPrendas,
-      consumo: totalPrendas > 0 ? kgUsados / totalPrendas : 0,
-      rendimiento: rollosUsados > 0 ? totalPrendas / rollosUsados : 0,
-      revision: 'PENDIENTE',
-      traslado: form.traslado,
-      estado: 'EN_PROCESO',
-      pagoCliente: 'PENDIENTE',
-      pagoPlanilla: 'PENDIENTE',
-      costoMoCorte: calcCostoMo(form.productoId, totalPrendas),
-      notas: form.notas,
-    };
+    coloresValidos.forEach((colorId, idx) => {
+      const sufijo = coloresValidos.length > 1 ? `-${String.fromCharCode(65 + idx)}` : '';
+      const corte: Corte = {
+        id: uid(),
+        nCorte: form.nCorte + sufijo,
+        fecha: form.fecha,
+        clienteId: form.clienteId,
+        productoId: form.productoId,
+        colorId,
+        telaId: form.telaId || undefined,
+        cortador: form.cortador,
+        ayudante: form.ayudante,
+        kgUsados,
+        rollosUsados,
+        tendidas: parseInt(form.tendidas) || 0,
+        mtsPorTendida: parseFloat(form.mtsPorTendida) || 0,
+        ancho: parseFloat(form.ancho) || 0,
+        cantS, cantM, cantL, cantXL,
+        totalPrendas,
+        consumo: totalPrendas > 0 ? kgUsados / totalPrendas : 0,
+        rendimiento: rollosUsados > 0 ? totalPrendas / rollosUsados : 0,
+        revision: 'PENDIENTE',
+        traslado: form.traslado,
+        estado: 'EN_PROCESO',
+        pagoCliente: 'PENDIENTE',
+        pagoPlanilla: 'PENDIENTE',
+        costoMoCorte: calcCostoMo(form.productoId, totalPrendas),
+        notas: form.notas,
+      };
+      addCorte(corte);
+    });
 
-    addCorte(corte);
-    addToast(`Corte ${form.nCorte} registrado`, 'success');
+    const msg = coloresValidos.length > 1
+      ? `${coloresValidos.length} cortes registrados (${form.nCorte}-A … ${form.nCorte}-${String.fromCharCode(64 + coloresValidos.length)})`
+      : `Corte ${form.nCorte} registrado`;
+    addToast(msg, 'success');
     setShowForm(false);
     setForm(emptyForm());
   };
@@ -419,17 +426,11 @@ export function Cortes() {
                   </select>
                 </F>
               </div>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <F label="Producto">
                   <select value={form.productoId} onChange={set('productoId')} className="input-base" required>
                     <option value="">Seleccionar…</option>
                     {productos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-                  </select>
-                </F>
-                <F label="Color">
-                  <select value={form.colorId} onChange={set('colorId')} className="input-base" required>
-                    <option value="">Seleccionar…</option>
-                    {colores.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                   </select>
                 </F>
                 <F label="Tela">
@@ -438,6 +439,54 @@ export function Cortes() {
                     {telas.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
                   </select>
                 </F>
+              </div>
+              {/* Colores: lista dinámica */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                    Colores{form.colorIds.filter(c => c).length > 1 && <span className="ml-2 text-[#C4612A]">— se creará un corte por cada color</span>}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, colorIds: [...f.colorIds, ''] }))}
+                    className="text-[10px] font-bold uppercase tracking-widest text-[#C4612A] hover:text-[#a04e22] flex items-center gap-1"
+                  >
+                    <Plus className="h-3 w-3" /> Agregar color
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {form.colorIds.map((cid, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      {form.colorIds.length > 1 && (
+                        <span className="text-[10px] font-mono font-bold text-gray-400 w-5 shrink-0">
+                          {String.fromCharCode(65 + idx)}
+                        </span>
+                      )}
+                      <select
+                        value={cid}
+                        onChange={e => setForm(f => {
+                          const next = [...f.colorIds];
+                          next[idx] = e.target.value;
+                          return { ...f, colorIds: next };
+                        })}
+                        className="input-base flex-1"
+                        required={idx === 0}
+                      >
+                        <option value="">Seleccionar…</option>
+                        {colores.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                      </select>
+                      {form.colorIds.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => setForm(f => ({ ...f, colorIds: f.colorIds.filter((_, i) => i !== idx) }))}
+                          className="text-gray-300 hover:text-red-500 transition-colors shrink-0"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <F label="Cortador">

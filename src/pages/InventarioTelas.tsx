@@ -645,11 +645,6 @@ export function InventarioTelas() {
                 </F>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                {esAdmin && (
-                  <F label={precioSugerido !== null ? `Precio / Kg (sugerido: S/ ${precioSugerido})` : 'Precio / Kg (S/.)'}>
-                    <input type="number" min={0} step={0.01} value={form.precioKg} onChange={set('precioKg')} className="input-base" />
-                  </F>
-                )}
                 <F label="Cliente">
                   <select value={form.clienteId} onChange={set('clienteId')} className="input-base">
                     <option value="">—</option>
