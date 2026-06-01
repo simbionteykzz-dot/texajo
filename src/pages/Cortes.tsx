@@ -9,21 +9,33 @@ import { exportRowsToXlsx, exportTableToPdf } from '../lib/export';
 
 const uid = () => crypto.randomUUID();
 
-interface CorteForm {
-  nCorte: string; fecha: string; clienteId: string; productoId: string; colorIds: string[];
-  telaId: string;
-  cortador: string; ayudante: string; kgUsados: string; rollosUsados: string;
-  tendidas: string; mtsPorTendida: string; ancho: string;
+interface ColorDetalle {
+  colorId: string;
+  kgUsados: string;
+  rollosUsados: string;
   cantS: string; cantM: string; cantL: string; cantXL: string;
+}
+
+interface CorteForm {
+  nCorte: string; fecha: string; clienteId: string; productoId: string;
+  telaId: string;
+  cortador: string; ayudante: string;
+  tendidas: string; mtsPorTendida: string; ancho: string;
+  colores: ColorDetalle[];
   traslado: boolean; notas: string;
 }
 
+const emptyColorDetalle = (): ColorDetalle => ({
+  colorId: '', kgUsados: '', rollosUsados: '',
+  cantS: '0', cantM: '0', cantL: '0', cantXL: '0',
+});
+
 const emptyForm = (): CorteForm => ({
   nCorte: '', fecha: new Date().toISOString().slice(0, 10),
-  clienteId: '', productoId: '', colorIds: [''], telaId: '',
-  cortador: '', ayudante: '', kgUsados: '', rollosUsados: '',
+  clienteId: '', productoId: '', telaId: '',
+  cortador: '', ayudante: '',
   tendidas: '', mtsPorTendida: '', ancho: '',
-  cantS: '0', cantM: '0', cantL: '0', cantXL: '0',
+  colores: [emptyColorDetalle()],
   traslado: false, notas: '',
 });
 
@@ -159,29 +171,28 @@ export function Cortes() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const cantS = parseInt(form.cantS) || 0;
-    const cantM = parseInt(form.cantM) || 0;
-    const cantL = parseInt(form.cantL) || 0;
-    const cantXL = parseInt(form.cantXL) || 0;
-    const totalPrendas = cantS + cantM + cantL + cantXL;
-    const kgUsados = parseFloat(form.kgUsados) || 0;
-    const rollosUsados = parseFloat(form.rollosUsados) || 0;
-
-    const coloresValidos = form.colorIds.filter(c => c !== '');
+    const coloresValidos = form.colores.filter(c => c.colorId !== '');
     if (!form.nCorte || !form.clienteId || !form.productoId || coloresValidos.length === 0) {
       addToast('Completa nCorte, cliente, producto y al menos un color', 'error');
       return;
     }
 
-    coloresValidos.forEach((colorId, idx) => {
+    coloresValidos.forEach((det, idx) => {
       const sufijo = coloresValidos.length > 1 ? `-${String.fromCharCode(65 + idx)}` : '';
+      const cantS = parseInt(det.cantS) || 0;
+      const cantM = parseInt(det.cantM) || 0;
+      const cantL = parseInt(det.cantL) || 0;
+      const cantXL = parseInt(det.cantXL) || 0;
+      const totalPrendas = cantS + cantM + cantL + cantXL;
+      const kgUsados = parseFloat(det.kgUsados) || 0;
+      const rollosUsados = parseFloat(det.rollosUsados) || 0;
       const corte: Corte = {
         id: uid(),
         nCorte: form.nCorte + sufijo,
         fecha: form.fecha,
         clienteId: form.clienteId,
         productoId: form.productoId,
-        colorId,
+        colorId: det.colorId,
         telaId: form.telaId || undefined,
         cortador: form.cortador,
         ayudante: form.ayudante,
@@ -440,54 +451,6 @@ export function Cortes() {
                   </select>
                 </F>
               </div>
-              {/* Colores: lista dinámica */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                    Colores{form.colorIds.filter(c => c).length > 1 && <span className="ml-2 text-[#C4612A]">— se creará un corte por cada color</span>}
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setForm(f => ({ ...f, colorIds: [...f.colorIds, ''] }))}
-                    className="text-[10px] font-bold uppercase tracking-widest text-[#C4612A] hover:text-[#a04e22] flex items-center gap-1"
-                  >
-                    <Plus className="h-3 w-3" /> Agregar color
-                  </button>
-                </div>
-                <div className="space-y-2">
-                  {form.colorIds.map((cid, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      {form.colorIds.length > 1 && (
-                        <span className="text-[10px] font-mono font-bold text-gray-400 w-5 shrink-0">
-                          {String.fromCharCode(65 + idx)}
-                        </span>
-                      )}
-                      <select
-                        value={cid}
-                        onChange={e => setForm(f => {
-                          const next = [...f.colorIds];
-                          next[idx] = e.target.value;
-                          return { ...f, colorIds: next };
-                        })}
-                        className="input-base flex-1"
-                        required={idx === 0}
-                      >
-                        <option value="">Seleccionar…</option>
-                        {colores.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                      </select>
-                      {form.colorIds.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => setForm(f => ({ ...f, colorIds: f.colorIds.filter((_, i) => i !== idx) }))}
-                          className="text-gray-300 hover:text-red-500 transition-colors shrink-0"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
               <div className="grid grid-cols-2 gap-4">
                 <F label="Cortador">
                   <select value={form.cortador} onChange={set('cortador')} className="input-base">
@@ -509,26 +472,108 @@ export function Cortes() {
                 </F>
               </div>
               <div className="grid grid-cols-3 gap-4">
-                <F label="Kg Usados"><input type="number" min={0} step={0.1} value={form.kgUsados} onChange={set('kgUsados')} className="input-base" /></F>
-                <F label="Rollos Usados"><input type="number" min={0} step={0.5} value={form.rollosUsados} onChange={set('rollosUsados')} className="input-base" /></F>
                 <F label="Tendidas"><input type="number" min={0} value={form.tendidas} onChange={set('tendidas')} className="input-base" /></F>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
                 <F label="Mts por Tendida"><input type="number" min={0} step={0.1} value={form.mtsPorTendida} onChange={set('mtsPorTendida')} className="input-base" /></F>
                 <F label="Ancho (m)"><input type="number" min={0} step={0.01} value={form.ancho} onChange={set('ancho')} className="input-base" /></F>
               </div>
+
+              {/* Tabla colores × cantidades */}
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">Cantidades por Talla</label>
-                <div className="grid grid-cols-4 gap-3">
-                  {(['cantS', 'cantM', 'cantL', 'cantXL'] as const).map(field => (
-                    <F key={field} label={field.replace('cant', '')}>
-                      <input type="number" min={0} value={form[field]} onChange={set(field)} className="input-base" />
-                    </F>
-                  ))}
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                    Colores y Cantidades
+                    {form.colores.filter(c => c.colorId).length > 1 && (
+                      <span className="ml-2 text-[#C4612A]">— un corte por cada color</span>
+                    )}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, colores: [...f.colores, emptyColorDetalle()] }))}
+                    className="text-[10px] font-bold uppercase tracking-widest text-[#C4612A] hover:text-[#a04e22] flex items-center gap-1"
+                  >
+                    <Plus className="h-3 w-3" /> Agregar color
+                  </button>
                 </div>
-                <p className="text-xs text-gray-500 mt-2">
-                  Total: <strong>{(parseInt(form.cantS)||0) + (parseInt(form.cantM)||0) + (parseInt(form.cantL)||0) + (parseInt(form.cantXL)||0)}</strong> prendas
-                </p>
+                <div className="overflow-x-auto border border-gray-200">
+                  <table className="min-w-full text-xs">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-200">
+                        {form.colores.length > 1 && <th className="px-2 py-1.5 text-[10px] font-bold uppercase text-gray-400 w-6">#</th>}
+                        <th className="px-2 py-1.5 text-[10px] font-bold uppercase text-gray-500 text-left">Color</th>
+                        <th className="px-2 py-1.5 text-[10px] font-bold uppercase text-gray-500 text-right">Kg</th>
+                        <th className="px-2 py-1.5 text-[10px] font-bold uppercase text-gray-500 text-right">Rollos</th>
+                        <th className="px-2 py-1.5 text-[10px] font-bold uppercase text-gray-500 text-center">S</th>
+                        <th className="px-2 py-1.5 text-[10px] font-bold uppercase text-gray-500 text-center">M</th>
+                        <th className="px-2 py-1.5 text-[10px] font-bold uppercase text-gray-500 text-center">L</th>
+                        <th className="px-2 py-1.5 text-[10px] font-bold uppercase text-gray-500 text-center">XL</th>
+                        <th className="px-2 py-1.5 text-[10px] font-bold uppercase text-gray-500 text-right">Total</th>
+                        {form.colores.length > 1 && <th className="w-6" />}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {form.colores.map((det, idx) => {
+                        const total = (parseInt(det.cantS)||0)+(parseInt(det.cantM)||0)+(parseInt(det.cantL)||0)+(parseInt(det.cantXL)||0);
+                        const setDet = (field: keyof ColorDetalle) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+                          setForm(f => { const next = [...f.colores]; next[idx] = { ...next[idx], [field]: e.target.value }; return { ...f, colores: next }; });
+                        return (
+                          <tr key={idx} className="hover:bg-gray-50">
+                            {form.colores.length > 1 && (
+                              <td className="px-2 py-1 text-[10px] font-mono font-bold text-gray-400 text-center">
+                                {String.fromCharCode(65 + idx)}
+                              </td>
+                            )}
+                            <td className="px-2 py-1 min-w-[130px]">
+                              <select value={det.colorId} onChange={setDet('colorId')} className="input-base text-xs py-1" required={idx === 0}>
+                                <option value="">Seleccionar…</option>
+                                {colores.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                              </select>
+                            </td>
+                            <td className="px-2 py-1 w-20">
+                              <input type="number" min={0} step={0.1} value={det.kgUsados} onChange={setDet('kgUsados')} className="input-base text-xs py-1 text-right w-full" placeholder="0" />
+                            </td>
+                            <td className="px-2 py-1 w-20">
+                              <input type="number" min={0} step={0.5} value={det.rollosUsados} onChange={setDet('rollosUsados')} className="input-base text-xs py-1 text-right w-full" placeholder="0" />
+                            </td>
+                            {(['cantS','cantM','cantL','cantXL'] as const).map(f => (
+                              <td key={f} className="px-2 py-1 w-16">
+                                <input type="number" min={0} value={det[f]} onChange={setDet(f)} className="input-base text-xs py-1 text-center w-full" />
+                              </td>
+                            ))}
+                            <td className="px-2 py-1 text-right font-mono font-bold text-gray-700">{total}</td>
+                            {form.colores.length > 1 && (
+                              <td className="px-2 py-1">
+                                <button type="button" onClick={() => setForm(f => ({ ...f, colores: f.colores.filter((_, i) => i !== idx) }))} className="text-gray-300 hover:text-red-500">
+                                  <X className="h-3.5 w-3.5" />
+                                </button>
+                              </td>
+                            )}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot className="border-t border-gray-200 bg-gray-50">
+                      <tr>
+                        {form.colores.length > 1 && <td />}
+                        <td className="px-2 py-1 text-[10px] font-bold uppercase text-gray-500">Total general</td>
+                        <td className="px-2 py-1 text-right font-mono font-black text-gray-800">
+                          {form.colores.reduce((s, d) => s + (parseFloat(d.kgUsados)||0), 0).toFixed(1)}
+                        </td>
+                        <td className="px-2 py-1 text-right font-mono font-black text-gray-800">
+                          {form.colores.reduce((s, d) => s + (parseFloat(d.rollosUsados)||0), 0).toFixed(1)}
+                        </td>
+                        {(['cantS','cantM','cantL','cantXL'] as const).map(f => (
+                          <td key={f} className="px-2 py-1 text-center font-mono font-black text-gray-800">
+                            {form.colores.reduce((s, d) => s + (parseInt(d[f])||0), 0)}
+                          </td>
+                        ))}
+                        <td className="px-2 py-1 text-right font-mono font-black text-gray-800">
+                          {form.colores.reduce((s, d) => s + (parseInt(d.cantS)||0)+(parseInt(d.cantM)||0)+(parseInt(d.cantL)||0)+(parseInt(d.cantXL)||0), 0)}
+                        </td>
+                        {form.colores.length > 1 && <td />}
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <input type="checkbox" id="traslado" checked={form.traslado} onChange={e => setForm(f => ({ ...f, traslado: e.target.checked }))} className="h-4 w-4" />
@@ -536,24 +581,32 @@ export function Cortes() {
               </div>
               <F label="Notas"><textarea value={form.notas} onChange={set('notas')} rows={2} className="input-base" /></F>
               {(() => {
-                const kgU = parseFloat(form.kgUsados) || 0;
-                const rollosU = parseFloat(form.rollosUsados) || 0;
-                const totalP = (parseInt(form.cantS)||0)+(parseInt(form.cantM)||0)+(parseInt(form.cantL)||0)+(parseInt(form.cantXL)||0);
-                const consumoActual = totalP > 0 ? kgU / totalP : 0;
-                const rendimientoActual = rollosU > 0 ? totalP / rollosU : 0;
                 const prodSeleccionado = productoMap.get(form.productoId);
+                if (!prodSeleccionado) return null;
                 return (
                   <>
-                    {prodSeleccionado?.limiteConsumo && consumoActual > 0 && consumoActual > prodSeleccionado.limiteConsumo && (
-                      <div className="bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2 text-[11px] font-bold">
-                        ⚠ Consumo {consumoActual.toFixed(3)} kg/prenda supera el límite de {prodSeleccionado.limiteConsumo} kg/prenda
-                      </div>
-                    )}
-                    {prodSeleccionado?.limiteRendimiento && rendimientoActual > 0 && rendimientoActual < prodSeleccionado.limiteRendimiento && (
-                      <div className="bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2 text-[11px] font-bold">
-                        ⚠ Rendimiento {rendimientoActual.toFixed(1)} prendas/rollo está por debajo del mínimo de {prodSeleccionado.limiteRendimiento}
-                      </div>
-                    )}
+                    {form.colores.map((det, idx) => {
+                      const kgU = parseFloat(det.kgUsados) || 0;
+                      const rollosU = parseFloat(det.rollosUsados) || 0;
+                      const totalP = (parseInt(det.cantS)||0)+(parseInt(det.cantM)||0)+(parseInt(det.cantL)||0)+(parseInt(det.cantXL)||0);
+                      const consumoActual = totalP > 0 ? kgU / totalP : 0;
+                      const rendimientoActual = rollosU > 0 ? totalP / rollosU : 0;
+                      const label = form.colores.length > 1 ? ` (${String.fromCharCode(65+idx)})` : '';
+                      return (
+                        <React.Fragment key={idx}>
+                          {prodSeleccionado.limiteConsumo && consumoActual > 0 && consumoActual > prodSeleccionado.limiteConsumo && (
+                            <div className="bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2 text-[11px] font-bold">
+                              ⚠ Color{label}: Consumo {consumoActual.toFixed(3)} kg/prenda supera el límite de {prodSeleccionado.limiteConsumo} kg/prenda
+                            </div>
+                          )}
+                          {prodSeleccionado.limiteRendimiento && rendimientoActual > 0 && rendimientoActual < prodSeleccionado.limiteRendimiento && (
+                            <div className="bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2 text-[11px] font-bold">
+                              ⚠ Color{label}: Rendimiento {rendimientoActual.toFixed(1)} prendas/rollo está por debajo del mínimo de {prodSeleccionado.limiteRendimiento}
+                            </div>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
                   </>
                 );
               })()}
