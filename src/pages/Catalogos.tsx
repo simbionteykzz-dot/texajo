@@ -213,7 +213,7 @@ export function Catalogos() {
               <table className="texajo-table">
                 <thead>
                   <tr>
-                    {['', 'Producto', 'Costo MO Total', 'Precio Servicio', 'Utilidad S/.', 'Tela Base', 'Lím. Consumo (kg/prenda)', 'Rend. mínimo (prendas/rollo)', 'Notas', ''].map(h => (
+                    {['', 'Producto', 'Costo MO Total', 'Precio Servicio', 'Utilidad S/.', 'Tela Base', 'Lím. Consumo (kg/prenda)', 'Rend. mínimo (prendas/rollo)', 'PropS', 'PropM', 'PropL', 'PropXL', 'Notas', ''].map(h => (
                       <th key={h}>{h}</th>
                     ))}
                   </tr>
@@ -278,6 +278,13 @@ export function Catalogos() {
                               onChange={e => updateProducto(p.id, { limiteRendimiento: e.target.value ? parseFloat(e.target.value) : undefined })}
                               className="w-28 input-base text-right text-xs py-0.5" placeholder="0" />
                           </td>
+                          {(['propS','propM','propL','propXL'] as const).map(field => (
+                            <td key={field}>
+                              <input type="number" step="1" min={0} value={p[field] ?? ''}
+                                onChange={e => updateProducto(p.id, { [field]: e.target.value ? parseInt(e.target.value) : undefined })}
+                                className="w-16 input-base text-center text-xs py-0.5 bg-blue-50 border-blue-200" placeholder="0" />
+                            </td>
+                          ))}
                           <td>
                             <input type="text" value={p.notas}
                               onChange={e => updateProducto(p.id, { notas: e.target.value })}
@@ -292,7 +299,7 @@ export function Catalogos() {
                         {/* Expanded: Receta complementos + auto-calc precioServicio */}
                         {isOpen && (
                           <tr>
-                            <td colSpan={10} className="bg-gray-50 border-t border-gray-100 px-6 py-4">
+                            <td colSpan={14} className="bg-gray-50 border-t border-gray-100 px-6 py-4">
                               <div className="flex flex-col gap-4">
 
                                 {/* Auto-calc precioServicio */}

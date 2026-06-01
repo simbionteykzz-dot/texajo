@@ -79,6 +79,10 @@ export interface Producto {
   telaBase?: string;           // nombre de tela típica → auto-relleno en cortes
   limiteConsumo?: number;      // kg/prenda máximo permitido
   limiteRendimiento?: number;  // prendas/rollo mínimo permitido
+  propS?: number;              // proporción talla S por tendida (plantilla para cortes)
+  propM?: number;
+  propL?: number;
+  propXL?: number;
   recetaComplementos?: RecetaComplemento[]; // complementos requeridos por prenda
   notas: string;
 }

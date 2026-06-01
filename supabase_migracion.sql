@@ -66,6 +66,37 @@
   on conflict (id) do nothing;
 
 
+  -- 7. Nuevas columnas en productos: proporciones por talla (plantilla para cortes)
+  -- ─────────────────────────────────────────────────────────────
+  alter table productos add column if not exists prop_s   integer;
+  alter table productos add column if not exists prop_m   integer;
+  alter table productos add column if not exists prop_l   integer;
+  alter table productos add column if not exists prop_xl  integer;
+
+  -- 8. Actualizar proporciones por producto extraídas del registro de cortes
+  -- Fuente: Google Sheets de producción (cortes 1-39)
+  -- Nota: algunos productos tienen proporciones variables según el pedido;
+  --       se registra la proporción más frecuente como plantilla.
+  -- ─────────────────────────────────────────────────────────────
+  update productos set prop_s=2, prop_m=4, prop_l=4, prop_xl=2 where lower(nombre) = 'jersey manga larga';
+  update productos set prop_s=4, prop_m=6, prop_l=6, prop_xl=4 where lower(nombre) = 'jersey manga corta';
+  update productos set prop_s=2, prop_m=4, prop_l=4, prop_xl=2 where lower(nombre) = 'wafle clasico';
+  update productos set prop_s=2, prop_m=4, prop_l=4, prop_xl=2 where lower(nombre) = 'wafle camisero';
+  update productos set prop_s=2, prop_m=4, prop_l=4, prop_xl=2 where lower(nombre) = 'wafle manga larga';
+  update productos set prop_s=1, prop_m=2, prop_l=2, prop_xl=1 where lower(nombre) = 'wafle camisa';
+  update productos set prop_s=2, prop_m=4, prop_l=4, prop_xl=2 where lower(nombre) = 'pique camisero';
+  update productos set prop_s=2, prop_m=4, prop_l=4, prop_xl=2 where lower(nombre) = 'pique cuello chino';
+  update productos set prop_s=4, prop_m=6, prop_l=4, prop_xl=0 where lower(nombre) = 'polera neru';
+  update productos set prop_s=2, prop_m=3, prop_l=2, prop_xl=0 where lower(nombre) = 'poleras cuello redondo';
+  update productos set prop_s=2, prop_m=2, prop_l=2, prop_xl=0 where lower(nombre) = 'baby ty cinta ml';
+  update productos set prop_s=2, prop_m=2, prop_l=2, prop_xl=0 where lower(nombre) = 'baby ty cinta mc';
+  update productos set prop_s=4, prop_m=4, prop_l=4, prop_xl=0 where lower(nombre) = 'baby ty mc';
+  update productos set prop_s=2, prop_m=2, prop_l=2, prop_xl=0 where lower(nombre) = 'baby ty ml';
+  update productos set prop_s=8, prop_m=0, prop_l=0, prop_xl=0 where lower(nombre) = 'top mc rib';
+  update productos set prop_s=0, prop_m=0, prop_l=4, prop_xl=0 where lower(nombre) = 'top cero rib';
+  update productos set prop_s=0, prop_m=6, prop_l=0, prop_xl=0 where lower(nombre) = 'top ml rib';
+
+
   -- ─── Fin de migración ───────────────────────────────────────
   -- Verificación: ejecuta esto para confirmar que todo existe:
   --
