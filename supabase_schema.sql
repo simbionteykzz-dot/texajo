@@ -70,11 +70,16 @@ create table if not exists precios_tejeduria (
 create table if not exists productos (
   id                  text primary key,
   nombre              text not null,
+  marca               text,
   costo_mo_total      numeric not null default 0,
   precio_servicio     numeric not null default 0,
   tela_base           text,
   limite_consumo      numeric,
   limite_rendimiento  numeric,
+  prop_s              integer,
+  prop_m              integer,
+  prop_l              integer,
+  prop_xl             integer,
   receta_complementos jsonb,          -- RecetaComplemento[]
   notas               text not null default '',
   created_at          timestamptz default now()

@@ -6,6 +6,7 @@ import { Download, Plus, X, CheckCircle, Clock, XCircle, FileText, Trash2 } from
 import { Corte, SeguimientoAsignacion, SeguimientoFila, MovimientoTela } from '../types';
 import { ModuleInfoBox } from '../components/ModuleInfoBox';
 import { exportRowsToXlsx, exportTableToPdf } from '../lib/export';
+import { supabase } from '../lib/supabase';
 
 const uid = () => crypto.randomUUID();
 
@@ -51,7 +52,7 @@ const ESTADO_ICON: Record<string, React.ReactNode> = {
 export function Cortes() {
   const {
     cortes, clientes, productos, colores, telas, tarifasOperaciones, operarios,
-    movimientosTela, seguimientoFilas,
+    movimientosTela, seguimientoFilas, productoColores,
     addCorte, updateCorte, deleteCorte,
     addMovimientoTela, addSeguimientoFila,
   } = useAppContext();
@@ -61,6 +62,11 @@ export function Cortes() {
   const [filterCliente, setFilterCliente] = useState('');
   const [form, setForm] = useState<CorteForm>(emptyForm());
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [soloCorrelacion, setSoloCorrelacion] = useState(true);
+  const [mostrarTodosProductos, setMostrarTodosProductos] = useState(false);
+
+  const capWords = (s: string) =>
+    s.replace(/(^|\s)(\S)/g, (_, sp, ch) => sp + ch.toUpperCase());
 
   const clienteMap = useMemo(() => new Map(clientes.map(c => [c.id, c.nombre])), [clientes]);
   const productoMap = useMemo(() => new Map(productos.map(p => [p.id, p])), [productos]);
@@ -464,15 +470,31 @@ export function Cortes() {
                 <F label="Cliente">
                   <select value={form.clienteId} onChange={set('clienteId')} className="input-base" required>
                     <option value="">Seleccionar…</option>
-                    {clientes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                    {clientes.map(c => <option key={c.id} value={c.id}>{capWords(c.nombre)}</option>)}
                   </select>
                 </F>
+              </div>
+              <div className="flex justify-end mb-1">
+                <button
+                  type="button"
+                  onClick={() => { setMostrarTodosProductos(v => !v); setForm(f => ({ ...f, productoId: '' })); }}
+                  className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded border transition-colors flex items-center gap-1 ${
+                    mostrarTodosProductos
+                      ? 'bg-gray-100 border-gray-400 text-gray-600 hover:bg-gray-200'
+                      : 'bg-orange-50 border-orange-300 text-orange-600 hover:bg-orange-100'
+                  }`}
+                >
+                  {mostrarTodosProductos ? '○ Todos los productos' : '⬤ Productos con props'}
+                </button>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <F label="Producto">
                   <select value={form.productoId} onChange={set('productoId')} className="input-base" required>
                     <option value="">Seleccionar…</option>
-                    {productos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                    {(mostrarTodosProductos
+                      ? productos
+                      : productos.filter(p => productoColores.some(pc => pc.productoId === p.id))
+                    ).map(p => <option key={p.id} value={p.id}>{capWords(p.nombre)}</option>)}
                   </select>
                 </F>
                 <F label="Tela">
@@ -516,6 +538,20 @@ export function Cortes() {
                       <span className="ml-2 text-[#C4612A]">— un corte por cada color</span>
                     )}
                   </label>
+                  <div className="flex items-center gap-3">
+                    {form.productoId && (
+                      <button
+                        type="button"
+                        onClick={() => setSoloCorrelacion(v => !v)}
+                        className={`text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 px-2 py-0.5 rounded border transition-colors ${
+                          soloCorrelacion
+                            ? 'bg-blue-50 border-blue-300 text-blue-600 hover:bg-blue-100'
+                            : 'bg-gray-50 border-gray-300 text-gray-400 hover:bg-gray-100'
+                        }`}
+                      >
+                        {soloCorrelacion ? '⬤ Solo con props' : '○ Todos los colores'}
+                      </button>
+                    )}
                   <button
                     type="button"
                     onClick={() => setForm(f => {
@@ -533,6 +569,7 @@ export function Cortes() {
                   >
                     <Plus className="h-3 w-3" /> Agregar color
                   </button>
+                  </div>
                 </div>
                 <div className="overflow-x-auto border border-gray-200">
                   <table className="min-w-full text-xs">
@@ -589,9 +626,80 @@ export function Cortes() {
                               </td>
                             )}
                             <td className="px-2 py-1 min-w-[120px]">
-                              <select value={det.colorId} onChange={setDet('colorId')} className="input-base text-xs py-1" required={idx === 0}>
+                              <select
+                                value={det.colorId}
+                                onChange={async e => {
+                                  const colorId = e.target.value;
+                                  const productoId = form.productoId;
+                                  // Actualiza colorId inmediatamente
+                                  setForm(f => {
+                                    const next = [...f.colores];
+                                    next[idx] = { ...next[idx], colorId };
+                                    return { ...f, colores: next };
+                                  });
+                                  if (!productoId || !colorId) return;
+
+                                  // 1. Buscar primero en estado global
+                                  const pcLocal = productoColores.find(
+                                    x => x.productoId === productoId && x.colorId === colorId
+                                  );
+                                  if (pcLocal) {
+                                    setForm(f => {
+                                      const next = [...f.colores];
+                                      const t = parseInt(next[idx].tendidas) || 0;
+                                      next[idx] = {
+                                        ...next[idx],
+                                        propS: String(pcLocal.propS), propM: String(pcLocal.propM),
+                                        propL: String(pcLocal.propL), propXL: String(pcLocal.propXL),
+                                        ...(t > 0 ? {
+                                          cantS: String(pcLocal.propS * t), cantM: String(pcLocal.propM * t),
+                                          cantL: String(pcLocal.propL * t), cantXL: String(pcLocal.propXL * t),
+                                        } : {}),
+                                      };
+                                      return { ...f, colores: next };
+                                    });
+                                    return;
+                                  }
+
+                                  // 2. Consultar Supabase directamente — traer TODOS los de este producto
+                                  console.log('[props] buscando producto_colores productoId=', productoId, 'colorId=', colorId);
+                                  const { data, error } = await supabase
+                                    .from('producto_colores')
+                                    .select('producto_id,color_id,prop_s,prop_m,prop_l,prop_xl')
+                                    .eq('producto_id', productoId);
+                                  console.log('[props] resultado:', data, 'error:', error);
+                                  if (data) {
+                                    const row = data.find((r: {color_id: string}) => r.color_id === colorId);
+                                    if (row) {
+                                      const pS = row.prop_s ?? 0, pM = row.prop_m ?? 0;
+                                      const pL = row.prop_l ?? 0, pXL = row.prop_xl ?? 0;
+                                      setForm(f => {
+                                        const next = [...f.colores];
+                                        const t = parseInt(next[idx].tendidas) || 0;
+                                        next[idx] = {
+                                          ...next[idx],
+                                          propS: String(pS), propM: String(pM),
+                                          propL: String(pL), propXL: String(pXL),
+                                          ...(t > 0 ? {
+                                            cantS: String(pS * t), cantM: String(pM * t),
+                                            cantL: String(pL * t), cantXL: String(pXL * t),
+                                          } : {}),
+                                        };
+                                        return { ...f, colores: next };
+                                      });
+                                    } else {
+                                      console.warn('[props] no hay fila para colorId=', colorId, 'en data:', data);
+                                    }
+                                  }
+                                }}
+                                className="input-base text-xs py-1"
+                                required={idx === 0}
+                              >
                                 <option value="">Seleccionar…</option>
-                                {colores.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                                {(form.productoId && soloCorrelacion
+                                  ? colores.filter(c => productoColores.some(pc => pc.productoId === form.productoId && pc.colorId === c.id))
+                                  : colores
+                                ).map(c => <option key={c.id} value={c.id}>{capWords(c.nombre)}</option>)}
                               </select>
                             </td>
                             <td className="px-2 py-1">

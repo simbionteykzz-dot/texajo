@@ -4,7 +4,7 @@ import {
   TarifaOperacion, Operario, Config,
   MovimientoTela, Corte, SeguimientoFila, BoletaLinea, DescuentoBoleta,
   ProgramaZurzam, ProgramaDetalle, CompraHilo, StockExtorno, CobroDiario,
-  MovimientoComplemento,
+  MovimientoComplemento, ProductoColor,
   TexajoImportPayload
 } from '../types';
 import {
@@ -41,6 +41,7 @@ interface AppState {
   cobrosDiarios: CobroDiario[];
   preciosTejeduria: PrecioTejeduria[];
   preciosTintoreria: PrecioTintoreria[];
+  productoColores: ProductoColor[];
   config: Config;
 }
 
@@ -67,6 +68,7 @@ const defaultState = (): AppState => ({
   cobrosDiarios: [],
   preciosTejeduria: [],
   preciosTintoreria: [],
+  productoColores: [],
   config: initialConfig,
 });
 
@@ -158,6 +160,10 @@ interface AppContextProps extends AppState {
   addPrecioTintoreria: (p: PrecioTintoreria) => void;
   updatePrecioTintoreria: (id: string, updates: Partial<PrecioTintoreria>) => void;
   deletePrecioTintoreria: (id: string) => void;
+  // Proporciones por color
+  addProductoColor: (pc: ProductoColor) => void;
+  updateProductoColor: (id: string, updates: Partial<ProductoColor>) => void;
+  deleteProductoColor: (id: string) => void;
   // Config
   updateConfig: (updates: Partial<Config>) => void;
   // Import / Reset
@@ -191,6 +197,7 @@ const FIELD_TO_TABLE: Partial<Record<keyof AppState, string>> = {
   operarios:             'operarios',
   preciosTejeduria:      'precios_tejeduria',
   preciosTintoreria:     'precios_tintoreria',
+  productoColores:       'producto_colores',
 };
 
 // Extrae una descripción legible de un registro
@@ -266,6 +273,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
             cobrosDiarios: [],
             movimientosComplemento: [],
             preciosTintoreria: [],
+            productoColores: [],
             config: base.config,
           });
           setState(base);
@@ -293,6 +301,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
             comprasHilo:           remote.comprasHilo,
             stockExtornos:         remote.stockExtornos,
             cobrosDiarios:         remote.cobrosDiarios,
+            productoColores:       remote.productoColores,
             config:                remote.config ?? defaultState().config,
           });
         }
@@ -500,6 +509,10 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   const updatePrecioTintoreria = makeUpdate<PrecioTintoreria>('preciosTintoreria', db.preciosTintoreria.update);
   const deletePrecioTintoreria = makeDelete('preciosTintoreria', db.preciosTintoreria.delete);
 
+  const addProductoColor = makeAdd<ProductoColor>('productoColores', db.productoColores.add);
+  const updateProductoColor = makeUpdate<ProductoColor>('productoColores', db.productoColores.update);
+  const deleteProductoColor = makeDelete('productoColores', db.productoColores.delete);
+
   // ─── Config ──────────────────────────────────────────────────────────────
   const updateConfig = (updates: Partial<Config>) => {
     let newConfig: Config | undefined;
@@ -569,6 +582,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       addOperario, updateOperario,
       addPrecioTejeduria, updatePrecioTejeduria, deletePrecioTejeduria,
       addPrecioTintoreria, updatePrecioTintoreria, deletePrecioTintoreria,
+      addProductoColor, updateProductoColor, deleteProductoColor,
       updateConfig, importData, clearAllData,
     }}>
       {children}

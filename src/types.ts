@@ -74,6 +74,7 @@ export interface RecetaComplemento {
 export interface Producto {
   id: string;
   nombre: string;
+  marca?: string;
   costoMoTotal: number; // suma de todas sus tarifas
   precioServicio: number; // precio cobrado al cliente por prenda
   telaBase?: string;           // nombre de tela típica → auto-relleno en cortes
@@ -85,6 +86,16 @@ export interface Producto {
   propXL?: number;
   recetaComplementos?: RecetaComplemento[]; // complementos requeridos por prenda
   notas: string;
+}
+
+export interface ProductoColor {
+  id: string;
+  productoId: string;
+  colorId: string;
+  propS: number;
+  propM: number;
+  propL: number;
+  propXL: number;
 }
 
 export interface TarifaOperacion {

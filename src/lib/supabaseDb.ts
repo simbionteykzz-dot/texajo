@@ -9,7 +9,7 @@ import type {
   Producto, TarifaOperacion, Operario, Config,
   MovimientoTela, Corte, SeguimientoFila, BoletaLinea, DescuentoBoleta,
   ProgramaZurzam, ProgramaDetalle, CompraHilo, StockExtorno, CobroDiario,
-  MovimientoComplemento, PrecioTintoreria,
+  MovimientoComplemento, PrecioTintoreria, ProductoColor,
 } from '../types';
 
 // ─── Mappers DB → App ────────────────────────────────────────────────────────
@@ -29,7 +29,7 @@ const toPrecioComplemento = (r: any): PrecioComplemento => ({ id: r.id, clave: r
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const toPrecioTejeduria = (r: any): PrecioTejeduria => ({ id: r.id, tipoTejido: r.tipo_tejido, precioKg: r.precio_kg });
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const toProducto = (r: any): Producto => ({ id: r.id, nombre: r.nombre, costoMoTotal: r.costo_mo_total, precioServicio: r.precio_servicio, telaBase: r.tela_base ?? undefined, limiteConsumo: r.limite_consumo ?? undefined, limiteRendimiento: r.limite_rendimiento ?? undefined, propS: r.prop_s ?? undefined, propM: r.prop_m ?? undefined, propL: r.prop_l ?? undefined, propXL: r.prop_xl ?? undefined, recetaComplementos: r.receta_complementos ?? undefined, notas: r.notas });
+const toProducto = (r: any): Producto => ({ id: r.id, nombre: r.nombre, marca: r.marca ?? undefined, costoMoTotal: r.costo_mo_total, precioServicio: r.precio_servicio, telaBase: r.tela_base ?? undefined, limiteConsumo: r.limite_consumo ?? undefined, limiteRendimiento: r.limite_rendimiento ?? undefined, propS: r.prop_s ?? undefined, propM: r.prop_m ?? undefined, propL: r.prop_l ?? undefined, propXL: r.prop_xl ?? undefined, recetaComplementos: r.receta_complementos ?? undefined, notas: r.notas });
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const toTarifa = (r: any): TarifaOperacion => ({ id: r.id, productoId: r.producto_id, orden: r.orden, operacion: r.operacion, tarifa: r.tarifa, notas: r.notas, clave: r.clave });
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -58,6 +58,8 @@ const toCobro = (r: any): CobroDiario => ({ id: r.id, fecha: r.fecha, nCorte: r.
 const toMovComplemento = (r: any): MovimientoComplemento => ({ id: r.id, fecha: r.fecha, tipo: r.tipo, tipoComplemento: r.tipo_complemento, colorId: r.color_id, talla: r.talla, cantidad: r.cantidad, precioUnit: r.precio_unit, totalSoles: r.total_soles, stockAntes: r.stock_antes, stockDespues: r.stock_despues, corteId: r.corte_id ?? undefined, nCorte: r.n_corte ?? undefined, productoDestinoId: r.producto_destino_id ?? undefined, proveedorId: r.proveedor_id ?? undefined, nFactura: r.n_factura ?? undefined, responsable: r.responsable, notas: r.notas });
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const toConfig = (r: any): Config => ({ umbralCritico: r.umbral_critico, umbralBajo: r.umbral_bajo, mermaPct: r.merma_pct, detraccionPct: r.detraccion_pct, igvPct: r.igv_pct, incluirIgv: r.incluir_igv, tipoCambioUsd: r.tipo_cambio_usd, kgPorRolloDefault: r.kg_por_rollo_default, comisionJoseKg: r.comision_jose_kg, mermaMaxTej: r.merma_max_tej, mermaMaxTint: r.merma_max_tint });
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const toProductoColor = (r: any): ProductoColor => ({ id: r.id, productoId: r.producto_id, colorId: r.color_id, propS: r.prop_s, propM: r.prop_m, propL: r.prop_l, propXL: r.prop_xl });
 
 // ─── Mappers App → DB ────────────────────────────────────────────────────────
 
@@ -71,7 +73,7 @@ const fromPrecioTejeduria = (v: PrecioTejeduria) => ({ id: v.id, tipo_tejido: v.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const toPrecioTintoreria = (r: any): PrecioTintoreria => ({ id: r.id, tipoServicio: r.tipo_servicio, tipoTela: r.tipo_tela, precioKg: r.precio_kg, moneda: r.moneda, notas: r.notas ?? '' });
 const fromPrecioTintoreria = (v: PrecioTintoreria) => ({ id: v.id, tipo_servicio: v.tipoServicio, tipo_tela: v.tipoTela, precio_kg: v.precioKg, moneda: v.moneda, notas: v.notas });
-const fromProducto = (v: Producto) => ({ id: v.id, nombre: v.nombre, costo_mo_total: v.costoMoTotal, precio_servicio: v.precioServicio, tela_base: v.telaBase ?? null, limite_consumo: v.limiteConsumo ?? null, limite_rendimiento: v.limiteRendimiento ?? null, prop_s: v.propS ?? null, prop_m: v.propM ?? null, prop_l: v.propL ?? null, prop_xl: v.propXL ?? null, receta_complementos: v.recetaComplementos ?? null, notas: v.notas });
+const fromProducto = (v: Producto) => ({ id: v.id, nombre: v.nombre, marca: v.marca ?? null, costo_mo_total: v.costoMoTotal, precio_servicio: v.precioServicio, tela_base: v.telaBase ?? null, limite_consumo: v.limiteConsumo ?? null, limite_rendimiento: v.limiteRendimiento ?? null, prop_s: v.propS ?? null, prop_m: v.propM ?? null, prop_l: v.propL ?? null, prop_xl: v.propXL ?? null, receta_complementos: v.recetaComplementos ?? null, notas: v.notas });
 const fromTarifa = (v: TarifaOperacion) => ({ id: v.id, producto_id: v.productoId, orden: v.orden, operacion: v.operacion, tarifa: v.tarifa, notas: v.notas, clave: v.clave });
 const fromOperario = (v: Operario) => ({ id: v.id, codigo: v.codigo, nombre: v.nombre, estado: v.estado, dni: v.dni ?? null, telefono: v.telefono ?? null, modulo: v.modulo ?? null, maquina: v.maquina ?? null, fecha_ingreso: v.fechaIngreso ?? null });
 const fromMovTela = (v: MovimientoTela) => ({ id: v.id, fecha: v.fecha, tipo: v.tipo, cliente_id: v.clienteId, tela_id: v.telaId, color_id: v.colorId, rollos: v.rollos, kg_total: v.kgTotal, categoria_color: v.categoriaColor, precio_kg: v.precioKg, total_soles: v.totalSoles, stock_rollos_antes: v.stockRollosAntes, stock_rollos_despues: v.stockRollosDespues, responsable: v.responsable, proveedor_id: v.proveedorId ?? null, n_factura: v.nFactura ?? null, costo_real_fact: v.costoRealFact ?? null, corte_id: v.corteId ?? null, n_corte: v.nCorte ?? null, notas: v.notas });
@@ -112,6 +114,7 @@ export interface DbAppState {
   stockExtornos: StockExtorno[];
   cobrosDiarios: CobroDiario[];
   movimientosComplemento: MovimientoComplemento[];
+  productoColores: ProductoColor[];
   config: Config | null;
 }
 
@@ -121,7 +124,7 @@ export async function loadAllFromDb(): Promise<DbAppState> {
   const [
     c, p, te, co, pt, pc, ptej, ptint, pr, to, op,
     mt, cor, sf, bl, dbesc,
-    pz, pd, ch, se, cd, mc, cfg
+    pz, pd, ch, se, cd, mc, pcolores, cfg
   ] = await Promise.all([
     supabase.from('clientes').select('*'),
     supabase.from('proveedores').select('*'),
@@ -145,15 +148,35 @@ export async function loadAllFromDb(): Promise<DbAppState> {
     supabase.from('stock_extornos').select('*'),
     supabase.from('cobros_diarios').select('*'),
     supabase.from('movimientos_complemento').select('*'),
+    supabase.from('producto_colores').select('*'),
     supabase.from('config').select('*').eq('id', 'singleton').maybeSingle(),
   ]);
 
   // Loguear errores individuales para diagnóstico
-  const checks = { c, p, te, co, pt, pc, ptej, ptint, pr, to, op, mt, cor, sf, bl, dbesc, pz, pd, ch, se, cd, mc };
+  const checks = { c, p, te, co, pt, pc, ptej, ptint, pr, to, op, mt, cor, sf, bl, dbesc, pz, pd, ch, se, cd, mc, pcolores };
   for (const [name, res] of Object.entries(checks)) {
     if (res.error) console.error(`[Supabase] SELECT ${name} error:`, res.error);
   }
   if (cfg.error) console.error('[Supabase] SELECT config error:', cfg.error);
+
+  // Si producto_colores falló (permisos), reintentar con fetch directo REST
+  let productoColoresData = pcolores.data ?? [];
+  if (pcolores.error || !productoColoresData.length) {
+    console.log('[Supabase] Reintentando producto_colores con fetch directo...');
+    try {
+      const { data: pcRetry, error: pcErr } = await supabase
+        .from('producto_colores')
+        .select('id,producto_id,color_id,prop_s,prop_m,prop_l,prop_xl');
+      if (!pcErr && pcRetry) {
+        productoColoresData = pcRetry;
+        console.log(`[Supabase] producto_colores reintento OK: ${pcRetry.length} registros`);
+      } else {
+        console.error('[Supabase] producto_colores reintento falló:', pcErr);
+      }
+    } catch (e) {
+      console.error('[Supabase] producto_colores reintento excepción:', e);
+    }
+  }
 
   // Si alguna tabla crítica tiene error (no solo vacía), lanzar para que AppContext use caché
   if (c.error || te.error || pr.error) {
@@ -182,7 +205,8 @@ export async function loadAllFromDb(): Promise<DbAppState> {
     comprasHilo:            (ch.data   ?? []).map(toCompraHilo),
     stockExtornos:          (se.data   ?? []).map(toExtorno),
     cobrosDiarios:          (cd.data   ?? []).map(toCobro),
-    movimientosComplemento: (mc.data   ?? []).map(toMovComplemento),
+    movimientosComplemento: (mc.data       ?? []).map(toMovComplemento),
+    productoColores:        productoColoresData.map(toProductoColor),
     config:                 cfg.data ? toConfig(cfg.data) : null,
   };
 }
@@ -341,6 +365,11 @@ export const db = {
     add: (v: MovimientoComplemento) => dbInsert('movimientos_complemento', v, fromMovComplemento),
     update: (id: string, u: Partial<MovimientoComplemento>, cur: MovimientoComplemento) => dbUpdate('movimientos_complemento', id, u, fromMovComplemento, cur),
     delete: (id: string) => dbDelete('movimientos_complemento', id),
+  },
+  productoColores: {
+    add: (v: ProductoColor) => dbInsert('producto_colores', v, (x: ProductoColor) => ({ id: x.id, producto_id: x.productoId, color_id: x.colorId, prop_s: x.propS, prop_m: x.propM, prop_l: x.propL, prop_xl: x.propXL })),
+    update: (id: string, u: Partial<ProductoColor>, cur: ProductoColor) => dbUpdate('producto_colores', id, u, (x: ProductoColor) => ({ id: x.id, producto_id: x.productoId, color_id: x.colorId, prop_s: x.propS, prop_m: x.propM, prop_l: x.propL, prop_xl: x.propXL }), cur),
+    delete: (id: string) => dbDelete('producto_colores', id),
   },
   config: {
     upsert: async (v: Config) => {

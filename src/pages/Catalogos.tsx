@@ -2,14 +2,14 @@ import React, { useState } from 'react';
 import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
 import { Plus, X, Trash2, ChevronRight, ChevronDown } from 'lucide-react';
-import { CategoriaColor, Operario, TipoComplemento, RecetaComplemento } from '../types';
+import { CategoriaColor, Operario, TipoComplemento, RecetaComplemento, ProductoColor } from '../types';
 import { ModuleInfoBox } from '../components/ModuleInfoBox';
 
 const TIPOS_COMPLEMENTO: TipoComplemento[] = ['CUELLO', 'PUÑO', 'PRETINA'];
 
 const uid = () => crypto.randomUUID();
 
-type Tab = 'productos' | 'telas' | 'colores' | 'operarios' | 'tarifas' | 'clientes' | 'proveedores' | 'tejidos';
+type Tab = 'productos' | 'telas' | 'colores' | 'operarios' | 'tarifas' | 'clientes' | 'proveedores' | 'tejidos' | 'props_color';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'productos', label: 'Productos' },
@@ -20,6 +20,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'clientes', label: 'Clientes' },
   { id: 'proveedores', label: 'Proveedores' },
   { id: 'tejidos', label: 'Precios Tej.' },
+  { id: 'props_color', label: 'Props x Color' },
 ];
 
 function F({ label, children }: { label: string; children: React.ReactNode }) {
@@ -41,6 +42,7 @@ export function Catalogos() {
     clientes, addCliente, updateCliente,
     proveedores, addProveedor, updateProveedor,
     preciosTejeduria, addPrecioTejeduria, updatePrecioTejeduria, deletePrecioTejeduria,
+    productoColores, addProductoColor, updateProductoColor, deleteProductoColor,
   } = useAppContext();
   const { addToast } = useToast();
   const [tab, setTab] = useState<Tab>('productos');
@@ -73,7 +75,7 @@ export function Catalogos() {
 
   // --- Productos ---
   const [showProdForm, setShowProdForm] = useState(false);
-  const [prodForm, setProdForm] = useState({ nombre: '', notas: '' });
+  const [prodForm, setProdForm] = useState({ nombre: '', marca: '', notas: '' });
   const [expandedProd, setExpandedProd] = useState<string | null>(null);
   const [recetaForms, setRecetaForms] = useState<Record<string, { tipoComplemento: TipoComplemento; origen: string; cantidad: string; notas: string }>>({});
   // Auto-calc state per product
@@ -82,10 +84,10 @@ export function Catalogos() {
   const handleAddProducto = (e: React.FormEvent) => {
     e.preventDefault();
     if (!prodForm.nombre) { addToast('Nombre requerido', 'error'); return; }
-    addProducto({ id: uid(), nombre: prodForm.nombre, costoMoTotal: 0, precioServicio: 0, notas: prodForm.notas });
+    addProducto({ id: uid(), nombre: prodForm.nombre, marca: prodForm.marca || undefined, costoMoTotal: 0, precioServicio: 0, notas: prodForm.notas });
     addToast('Producto agregado', 'success');
     setShowProdForm(false);
-    setProdForm({ nombre: '', notas: '' });
+    setProdForm({ nombre: '', marca: '', notas: '' });
   };
 
   // --- Tarifas ---
@@ -163,6 +165,34 @@ export function Catalogos() {
     setTejForm({ tipoTejido: '', precioKg: '' });
   };
 
+  // --- Props x Color ---
+  const [showPCForm, setShowPCForm] = useState(false);
+  const [pcForm, setPCForm] = useState({ productoId: '', colorId: '', propS: '0', propM: '0', propL: '0', propXL: '0' });
+  const [pcFiltroProducto, setPCFiltroProducto] = useState('');
+
+  const handleAddPC = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pcForm.productoId || !pcForm.colorId) { addToast('Producto y color requeridos', 'error'); return; }
+    const exists = productoColores.find(x => x.productoId === pcForm.productoId && x.colorId === pcForm.colorId);
+    if (exists) { addToast('Ya existe esa combinación producto+color', 'error'); return; }
+    const prod = productos.find(p => p.id === pcForm.productoId);
+    const col = colores.find(c => c.id === pcForm.colorId);
+    const rowNum = productoColores.filter(x => x.productoId === pcForm.productoId).length + 1;
+    const id = `${pcForm.productoId}--${pcForm.colorId}--${String(rowNum).padStart(3, '0')}`;
+    addProductoColor({
+      id,
+      productoId: pcForm.productoId,
+      colorId: pcForm.colorId,
+      propS: parseInt(pcForm.propS) || 0,
+      propM: parseInt(pcForm.propM) || 0,
+      propL: parseInt(pcForm.propL) || 0,
+      propXL: parseInt(pcForm.propXL) || 0,
+    } as ProductoColor);
+    addToast(`Props agregadas: ${prod?.nombre} / ${col?.nombre}`, 'success');
+    setShowPCForm(false);
+    setPCForm({ productoId: '', colorId: '', propS: '0', propM: '0', propL: '0', propXL: '0' });
+  };
+
   const productoMap = new Map(productos.map(p => [p.id, p.nombre]));
 
   return (
@@ -213,7 +243,7 @@ export function Catalogos() {
               <table className="texajo-table">
                 <thead>
                   <tr>
-                    {['', 'Producto', 'Costo MO Total', 'Precio Servicio', 'Utilidad S/.', 'Tela Base', 'Lím. Consumo (kg/prenda)', 'Rend. mínimo (prendas/rollo)', 'PropS', 'PropM', 'PropL', 'PropXL', 'Notas', ''].map(h => (
+                    {['', 'Producto', 'Marca', 'Costo MO Total', 'Precio Servicio', 'Utilidad S/.', 'Tela Base', 'Lím. Consumo (kg/prenda)', 'Rend. mínimo (prendas/rollo)', 'PropS', 'PropM', 'PropL', 'PropXL', 'Notas', ''].map(h => (
                       <th key={h}>{h}</th>
                     ))}
                   </tr>
@@ -241,6 +271,11 @@ export function Catalogos() {
                             {receta.length > 0 && (
                               <span className="ml-1 text-[10px] text-blue-600 font-normal">{receta.length} compl.</span>
                             )}
+                          </td>
+                          <td>
+                            <input type="text" value={p.marca ?? ''}
+                              onChange={e => updateProducto(p.id, { marca: e.target.value || undefined })}
+                              className="w-28 input-base text-xs py-0.5" placeholder="Ej: OverShark" />
                           </td>
                           <td>
                             <input type="number" min={0} step={0.01} value={p.costoMoTotal}
@@ -299,7 +334,7 @@ export function Catalogos() {
                         {/* Expanded: Receta complementos + auto-calc precioServicio */}
                         {isOpen && (
                           <tr>
-                            <td colSpan={14} className="bg-gray-50 border-t border-gray-100 px-6 py-4">
+                            <td colSpan={15} className="bg-gray-50 border-t border-gray-100 px-6 py-4">
                               <div className="flex flex-col gap-4">
 
                                 {/* Auto-calc precioServicio */}
@@ -459,6 +494,7 @@ export function Catalogos() {
                 </div>
                 <form onSubmit={handleAddProducto} className="p-6 space-y-4">
                   <F label="Nombre"><input type="text" value={prodForm.nombre} onChange={e => setProdForm(f => ({ ...f, nombre: e.target.value }))} className="input-base" required /></F>
+                  <F label="Marca"><input type="text" value={prodForm.marca} onChange={e => setProdForm(f => ({ ...f, marca: e.target.value }))} className="input-base" placeholder="Ej: OverShark" /></F>
                   <F label="Notas"><input type="text" value={prodForm.notas} onChange={e => setProdForm(f => ({ ...f, notas: e.target.value }))} className="input-base" /></F>
                   <div className="flex justify-end gap-3"><button type="button" onClick={() => setShowProdForm(false)} className="btn-secondary">Cancelar</button><button type="submit" className="btn-primary">Guardar</button></div>
                 </form>
@@ -948,6 +984,125 @@ export function Catalogos() {
                   <F label="Precio S/./kg"><input type="number" step="0.01" min={0} value={tejForm.precioKg} onChange={e => setTejForm(f => ({ ...f, precioKg: e.target.value }))} className="input-base" /></F>
                   <div className="flex justify-end gap-3">
                     <button type="button" onClick={() => setShowTejForm(false)} className="btn-secondary">Cancelar</button>
+                    <button type="submit" className="btn-primary">Guardar</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* PROPS X COLOR */}
+      {tab === 'props_color' && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Filtrar por producto:</label>
+              <select
+                value={pcFiltroProducto}
+                onChange={e => setPCFiltroProducto(e.target.value)}
+                className="input-base text-xs py-0.5 w-56"
+              >
+                <option value="">Todos</option>
+                {[...productos].sort((a, b) => a.nombre.localeCompare(b.nombre)).map(p => (
+                  <option key={p.id} value={p.id}>{p.nombre}</option>
+                ))}
+              </select>
+            </div>
+            <button onClick={() => setShowPCForm(true)} className="btn-primary flex items-center gap-2 text-xs">
+              <Plus className="h-3 w-3" /> Agregar Props
+            </button>
+          </div>
+
+          <div className="texajo-table-shell">
+            <div className="texajo-table-scroll">
+              <table className="texajo-table">
+                <thead>
+                  <tr>
+                    {['Producto', 'Color', 'PropS', 'PropM', 'PropL', 'PropXL', 'Total', ''].map(h => (
+                      <th key={h}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {productoColores
+                    .filter(pc => !pcFiltroProducto || pc.productoId === pcFiltroProducto)
+                    .sort((a, b) => {
+                      const pa = productoMap.get(a.productoId) ?? '';
+                      const pb = productoMap.get(b.productoId) ?? '';
+                      if (pa !== pb) return pa.localeCompare(pb);
+                      const ca = colores.find(c => c.id === a.colorId)?.nombre ?? '';
+                      const cb = colores.find(c => c.id === b.colorId)?.nombre ?? '';
+                      return ca.localeCompare(cb);
+                    })
+                    .map(pc => {
+                      const prod = productoMap.get(pc.productoId) ?? pc.productoId;
+                      const col = colores.find(c => c.id === pc.colorId)?.nombre ?? pc.colorId;
+                      const total = pc.propS + pc.propM + pc.propL + pc.propXL;
+                      return (
+                        <tr key={pc.id}>
+                          <td className="font-bold whitespace-nowrap">{prod}</td>
+                          <td className="text-gray-600">{col}</td>
+                          {(['propS', 'propM', 'propL', 'propXL'] as const).map(field => (
+                            <td key={field}>
+                              <input
+                                type="number" min={0} step={1}
+                                value={pc[field]}
+                                onChange={e => updateProductoColor(pc.id, { [field]: parseInt(e.target.value) || 0 })}
+                                className="w-16 input-base text-center text-xs py-0.5 bg-blue-50 border-blue-200"
+                              />
+                            </td>
+                          ))}
+                          <td className={`font-mono font-bold text-center ${total > 0 ? 'text-green-700' : 'text-gray-400'}`}>
+                            {total}
+                          </td>
+                          <td>
+                            <button
+                              onClick={() => { if (confirm(`¿Eliminar props de "${prod} / ${col}"?`)) deleteProductoColor(pc.id); }}
+                              className="text-red-400 hover:text-red-700 p-1"
+                            ><Trash2 className="h-3 w-3" /></button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  {productoColores.filter(pc => !pcFiltroProducto || pc.productoId === pcFiltroProducto).length === 0 && (
+                    <tr><td colSpan={8} className="text-center text-xs text-gray-400 py-6">Sin proporciones registradas</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <p className="text-[10px] text-gray-400">{productoColores.length} combinaciones registradas en total</p>
+
+          {showPCForm && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+              <div className="bg-white border border-gray-300 w-full max-w-sm">
+                <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+                  <h3 className="text-sm font-black uppercase tracking-widest">Nueva Proporción</h3>
+                  <button onClick={() => setShowPCForm(false)}><X className="h-4 w-4" /></button>
+                </div>
+                <form onSubmit={handleAddPC} className="p-6 space-y-4">
+                  <F label="Producto">
+                    <select value={pcForm.productoId} onChange={e => setPCForm(f => ({ ...f, productoId: e.target.value }))} className="input-base" required>
+                      <option value="">Seleccionar...</option>
+                      {[...productos].sort((a, b) => a.nombre.localeCompare(b.nombre)).map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                    </select>
+                  </F>
+                  <F label="Color">
+                    <select value={pcForm.colorId} onChange={e => setPCForm(f => ({ ...f, colorId: e.target.value }))} className="input-base" required>
+                      <option value="">Seleccionar...</option>
+                      {[...colores].sort((a, b) => a.nombre.localeCompare(b.nombre)).map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                    </select>
+                  </F>
+                  <div className="grid grid-cols-4 gap-2">
+                    <F label="PropS"><input type="number" min={0} step={1} value={pcForm.propS} onChange={e => setPCForm(f => ({ ...f, propS: e.target.value }))} className="input-base text-center" /></F>
+                    <F label="PropM"><input type="number" min={0} step={1} value={pcForm.propM} onChange={e => setPCForm(f => ({ ...f, propM: e.target.value }))} className="input-base text-center" /></F>
+                    <F label="PropL"><input type="number" min={0} step={1} value={pcForm.propL} onChange={e => setPCForm(f => ({ ...f, propL: e.target.value }))} className="input-base text-center" /></F>
+                    <F label="PropXL"><input type="number" min={0} step={1} value={pcForm.propXL} onChange={e => setPCForm(f => ({ ...f, propXL: e.target.value }))} className="input-base text-center" /></F>
+                  </div>
+                  <div className="flex justify-end gap-3">
+                    <button type="button" onClick={() => setShowPCForm(false)} className="btn-secondary">Cancelar</button>
                     <button type="submit" className="btn-primary">Guardar</button>
                   </div>
                 </form>
