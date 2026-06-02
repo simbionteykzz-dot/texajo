@@ -17,6 +17,7 @@ interface ColorDetalle {
   tendidas: string;
   propS: string; propM: string; propL: string; propXL: string;
   cantS: string; cantM: string; cantL: string; cantXL: string;
+  todosColores?: boolean;
 }
 
 interface CorteForm {
@@ -62,7 +63,6 @@ export function Cortes() {
   const [filterCliente, setFilterCliente] = useState('');
   const [form, setForm] = useState<CorteForm>(emptyForm());
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-  const [soloCorrelacion, setSoloCorrelacion] = useState(true);
   const [mostrarTodosProductos, setMostrarTodosProductos] = useState(false);
 
   const capWords = (s: string) =>
@@ -92,28 +92,6 @@ export function Cortes() {
       if (prod.telaBase && !f.telaId) {
         const telaMatch = telas.find(t => t.nombre.toLowerCase() === prod.telaBase!.toLowerCase());
         if (telaMatch) updated.telaId = telaMatch.id;
-      }
-      // Propagar proporciones del producto a cada fila de color
-      const pS = String(prod.propS ?? '');
-      const pM = String(prod.propM ?? '');
-      const pL = String(prod.propL ?? '');
-      const pXL = String(prod.propXL ?? '');
-      if (prod.propS || prod.propM || prod.propL || prod.propXL) {
-        updated.colores = f.colores.map(det => {
-          const t = parseInt(det.tendidas) || 0;
-          const nS = parseInt(pS) || 0;
-          const nM = parseInt(pM) || 0;
-          const nL = parseInt(pL) || 0;
-          const nXL = parseInt(pXL) || 0;
-          return {
-            ...det,
-            propS: pS, propM: pM, propL: pL, propXL: pXL,
-            ...(t > 0 ? {
-              cantS: String(nS * t), cantM: String(nM * t),
-              cantL: String(nL * t), cantXL: String(nXL * t),
-            } : {}),
-          };
-        });
       }
       return { ...f, ...updated };
     });
@@ -539,35 +517,31 @@ export function Cortes() {
                     )}
                   </label>
                   <div className="flex items-center gap-3">
-                    {form.productoId && (
-                      <button
-                        type="button"
-                        onClick={() => setSoloCorrelacion(v => !v)}
-                        className={`text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 px-2 py-0.5 rounded border transition-colors ${
-                          soloCorrelacion
-                            ? 'bg-blue-50 border-blue-300 text-blue-600 hover:bg-blue-100'
-                            : 'bg-gray-50 border-gray-300 text-gray-400 hover:bg-gray-100'
-                        }`}
-                      >
-                        {soloCorrelacion ? '⬤ Solo con props' : '○ Todos los colores'}
-                      </button>
-                    )}
                   <button
                     type="button"
                     onClick={() => setForm(f => {
                       const prod = productoMap.get(f.productoId);
-                      const newDet: ColorDetalle = {
+                      return { ...f, colores: [...f.colores, {
                         ...emptyColorDetalle(),
                         propS: String(prod?.propS ?? ''),
                         propM: String(prod?.propM ?? ''),
                         propL: String(prod?.propL ?? ''),
                         propXL: String(prod?.propXL ?? ''),
-                      };
-                      return { ...f, colores: [...f.colores, newDet] };
+                      }] };
                     })}
-                    className="text-[10px] font-bold uppercase tracking-widest text-[#C4612A] hover:text-[#a04e22] flex items-center gap-1"
+                    className="text-[10px] font-bold uppercase tracking-widest text-[#C4612A] hover:text-[#a04e22] flex items-center gap-1 px-2 py-0.5 rounded border border-orange-300 bg-orange-50 hover:bg-orange-100"
                   >
-                    <Plus className="h-3 w-3" /> Agregar color
+                    <Plus className="h-3 w-3" /> + Color con Props
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({
+                      ...f,
+                      colores: [...f.colores, { ...emptyColorDetalle(), todosColores: true }],
+                    }))}
+                    className="text-[10px] font-bold uppercase tracking-widest text-purple-700 flex items-center gap-1 px-2 py-0.5 rounded bg-purple-600 hover:bg-purple-700 text-white"
+                  >
+                    <Plus className="h-3 w-3" /> + Color Global
                   </button>
                   </div>
                 </div>
@@ -576,7 +550,7 @@ export function Cortes() {
                     <thead>
                       <tr className="bg-gray-50 border-b border-gray-200">
                         {form.colores.length > 1 && <th className="px-2 py-1.5 text-[10px] font-bold uppercase text-gray-400 w-6">#</th>}
-                        <th className="px-2 py-1.5 text-[10px] font-bold uppercase text-gray-500 text-left">Color</th>
+                        <th className="px-2 py-1.5 text-[10px] font-bold uppercase text-gray-500 text-left min-w-[140px] w-40">Color</th>
                         <th className="px-3 py-1.5 text-[10px] font-bold uppercase text-gray-500 text-right w-16">Kg</th>
                         <th className="px-3 py-1.5 text-[10px] font-bold uppercase text-gray-500 text-right w-16">Rollos</th>
                         <th className="px-3 py-1.5 text-[10px] font-bold uppercase text-gray-500 text-center w-16">Tendidas</th>
@@ -625,7 +599,7 @@ export function Cortes() {
                                 {String.fromCharCode(65 + idx)}
                               </td>
                             )}
-                            <td className="px-2 py-1 min-w-[120px]">
+                            <td className="px-2 py-1 min-w-[140px] w-40">
                               <select
                                 value={det.colorId}
                                 onChange={async e => {
@@ -692,11 +666,11 @@ export function Cortes() {
                                     }
                                   }
                                 }}
-                                className="input-base text-xs py-1"
+                                className="input-base text-xs py-1 w-full"
                                 required={idx === 0}
                               >
                                 <option value="">Seleccionar…</option>
-                                {(form.productoId && soloCorrelacion
+                                {(form.productoId && !det.todosColores
                                   ? colores.filter(c => productoColores.some(pc => pc.productoId === form.productoId && pc.colorId === c.id))
                                   : colores
                                 ).map(c => <option key={c.id} value={c.id}>{capWords(c.nombre)}</option>)}
