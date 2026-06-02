@@ -5,6 +5,7 @@ import { useAppContext } from '../store/AppContext';
 import { ModuleInfoBox } from '../components/ModuleInfoBox';
 import { useToast } from '../components/ToastProvider';
 import type { CategoriaColor, TipoServicioTint } from '../types';
+import { TIPOS_COMPLEMENTO_LIST } from '../types';
 
 const uid = () => crypto.randomUUID();
 
@@ -22,8 +23,6 @@ const TIPOS_SERVICIO_TINT: TipoServicioTint[] = ['REACTIVO', 'DIRECTO', 'PPT', '
 
 const CATEGORIAS: CategoriaColor[] = ['OSCURO', 'CLARO', 'MELANGE', 'PPT'];
 const TALLAS = ['S', 'M', 'L', 'XL'] as const;
-const TIPOS_COMPLEMENTO = ['CUELLO', 'PUÑO', 'PRETINA'];
-const ORIGENES = ['COMPRA', 'CORTE_INTERNO'];
 
 function F({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -37,13 +36,14 @@ function F({ label, children }: { label: string; children: React.ReactNode }) {
 export function TablaTarifas() {
   const navigate = useNavigate();
   const {
-    productos,
+    productos, addProducto,
     tarifasOperaciones, addTarifaOperacion, updateTarifaOperacion, deleteTarifaOperacion,
-    telas,
+    telas, addTela,
     preciosTelas, addPrecioTela, updatePrecioTela, deletePrecioTela,
-    preciosComplementos, updatePrecioComplemento,
+    preciosComplementos, addPrecioComplemento, updatePrecioComplemento, deletePrecioComplemento,
     preciosTejeduria, addPrecioTejeduria, updatePrecioTejeduria, deletePrecioTejeduria,
     preciosTintoreria, addPrecioTintoreria, updatePrecioTintoreria, deletePrecioTintoreria,
+    config, updateConfig, dbReady,
   } = useAppContext();
   const { addToast } = useToast();
 
@@ -53,9 +53,31 @@ export function TablaTarifas() {
   // ── Formularios ─────────────────────────────────────────────────────────────
   const [showTarifaForm, setShowTarifaForm]     = useState(false);
   const [tarifaForm, setTarifaForm]             = useState({ productoId: '', orden: '1', operacion: '', tarifa: '0', notas: '' });
+  const [showInlineProd, setShowInlineProd]     = useState(false);
+  const [inlineProd, setInlineProd]             = useState({ nombre: '', marca: '' });
+
+  // Tipos de complemento — se sincroniza desde config una vez que Supabase carga
+  const [tiposComplemento, setTiposComplemento] = useState<string[]>([...TIPOS_COMPLEMENTO_LIST]);
+  const [tiposIniciados, setTiposIniciados] = useState(false);
+  React.useEffect(() => {
+    if (dbReady && !tiposIniciados) {
+      setTiposComplemento(config.tiposComplemento?.length ? [...config.tiposComplemento] : [...TIPOS_COMPLEMENTO_LIST]);
+      setTiposIniciados(true);
+    }
+  }, [dbReady, tiposIniciados, config.tiposComplemento]);
+  const [nuevoTipoComp, setNuevoTipoComp]       = useState('');
+  const [showNuevoTipo, setShowNuevoTipo]        = useState(false);
 
   const [showPrecioTelaForm, setShowPrecioTelaForm] = useState(false);
   const [precioTelaForm, setPrecioTelaForm]         = useState({ telaId: '', categoriaColor: 'OSCURO' as CategoriaColor, precioKg: '' });
+  const [showInlineTela, setShowInlineTela]         = useState(false);
+  const [inlineTela, setInlineTela]                 = useState({ nombre: '', composicion: '', kgPorRollo: '20' });
+
+  const [showCompForm, setShowCompForm] = useState(false);
+  const [compForm, setCompForm] = useState({
+    tipo: '', origen: '',
+    precioS: '0', precioM: '0', precioL: '0', precioXL: '0',
+  });
 
   const [showTejForm, setShowTejForm] = useState(false);
   const [tejForm, setTejForm]         = useState({ tipoTejido: '', precioKg: '' });
@@ -79,6 +101,26 @@ export function TablaTarifas() {
   })).filter(g => g.tarifas.length > 0);
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
+  const handleAddInlineProd = () => {
+    if (!inlineProd.nombre.trim()) { addToast('Nombre requerido', 'error'); return; }
+    const newId = uid();
+    addProducto({ id: newId, nombre: inlineProd.nombre.trim(), marca: inlineProd.marca || undefined, costoMoTotal: 0, precioServicio: 0, notas: '' });
+    setTarifaForm(f => ({ ...f, productoId: newId }));
+    addToast('Producto creado', 'success');
+    setShowInlineProd(false);
+    setInlineProd({ nombre: '', marca: '' });
+  };
+
+  const handleAddInlineTela = () => {
+    if (!inlineTela.nombre.trim()) { addToast('Nombre requerido', 'error'); return; }
+    const newId = uid();
+    addTela({ id: newId, nombre: inlineTela.nombre.trim(), composicion: inlineTela.composicion, kgPorRollo: parseFloat(inlineTela.kgPorRollo) || 20, notas: '' });
+    setPrecioTelaForm(f => ({ ...f, telaId: newId }));
+    addToast('Tela creada', 'success');
+    setShowInlineTela(false);
+    setInlineTela({ nombre: '', composicion: '', kgPorRollo: '20' });
+  };
+
   const handleAddTarifa = (e: React.FormEvent) => {
     e.preventDefault();
     if (!tarifaForm.productoId || !tarifaForm.operacion) { addToast('Producto y operación requeridos', 'error'); return; }
@@ -136,9 +178,41 @@ export function TablaTarifas() {
     setTejForm({ tipoTejido: '', precioKg: '' });
   };
 
+  const handleAddComplemento = (e: React.FormEvent) => {
+    e.preventDefault();
+    const tipo   = compForm.tipo.trim().toUpperCase();
+    const origen = compForm.origen.trim().toUpperCase();
+    if (!tipo)   { addToast('Tipo requerido', 'error'); return; }
+    if (!origen) { addToast('Origen requerido', 'error'); return; }
+    const precios = [
+      { talla: 'S'  as const, valor: parseFloat(compForm.precioS)  || 0 },
+      { talla: 'M'  as const, valor: parseFloat(compForm.precioM)  || 0 },
+      { talla: 'L'  as const, valor: parseFloat(compForm.precioL)  || 0 },
+      { talla: 'XL' as const, valor: parseFloat(compForm.precioXL) || 0 },
+    ];
+    precios.forEach(({ talla, valor }) => {
+      if (!getPrecioComp(tipo, origen, talla)) {
+        addPrecioComplemento({ id: uid(), clave: `${tipo}_${origen}`, tipo, origen, talla, precio: valor });
+      }
+    });
+    addToast(`Complemento ${tipo} / ${origen} agregado`, 'success');
+    setShowCompForm(false);
+    setCompForm({ tipo: '', origen: '', precioS: '0', precioM: '0', precioL: '0', precioXL: '0' });
+  };
+
   // ── Precio complemento: busca o indica ausente ────────────────────────────
   const getPrecioComp = (tipo: string, origen: string, talla: string) =>
     preciosComplementos.find(p => p.tipo === tipo && p.origen === origen && p.talla === talla);
+
+  // Orígenes únicos presentes en los datos para un tipo dado
+  const getOrigenesParaTipo = (tipo: string) => {
+    const set = new Set(preciosComplementos.filter(p => p.tipo === tipo).map(p => p.origen));
+    return Array.from(set).sort();
+  };
+
+  // Todos los tipos únicos presentes en los datos (complementa tiposComplemento con lo que haya en BD)
+  const tiposEnBd = Array.from(new Set(preciosComplementos.map(p => p.tipo))).sort();
+  const tiposAMostrar = Array.from(new Set([...tiposComplemento, ...tiposEnBd]));
 
   return (
     <div className="space-y-6">
@@ -291,6 +365,25 @@ export function TablaTarifas() {
                             ))}
                           </tbody>
                           <tfoot>
+                            <tr style={{ borderTop: '1px solid #DDD8CF' }}>
+                              <td colSpan={5} className="px-4 py-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const nextOrden = tarifas.length + 1;
+                                    addTarifaOperacion({
+                                      id: uid(), productoId: prod.id, orden: nextOrden,
+                                      operacion: 'NUEVA OPERACIÓN', tarifa: 0, notas: '',
+                                      clave: `${prod.nombre}|${nextOrden}`,
+                                    });
+                                  }}
+                                  className="flex items-center gap-1 text-[11px] font-mono transition-colors hover:text-[#173A25]"
+                                  style={{ color: '#9A8F87' }}
+                                >
+                                  <Plus className="h-3 w-3" /> añadir operación
+                                </button>
+                              </td>
+                            </tr>
                             <tr style={{ borderTop: '1px solid #DDD8CF', background: '#F7F4EF' }}>
                               <td colSpan={2} className="px-4 py-2 text-[10px] font-mono uppercase tracking-widest text-right" style={{ color: '#9A8F87' }}>
                                 Costo MO Total
@@ -320,13 +413,67 @@ export function TablaTarifas() {
                 </div>
                 <form onSubmit={handleAddTarifa} className="p-6 space-y-4">
                   <F label="Producto">
-                    <select value={tarifaForm.productoId} onChange={e => setTarifaForm(f => ({ ...f, productoId: e.target.value }))}
-                      className="w-full border px-3 py-2 text-sm" style={{ borderColor: '#DDD8CF' }} required>
-                      <option value="">Seleccionar producto...</option>
-                      {[...productos].sort((a, b) => a.nombre.localeCompare(b.nombre)).map(p => (
-                        <option key={p.id} value={p.id}>{p.nombre}</option>
-                      ))}
-                    </select>
+                    <div className="flex gap-2 items-center">
+                      <select value={tarifaForm.productoId} onChange={e => setTarifaForm(f => ({ ...f, productoId: e.target.value }))}
+                        className="flex-1 border px-3 py-2 text-sm" style={{ borderColor: '#DDD8CF' }} required>
+                        <option value="">Seleccionar producto...</option>
+                        {[...productos].sort((a, b) => a.nombre.localeCompare(b.nombre)).map(p => (
+                          <option key={p.id} value={p.id}>{p.nombre}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        title="Nuevo producto"
+                        onClick={() => setShowInlineProd(v => !v)}
+                        className="flex-shrink-0 w-8 h-8 flex items-center justify-center border transition-colors"
+                        style={showInlineProd
+                          ? { background: '#173A25', borderColor: '#173A25', color: '#fff' }
+                          : { background: '#F5F2EA', borderColor: '#DDD8CF', color: '#7A6F67' }}
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    {showInlineProd && (
+                      <div onSubmit={handleAddInlineProd} className="mt-2 border p-3 space-y-2" style={{ borderColor: '#DDD8CF', background: '#F5F2EA' }}>
+                        <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: '#7A6F67' }}>Nuevo producto</p>
+                        <input
+                          type="text"
+                          placeholder="Nombre *"
+                          value={inlineProd.nombre}
+                          onChange={e => setInlineProd(f => ({ ...f, nombre: e.target.value }))}
+                          className="w-full border px-3 py-1.5 text-xs"
+                          style={{ borderColor: '#DDD8CF' }}
+                        />
+                        <select
+                          value={inlineProd.marca}
+                          onChange={e => setInlineProd(f => ({ ...f, marca: e.target.value }))}
+                          className="w-full border px-3 py-1.5 text-xs"
+                          style={{ borderColor: '#DDD8CF' }}
+                        >
+                          <option value="">Marca (opcional)</option>
+                          <option value="Overshark">Overshark</option>
+                          <option value="Bravos">Bravos</option>
+                        </select>
+                        <div className="flex gap-2 justify-end pt-1">
+                          <button
+                            type="button"
+                            onClick={() => { setShowInlineProd(false); setInlineProd({ nombre: '', marca: '' }); }}
+                            className="px-3 py-1 text-xs font-bold border"
+                            style={{ borderColor: '#DDD8CF', color: '#6B6058' }}
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleAddInlineProd}
+                            className="px-3 py-1 text-xs font-bold text-white"
+                            style={{ background: '#173A25' }}
+                          >
+                            Crear y seleccionar
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </F>
                   <div className="grid grid-cols-2 gap-3">
                     <F label="Orden">
@@ -448,15 +595,68 @@ export function TablaTarifas() {
               <div className="bg-white border w-full max-w-sm" style={{ borderColor: '#DDD8CF' }}>
                 <div className="flex items-center justify-between border-b px-6 py-4" style={{ borderColor: '#DDD8CF' }}>
                   <h3 className="text-sm font-black uppercase tracking-widest">Nuevo Precio de Tela</h3>
-                  <button onClick={() => setShowPrecioTelaForm(false)}><X className="h-4 w-4" /></button>
+                  <button onClick={() => { setShowPrecioTelaForm(false); setShowInlineTela(false); }}><X className="h-4 w-4" /></button>
                 </div>
                 <form onSubmit={handleAddPrecioTela} className="p-6 space-y-4">
                   <F label="Tela">
-                    <select value={precioTelaForm.telaId} onChange={e => setPrecioTelaForm(f => ({ ...f, telaId: e.target.value }))}
-                      className="w-full border px-3 py-2 text-sm" style={{ borderColor: '#DDD8CF' }} required>
-                      <option value="">Seleccionar tela...</option>
-                      {telas.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
-                    </select>
+                    <div className="flex gap-2 items-center">
+                      <select value={precioTelaForm.telaId} onChange={e => setPrecioTelaForm(f => ({ ...f, telaId: e.target.value }))}
+                        className="flex-1 border px-3 py-2 text-sm" style={{ borderColor: '#DDD8CF' }} required>
+                        <option value="">Seleccionar tela...</option>
+                        {[...telas].sort((a, b) => a.nombre.localeCompare(b.nombre)).map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+                      </select>
+                      <button
+                        type="button"
+                        title="Nueva tela"
+                        onClick={() => setShowInlineTela(v => !v)}
+                        className="flex-shrink-0 w-8 h-8 flex items-center justify-center border transition-colors"
+                        style={showInlineTela
+                          ? { background: '#173A25', borderColor: '#173A25', color: '#fff' }
+                          : { background: '#F5F2EA', borderColor: '#DDD8CF', color: '#7A6F67' }}
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    {showInlineTela && (
+                      <div className="mt-2 border p-3 space-y-2" style={{ borderColor: '#DDD8CF', background: '#F5F2EA' }}>
+                        <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: '#7A6F67' }}>Nueva tela</p>
+                        <input
+                          type="text"
+                          placeholder="Nombre *"
+                          value={inlineTela.nombre}
+                          onChange={e => setInlineTela(f => ({ ...f, nombre: e.target.value }))}
+                          className="w-full border px-3 py-1.5 text-xs"
+                          style={{ borderColor: '#DDD8CF' }}
+                          autoFocus
+                        />
+                        <input
+                          type="text"
+                          placeholder="Composición (ej: 100% algodón)"
+                          value={inlineTela.composicion}
+                          onChange={e => setInlineTela(f => ({ ...f, composicion: e.target.value }))}
+                          className="w-full border px-3 py-1.5 text-xs"
+                          style={{ borderColor: '#DDD8CF' }}
+                        />
+                        <div className="flex gap-2 justify-end pt-1">
+                          <button
+                            type="button"
+                            onClick={() => { setShowInlineTela(false); setInlineTela({ nombre: '', composicion: '', kgPorRollo: '20' }); }}
+                            className="px-3 py-1 text-xs font-bold border"
+                            style={{ borderColor: '#DDD8CF', color: '#6B6058' }}
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleAddInlineTela}
+                            className="px-3 py-1 text-xs font-bold text-white"
+                            style={{ background: '#173A25' }}
+                          >
+                            Crear y seleccionar
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </F>
                   <F label="Categoría de Color">
                     <select value={precioTelaForm.categoriaColor} onChange={e => setPrecioTelaForm(f => ({ ...f, categoriaColor: e.target.value as CategoriaColor }))}
@@ -470,7 +670,7 @@ export function TablaTarifas() {
                       className="w-full border px-3 py-2 text-sm" style={{ borderColor: '#DDD8CF' }} />
                   </F>
                   <div className="flex justify-end gap-3 pt-2">
-                    <button type="button" onClick={() => setShowPrecioTelaForm(false)}
+                    <button type="button" onClick={() => { setShowPrecioTelaForm(false); setShowInlineTela(false); }}
                       className="px-4 py-2 text-xs font-bold border" style={{ borderColor: '#DDD8CF', color: '#6B6058' }}>
                       Cancelar
                     </button>
@@ -491,62 +691,153 @@ export function TablaTarifas() {
       ════════════════════════════════════════════════════════════════════════ */}
       {seccion === 'complementos' && (
         <div className="space-y-6">
-          {TIPOS_COMPLEMENTO.map(tipo => (
-            <div key={tipo}>
-              <h3 className="text-xs font-black uppercase tracking-widest mb-3" style={{ color: '#173A25' }}>{tipo}</h3>
-              <div className="border overflow-x-auto" style={{ borderColor: '#DDD8CF' }}>
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr style={{ background: '#F7F4EF', borderBottom: '1px solid #DDD8CF' }}>
-                      <th className="px-4 py-3 text-left text-[10px] font-mono font-bold uppercase tracking-widest" style={{ color: '#9A8F87' }}>Origen</th>
-                      {TALLAS.map(t => (
-                        <th key={t} className="px-4 py-3 text-center text-[10px] font-mono font-bold uppercase tracking-widest" style={{ color: '#9A8F87' }}>
-                          Talla {t}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ORIGENES.map((origen, i) => (
-                      <tr key={origen} style={{ borderTop: i > 0 ? '1px solid #F0EDE8' : undefined }}>
-                        <td className="px-4 py-2.5 font-bold text-xs" style={{ color: '#1A1A1A' }}>
-                          {origen === 'COMPRA' ? 'Compra' : 'Corte Interno'}
-                        </td>
-                        {TALLAS.map(talla => {
-                          const precio = getPrecioComp(tipo, origen, talla);
-                          return (
-                            <td key={talla} className="px-4 py-2.5 text-center">
-                              {precio ? (
-                                <input
-                                  type="number" min={0} step={0.01} value={precio.precio}
-                                  onChange={e => updatePrecioComplemento(precio.id, { precio: parseFloat(e.target.value) || 0 })}
-                                  className="w-20 border px-2 py-0.5 text-right font-mono text-xs rounded-sm mx-auto block"
-                                  style={{ borderColor: '#DDD8CF' }}
-                                />
-                              ) : (
-                                <span className="text-[10px] font-mono" style={{ color: '#C0977A' }}>—</span>
-                              )}
-                            </td>
-                          );
-                        })}
-                      </tr>
+
+          {/* Botón agregar */}
+          <div className="flex justify-end">
+            <button
+              onClick={() => setShowCompForm(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white"
+              style={{ background: '#173A25' }}
+            >
+              <Plus className="h-3 w-3" /> Agregar complemento
+            </button>
+          </div>
+
+          {/* Modal nuevo complemento */}
+          {showCompForm && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+              <div className="bg-white border w-full max-w-sm" style={{ borderColor: '#DDD8CF' }}>
+                <div className="flex items-center justify-between border-b px-6 py-4" style={{ borderColor: '#DDD8CF' }}>
+                  <h3 className="text-sm font-black uppercase tracking-widest">Nuevo Precio de Complemento</h3>
+                  <button onClick={() => setShowCompForm(false)}><X className="h-4 w-4" /></button>
+                </div>
+                <form onSubmit={handleAddComplemento} className="p-6 space-y-4">
+                  <F label="Tipo (ej: CUELLO, PUÑO, PRETINA)">
+                    <input
+                      type="text" value={compForm.tipo}
+                      onChange={e => setCompForm(f => ({ ...f, tipo: e.target.value.toUpperCase() }))}
+                      list="tipos-comp-list"
+                      className="w-full border px-3 py-2 text-sm uppercase font-mono" style={{ borderColor: '#DDD8CF' }}
+                      placeholder="CUELLO" required autoFocus
+                    />
+                    <datalist id="tipos-comp-list">
+                      {tiposAMostrar.map(t => <option key={t} value={t} />)}
+                    </datalist>
+                  </F>
+                  <F label="Origen (ej: RIB 1x1, RECTILÍNEO)">
+                    <input
+                      type="text" value={compForm.origen}
+                      onChange={e => setCompForm(f => ({ ...f, origen: e.target.value.toUpperCase() }))}
+                      list="origenes-comp-list"
+                      className="w-full border px-3 py-2 text-sm uppercase font-mono" style={{ borderColor: '#DDD8CF' }}
+                      placeholder="RIB 1x1" required
+                    />
+                    <datalist id="origenes-comp-list">
+                      {Array.from(new Set(preciosComplementos.map(p => p.origen))).sort().map(o => <option key={o} value={o} />)}
+                    </datalist>
+                  </F>
+                  <div className="grid grid-cols-4 gap-2">
+                    {(['S','M','L','XL'] as const).map(t => (
+                      <F key={t} label={`Talla ${t}`}>
+                        <input
+                          type="number" min={0} step={0.01}
+                          value={compForm[`precio${t}` as 'precioS'|'precioM'|'precioL'|'precioXL']}
+                          onChange={e => setCompForm(f => ({ ...f, [`precio${t}`]: e.target.value }))}
+                          className="w-full border px-2 py-2 text-sm text-right font-mono" style={{ borderColor: '#DDD8CF' }}
+                        />
+                      </F>
                     ))}
-                  </tbody>
-                </table>
+                  </div>
+                  <div className="flex justify-end gap-3 pt-2">
+                    <button type="button" onClick={() => setShowCompForm(false)}
+                      className="px-4 py-2 text-xs font-bold border" style={{ borderColor: '#DDD8CF', color: '#6B6058' }}>
+                      Cancelar
+                    </button>
+                    <button type="submit"
+                      className="px-4 py-2 text-xs font-bold text-white" style={{ background: '#173A25' }}>
+                      Guardar
+                    </button>
+                  </div>
+                </form>
               </div>
             </div>
-          ))}
-          <p className="text-[11px] font-mono" style={{ color: '#9A8F87' }}>
-            Los complementos sin precio (—) no tienen registro.{' '}
-            <button
-              type="button"
-              onClick={() => navigate('/catalogos')}
-              className="underline font-bold"
-              style={{ color: '#173A25' }}
-            >
-              Ir a Catalogos → Precios Complementos
-            </button>
-          </p>
+          )}
+
+          {tiposAMostrar.map(tipo => {
+            const origenes = getOrigenesParaTipo(tipo);
+            return (
+              <div key={tipo}>
+                <h3 className="text-xs font-black uppercase tracking-widest mb-3" style={{ color: '#173A25' }}>{tipo}</h3>
+                <div className="border overflow-x-auto" style={{ borderColor: '#DDD8CF' }}>
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr style={{ background: '#F7F4EF', borderBottom: '1px solid #DDD8CF' }}>
+                        <th className="px-4 py-3 text-left text-[10px] font-mono font-bold uppercase tracking-widest" style={{ color: '#9A8F87' }}>Origen</th>
+                        {TALLAS.map(t => (
+                          <th key={t} className="px-4 py-3 text-center text-[10px] font-mono font-bold uppercase tracking-widest" style={{ color: '#9A8F87' }}>
+                            Talla {t}
+                          </th>
+                        ))}
+                        <th className="w-10" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {origenes.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="px-4 py-6 text-center text-xs italic" style={{ color: '#9A8F87' }}>
+                            Sin precios registrados para este tipo
+                          </td>
+                        </tr>
+                      ) : origenes.map((origen, i) => (
+                        <tr key={origen} style={{ borderTop: i > 0 ? '1px solid #F0EDE8' : undefined }}>
+                          <td className="px-4 py-2.5 font-bold text-xs" style={{ color: '#1A1A1A' }}>
+                            {origen}
+                          </td>
+                          {TALLAS.map(talla => {
+                            const precio = getPrecioComp(tipo, origen, talla);
+                            return (
+                              <td key={talla} className="px-4 py-2.5 text-center">
+                                {precio ? (
+                                  <input
+                                    type="number" min={0} step={0.01} value={precio.precio}
+                                    onChange={e => updatePrecioComplemento(precio.id, { precio: parseFloat(e.target.value) || 0 })}
+                                    className="w-20 border px-2 py-0.5 text-right font-mono text-xs rounded-sm mx-auto block"
+                                    style={{ borderColor: '#DDD8CF' }}
+                                  />
+                                ) : (
+                                  <span className="text-[10px] font-mono" style={{ color: '#C0977A' }}>—</span>
+                                )}
+                              </td>
+                            );
+                          })}
+                          <td className="px-2 py-2.5">
+                            <button
+                              onClick={() => {
+                                const ids = preciosComplementos
+                                  .filter(p => p.tipo === tipo && p.origen === origen)
+                                  .map(p => p.id);
+                                if (confirm(`¿Eliminar "${tipo} / ${origen}" (${ids.length} registros)?`))
+                                  ids.forEach(id => deletePrecioComplemento(id));
+                              }}
+                              className="p-1 transition-colors"
+                              style={{ color: '#C0977A' }}
+                              title="Eliminar este origen"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })}
+
+          {tiposAMostrar.length === 0 && (
+            <p className="text-xs italic text-center py-10" style={{ color: '#9A8F87' }}>Sin precios de complementos registrados</p>
+          )}
         </div>
       )}
 

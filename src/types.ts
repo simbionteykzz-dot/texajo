@@ -352,6 +352,7 @@ export interface Config {
   comisionJoseKg: number;
   mermaMaxTej: number;       // % máximo merma tejeduría antes de alerta (default 5)
   mermaMaxTint: number;      // % máximo merma tintorería antes de alerta (default 3)
+  tiposComplemento?: string[];
 }
 
 // ─── Stock Extorno (conos hilo sobrantes devueltos por tejeduría) ──────────
@@ -383,7 +384,8 @@ export interface DescuentoBoleta {
 
 // ─── Complementos ─────────────────────────────────────────────────────────
 
-export type TipoComplemento = 'CUELLO' | 'PUÑO' | 'PRETINA';
+export const TIPOS_COMPLEMENTO_LIST = ['CUELLO', 'PUÑO', 'PRETINA'] as const;
+export type TipoComplemento = typeof TIPOS_COMPLEMENTO_LIST[number] | string;
 export type TipoMovimientoComplemento = 'INGRESO' | 'CONSUMO' | 'AJUSTE_POS' | 'AJUSTE_NEG';
 
 export interface MovimientoComplemento {

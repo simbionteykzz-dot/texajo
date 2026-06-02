@@ -149,7 +149,9 @@ interface AppContextProps extends AppState {
   addTarifaOperacion: (t: TarifaOperacion) => void;
   updateTarifaOperacion: (id: string, updates: Partial<TarifaOperacion>) => void;
   deleteTarifaOperacion: (id: string) => void;
+  addPrecioComplemento: (p: PrecioComplemento) => void;
   updatePrecioComplemento: (id: string, updates: Partial<PrecioComplemento>) => void;
+  deletePrecioComplemento: (id: string) => void;
   addOperario: (o: Operario) => void;
   updateOperario: (id: string, updates: Partial<Operario>) => void;
   // Precios Tejeduría
@@ -482,6 +484,9 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   const updateTarifaOperacion = makeUpdate<TarifaOperacion>('tarifasOperaciones', db.tarifasOperaciones.update);
   const deleteTarifaOperacion = makeDelete('tarifasOperaciones', db.tarifasOperaciones.delete);
 
+  const addPrecioComplemento = makeAdd<PrecioComplemento>('preciosComplementos', db.preciosComplementos.add);
+  const deletePrecioComplemento = makeDelete('preciosComplementos', db.preciosComplementos.delete);
+
   const updatePrecioComplemento = (id: string, updates: Partial<PrecioComplemento>) => {
     let cur: PrecioComplemento | undefined;
     set(p => {
@@ -578,7 +583,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       addPrecioTela, updatePrecioTela, deletePrecioTela,
       addProducto, updateProducto, deleteProducto,
       addTarifaOperacion, updateTarifaOperacion, deleteTarifaOperacion,
-      updatePrecioComplemento,
+      addPrecioComplemento, updatePrecioComplemento, deletePrecioComplemento,
       addOperario, updateOperario,
       addPrecioTejeduria, updatePrecioTejeduria, deletePrecioTejeduria,
       addPrecioTintoreria, updatePrecioTintoreria, deletePrecioTintoreria,

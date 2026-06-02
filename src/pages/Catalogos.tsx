@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
 import { Plus, X, Trash2, ChevronRight, ChevronDown } from 'lucide-react';
-import { CategoriaColor, Operario, TipoComplemento, RecetaComplemento, ProductoColor } from '../types';
+import { CategoriaColor, Operario, TipoComplemento, RecetaComplemento, ProductoColor, TIPOS_COMPLEMENTO_LIST } from '../types';
 import { ModuleInfoBox } from '../components/ModuleInfoBox';
 
-const TIPOS_COMPLEMENTO: TipoComplemento[] = ['CUELLO', 'PUÑO', 'PRETINA'];
+const TIPOS_COMPLEMENTO: string[] = [...TIPOS_COMPLEMENTO_LIST];
 
 const uid = () => crypto.randomUUID();
 

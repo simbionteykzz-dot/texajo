@@ -3,13 +3,13 @@ import { motion } from 'motion/react';
 import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
 import { Download, Plus, X, FileText, Trash2 } from 'lucide-react';
-import { TipoComplemento, TipoMovimientoComplemento, MovimientoComplemento } from '../types';
+import { TipoComplemento, TipoMovimientoComplemento, MovimientoComplemento, TIPOS_COMPLEMENTO_LIST } from '../types';
 import { ModuleInfoBox } from '../components/ModuleInfoBox';
 import { exportRowsToXlsx, exportTableToPdf } from '../lib/export';
 
 const uid = () => crypto.randomUUID();
 
-const TIPOS_COMP: TipoComplemento[] = ['CUELLO', 'PUÑO', 'PRETINA'];
+const TIPOS_COMP: string[] = [...TIPOS_COMPLEMENTO_LIST];
 const TIPOS_MOV: TipoMovimientoComplemento[] = ['INGRESO', 'CONSUMO', 'AJUSTE_POS', 'AJUSTE_NEG'];
 const MOV_LABEL: Record<TipoMovimientoComplemento, string> = {
   INGRESO: 'Ingreso', CONSUMO: 'Consumo', AJUSTE_POS: 'Ajuste +', AJUSTE_NEG: 'Ajuste −',
