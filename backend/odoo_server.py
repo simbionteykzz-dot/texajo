@@ -13,7 +13,7 @@ ODOO_DB   = 'zazuexpress2-prod-27700346'
 ODOO_USER = 'overshark08@gmail.com'
 ODOO_PASS = 'Bv992282883@'
 
-COMPANY_IDS = [5, 8, 11]
+COMPANY_IDS = [5, 8]
 
 app = Flask(__name__)
 CORS(app)  # permite llamadas desde localhost:3002 (Vite dev server)
