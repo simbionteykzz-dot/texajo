@@ -9,7 +9,6 @@ import { exportRowsToXlsx, exportTableToPdf } from '../lib/export';
 
 const uid = () => crypto.randomUUID();
 
-const TIPOS_COMP: string[] = [...TIPOS_COMPLEMENTO_LIST];
 const TIPOS_MOV: TipoMovimientoComplemento[] = ['INGRESO', 'CONSUMO', 'AJUSTE_POS', 'AJUSTE_NEG'];
 const MOV_LABEL: Record<TipoMovimientoComplemento, string> = {
   INGRESO: 'Ingreso', CONSUMO: 'Consumo', AJUSTE_POS: 'Ajuste +', AJUSTE_NEG: 'Ajuste −',
@@ -58,6 +57,11 @@ export function Complementos() {
   const [filterColor, setFilterColor] = useState('');
   const [filterTalla, setFilterTalla] = useState('');
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+
+  const tiposComp = useMemo(() => {
+    const fromDb = preciosComplementos.map(p => p.tipo);
+    return Array.from(new Set([...TIPOS_COMPLEMENTO_LIST, ...fromDb])).sort();
+  }, [preciosComplementos]);
 
   const colorMap = useMemo(() => new Map(colores.map(c => [c.id, c])), [colores]);
   const productoMap = useMemo(() => new Map(productos.map(p => [p.id, p.nombre])), [productos]);
@@ -262,7 +266,7 @@ export function Complementos() {
       <div className="flex gap-3 flex-wrap">
         <select value={filterTipo} onChange={e => setFilterTipo(e.target.value)} className="input-base text-xs w-36">
           <option value="">Todos los tipos</option>
-          {TIPOS_COMP.map(t => <option key={t} value={t}>{t}</option>)}
+          {tiposComp.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
         <select value={filterColor} onChange={e => setFilterColor(e.target.value)} className="input-base text-xs w-40">
           <option value="">Todos los colores</option>
@@ -350,7 +354,7 @@ export function Complementos() {
               <div className="grid grid-cols-3 gap-4">
                 <F label="Complemento">
                   <select value={form.tipoComplemento} onChange={set('tipoComplemento')} className="input-base">
-                    {TIPOS_COMP.map(t => <option key={t} value={t}>{t}</option>)}
+                    {tiposComp.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </F>
                 <F label="Color">
