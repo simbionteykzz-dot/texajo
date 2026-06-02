@@ -1,5 +1,6 @@
-// URL del backend Flask local (python backend/odoo_server.py)
-const ODOO_BACKEND_URL = import.meta.env.VITE_ODOO_BACKEND_URL ?? 'http://localhost:5001';
+// URL del backend Flask local (python backend/odoo_server.py).
+// Si no está definida, fetchOdooAll usará llamada directa a Odoo.
+const ODOO_BACKEND_URL = import.meta.env.VITE_ODOO_BACKEND_URL ?? '';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -94,7 +95,17 @@ export interface ProductRow {
 // ── Fetch ─────────────────────────────────────────────────────────────────────
 
 export async function fetchOdooAll(): Promise<OdooAll> {
-  const res = await fetch(`${ODOO_BACKEND_URL}/api/odoo-stock`);
+  // En producción (sin backend Flask), intentar llamada directa a Odoo.
+  // En desarrollo con Flask corriendo, usar el proxy local.
+  const backendUrl = import.meta.env.VITE_ODOO_BACKEND_URL ?? '';
+
+  if (!backendUrl) {
+    // Sin variable configurada → intentar directo a Odoo (producción Vercel)
+    const { fetchOdooAllDirect } = await import('./odooDirectService');
+    return fetchOdooAllDirect();
+  }
+
+  const res = await fetch(`${backendUrl}/api/odoo-stock`);
   const data = await res.json();
   if (!res.ok || data?.error) throw new Error(data?.error ?? `HTTP ${res.status}`);
   return data as OdooAll;

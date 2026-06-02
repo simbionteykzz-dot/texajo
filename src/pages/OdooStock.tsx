@@ -1,5 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { RefreshCw, ChevronDown, ChevronRight, AlertCircle, Loader2, X } from 'lucide-react';
+import { RefreshCw, ChevronDown, ChevronRight, AlertCircle, Loader2, X, FileSpreadsheet, FileText } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import {
   fetchOdooAll,
   buildProductRows,
@@ -196,6 +199,178 @@ export default function OdooStock() {
   const expandAll   = () => setExpanded(new Set(filtered.map(p => p.templateId)));
   const collapseAll = () => setExpanded(new Set());
 
+  const exportarExcel = () => {
+    const filas = filtered.flatMap(prod =>
+      prod.variantes.map(v => ({
+        Empresa:     prod.empresa,
+        Producto:    prod.templateName,
+        SKU:         v.sku || '',
+        Color:       v.color || '',
+        Talla:       v.talla || '',
+        Otros:       v.otrosAttr || '',
+        Stock:       v.stock,
+        Reservado:   v.stockReservado,
+        Disponible:  v.stockDisponible,
+        Alerta:      getStockLevel(v.stock).label,
+        Ubicaciones: v.locationBreakdown.map(l => `${l.locationName}: ${l.qty.toFixed(0)}`).join(' | '),
+      }))
+    );
+    const ws = XLSX.utils.json_to_sheet(filas);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Stock Odoo');
+    XLSX.writeFile(wb, `stock-odoo-${new Date().toISOString().slice(0,10)}.xlsx`);
+  };
+
+  const exportarPDF = () => {
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const W = doc.internal.pageSize.getWidth();
+    const H = doc.internal.pageSize.getHeight();
+    const fecha = new Date().toLocaleDateString('es-PE', { day: '2-digit', month: 'long', year: 'numeric' });
+    const hora  = new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
+
+    const totalVariantes = filtered.reduce((s, p) => s + p.variantes.length, 0);
+    const totalStock     = filtered.reduce((s, p) => s + p.totalStock, 0);
+    const criticos       = filtered.reduce((s, p) => s + p.variantes.filter(v => getStockLevel(v.stock).label === STOCK_LEVELS.danger.label).length, 0);
+    const porAcabar      = filtered.reduce((s, p) => s + p.variantes.filter(v => getStockLevel(v.stock).label === STOCK_LEVELS.warning.label).length, 0);
+
+    const drawPage = () => {
+      // Franja superior verde oscuro
+      doc.setFillColor(23, 58, 37);
+      doc.rect(0, 0, W, 22, 'F');
+
+      // Acento cobre
+      doc.setFillColor(182, 111, 53);
+      doc.rect(0, 22, W, 1.2, 'F');
+
+      // Título
+      doc.setTextColor(245, 242, 234);
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('REPORTE DE STOCK ODOO', 14, 13);
+
+      // Subtítulo derecha
+      doc.setFontSize(7.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(210, 200, 185);
+      doc.text(`Generado: ${fecha}  ·  ${hora}`, W - 14, 10, { align: 'right' });
+
+      // Filtros activos
+      const filtrosTexto = activeChips.length > 0
+        ? 'Filtros: ' + activeChips.map(c => c.label).join('  ·  ')
+        : 'Sin filtros aplicados';
+      doc.text(filtrosTexto, W - 14, 17, { align: 'right' });
+
+      // Footer
+      doc.setFillColor(245, 242, 234);
+      doc.rect(0, H - 10, W, 10, 'F');
+      doc.setDrawColor(221, 216, 207);
+      doc.setLineWidth(0.3);
+      doc.line(0, H - 10, W, H - 10);
+      doc.setTextColor(122, 111, 103);
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Texajo — Sistema de Gestión Textil', 14, H - 4);
+      doc.text(`Pág. ${(doc as jsPDF & { internal: { getCurrentPageInfo(): { pageNumber: number } } }).internal.getCurrentPageInfo().pageNumber}`, W - 14, H - 4, { align: 'right' });
+    };
+
+    drawPage();
+
+    // ── Tarjetas de resumen ──────────────────────────────────────────────────
+    const cards = [
+      { label: 'Productos',  value: String(filtered.length),    bg: [23, 58, 37]   as [number,number,number], fg: [245,242,234] as [number,number,number] },
+      { label: 'Variantes',  value: String(totalVariantes),     bg: [50, 80, 60]   as [number,number,number], fg: [245,242,234] as [number,number,number] },
+      { label: 'Total uds',  value: totalStock.toFixed(0),      bg: [182,111,53]   as [number,number,number], fg: [245,242,234] as [number,number,number] },
+      { label: 'Críticos',   value: String(criticos),           bg: [220, 38, 38]  as [number,number,number], fg: [255,255,255] as [number,number,number] },
+      { label: 'Por acabar', value: String(porAcabar),          bg: [202,138,4]    as [number,number,number], fg: [255,255,255] as [number,number,number] },
+    ];
+    const cardW = 36, cardH = 14, cardGap = 4;
+    const cardsTotal = cards.length * cardW + (cards.length - 1) * cardGap;
+    let cx = (W - cardsTotal) / 2;
+    const cy = 27;
+
+    cards.forEach(card => {
+      doc.setFillColor(...card.bg);
+      doc.roundedRect(cx, cy, cardW, cardH, 2, 2, 'F');
+      doc.setTextColor(...card.fg);
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text(card.value, cx + cardW / 2, cy + 8.5, { align: 'center' });
+      doc.setFontSize(6.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...card.fg);
+      doc.text(card.label.toUpperCase(), cx + cardW / 2, cy + 12.5, { align: 'center' });
+      cx += cardW + cardGap;
+    });
+
+    // ── Tabla ────────────────────────────────────────────────────────────────
+    const head = [['EMPRESA','PRODUCTO','SKU','COLOR','TALLA','STOCK','RESERVADO','DISPONIBLE','NIVEL DE ALERTA']];
+    const body = filtered.flatMap(prod =>
+      prod.variantes.map(v => [
+        prod.empresa,
+        prod.templateName,
+        v.sku || '—',
+        v.color || '—',
+        v.talla || '—',
+        v.stock.toFixed(0),
+        v.stockReservado > 0 ? v.stockReservado.toFixed(0) : '—',
+        v.stockDisponible.toFixed(0),
+        getStockLevel(v.stock).label,
+      ])
+    );
+
+    autoTable(doc, {
+      head,
+      body,
+      startY: cy + cardH + 5,
+      margin: { left: 14, right: 14, bottom: 14 },
+      styles: {
+        fontSize: 7,
+        cellPadding: { top: 2.5, bottom: 2.5, left: 3, right: 3 },
+        textColor: [30, 25, 20],
+        lineColor: [221, 216, 207],
+        lineWidth: 0.2,
+      },
+      headStyles: {
+        fillColor: [23, 58, 37],
+        textColor: [245, 242, 234],
+        fontStyle: 'bold',
+        fontSize: 6.5,
+        cellPadding: { top: 3, bottom: 3, left: 3, right: 3 },
+      },
+      alternateRowStyles: { fillColor: [248, 246, 241] },
+      columnStyles: {
+        0: { cellWidth: 28 },
+        1: { cellWidth: 48 },
+        2: { cellWidth: 24, font: 'courier', textColor: [90, 80, 72] },
+        5: { cellWidth: 18, halign: 'right', fontStyle: 'bold' },
+        6: { cellWidth: 22, halign: 'right', textColor: [122, 111, 103] },
+        7: { cellWidth: 24, halign: 'right', fontStyle: 'bold' },
+        8: { cellWidth: 30 },
+      },
+      didParseCell: (data) => {
+        if (data.section === 'body' && data.column.index === 8) {
+          const val = String(data.cell.raw);
+          if (val === STOCK_LEVELS.danger.label)       data.cell.styles.textColor = [220, 38, 38];
+          else if (val === STOCK_LEVELS.warning.label) data.cell.styles.textColor = [180, 120, 0];
+          else                                         data.cell.styles.textColor = [22, 163, 74];
+          data.cell.styles.fontStyle = 'bold';
+        }
+        // Fila completa con fondo suave según alerta
+        if (data.section === 'body' && data.row.index % 2 === 0) return;
+        if (data.section === 'body') {
+          const nivelCell = data.row.cells[8];
+          if (!nivelCell) return;
+          const nivel = String(nivelCell.raw);
+          if (nivel === STOCK_LEVELS.danger.label)       data.cell.styles.fillColor = [255, 245, 245];
+          else if (nivel === STOCK_LEVELS.warning.label) data.cell.styles.fillColor = [255, 251, 235];
+        }
+      },
+      didDrawPage: () => { drawPage(); },
+    });
+
+    doc.save(`stock-odoo-${new Date().toISOString().slice(0,10)}.pdf`);
+  };
+
   const hasFilters = filtroEmpresas.size > 0 || filtroProductos.size > 0 ||
                      filtroColores.size > 0 || filtroTallas.size > 0 ||
                      filtroStock !== 'todos' || filtroAlerta !== 'todos';
@@ -235,14 +410,36 @@ export default function OdooStock() {
               : 'Sin datos'}
           </p>
         </div>
-        <button
-          onClick={load}
-          disabled={loading}
-          className="btn-secondary flex items-center gap-1.5 disabled:opacity-50"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-          {loading ? 'Cargando…' : 'Actualizar'}
-        </button>
+        <div className="flex items-center gap-2">
+          {filtered.length > 0 && (
+            <>
+              <button
+                onClick={exportarExcel}
+                className="btn-secondary flex items-center gap-1.5"
+                title="Exportar a Excel"
+              >
+                <FileSpreadsheet className="h-3.5 w-3.5 text-green-700" />
+                Excel
+              </button>
+              <button
+                onClick={exportarPDF}
+                className="btn-secondary flex items-center gap-1.5"
+                title="Exportar a PDF"
+              >
+                <FileText className="h-3.5 w-3.5 text-red-600" />
+                PDF
+              </button>
+            </>
+          )}
+          <button
+            onClick={load}
+            disabled={loading}
+            className="btn-secondary flex items-center gap-1.5 disabled:opacity-50"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+            {loading ? 'Cargando…' : 'Actualizar'}
+          </button>
+        </div>
       </div>
 
       {/* Error */}
