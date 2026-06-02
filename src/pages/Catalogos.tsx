@@ -93,6 +93,8 @@ export function Catalogos() {
   // --- Tarifas ---
   const [showTarifaForm, setShowTarifaForm] = useState(false);
   const [tarifaForm, setTarifaForm] = useState({ productoId: '', orden: '1', operacion: '', tarifa: '0', notas: '' });
+  const [showInlineProdForm, setShowInlineProdForm] = useState(false);
+  const [inlineProdForm, setInlineProdForm] = useState({ nombre: '', marca: '', notas: '' });
 
   const handleAddTarifa = (e: React.FormEvent) => {
     e.preventDefault();
@@ -111,6 +113,17 @@ export function Catalogos() {
     addToast('Tarifa agregada', 'success');
     setShowTarifaForm(false);
     setTarifaForm({ productoId: '', orden: '1', operacion: '', tarifa: '0', notas: '' });
+  };
+
+  const handleAddInlineProd = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inlineProdForm.nombre) { addToast('Nombre requerido', 'error'); return; }
+    const newId = uid();
+    addProducto({ id: newId, nombre: inlineProdForm.nombre, marca: inlineProdForm.marca || undefined, costoMoTotal: 0, precioServicio: 0, notas: inlineProdForm.notas });
+    setTarifaForm(f => ({ ...f, productoId: newId }));
+    addToast('Producto agregado', 'success');
+    setShowInlineProdForm(false);
+    setInlineProdForm({ nombre: '', marca: '', notas: '' });
   };
 
   // --- Operarios ---
@@ -772,10 +785,44 @@ export function Catalogos() {
                 </div>
                 <form onSubmit={handleAddTarifa} className="p-6 space-y-4">
                   <F label="Producto">
-                    <select value={tarifaForm.productoId} onChange={e => setTarifaForm(f => ({ ...f, productoId: e.target.value }))} className="input-base" required>
-                      <option value="">Seleccionar...</option>
-                      {productos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-                    </select>
+                    <div className="flex gap-2 items-center">
+                      <select value={tarifaForm.productoId} onChange={e => setTarifaForm(f => ({ ...f, productoId: e.target.value }))} className="input-base flex-1" required>
+                        <option value="">Seleccionar...</option>
+                        {productos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                      </select>
+                      <button
+                        type="button"
+                        title="Nuevo producto"
+                        onClick={() => setShowInlineProdForm(v => !v)}
+                        className="flex-shrink-0 w-7 h-7 flex items-center justify-center border border-[#DDD8CF] bg-[#F5F2EA] hover:bg-[#173A25] hover:text-white hover:border-[#173A25] text-[#7A6F67] transition-colors"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    {showInlineProdForm && (
+                      <form onSubmit={handleAddInlineProd} className="mt-2 border border-[#DDD8CF] bg-[#F5F2EA] p-3 space-y-2">
+                        <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-[#7A6F67] mb-1">Nuevo producto</p>
+                        <input
+                          type="text"
+                          placeholder="Nombre *"
+                          value={inlineProdForm.nombre}
+                          onChange={e => setInlineProdForm(f => ({ ...f, nombre: e.target.value }))}
+                          className="input-base text-xs w-full"
+                          required
+                        />
+                        <input
+                          type="text"
+                          placeholder="Marca"
+                          value={inlineProdForm.marca}
+                          onChange={e => setInlineProdForm(f => ({ ...f, marca: e.target.value }))}
+                          className="input-base text-xs w-full"
+                        />
+                        <div className="flex gap-2 justify-end">
+                          <button type="button" onClick={() => setShowInlineProdForm(false)} className="btn-secondary text-xs py-1 px-3">Cancelar</button>
+                          <button type="submit" className="btn-primary text-xs py-1 px-3">Crear y seleccionar</button>
+                        </div>
+                      </form>
+                    )}
                   </F>
                   <F label="Orden"><input type="number" min={1} value={tarifaForm.orden} onChange={e => setTarifaForm(f => ({ ...f, orden: e.target.value }))} className="input-base" /></F>
                   <F label="Operación"><input type="text" value={tarifaForm.operacion} onChange={e => setTarifaForm(f => ({ ...f, operacion: e.target.value }))} className="input-base" placeholder="Ej: COSTURA PRINCIPAL" required /></F>
