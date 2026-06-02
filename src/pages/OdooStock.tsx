@@ -233,77 +233,107 @@ export default function OdooStock() {
     const criticos       = filtered.reduce((s, p) => s + p.variantes.filter(v => getStockLevel(v.stock).label === STOCK_LEVELS.danger.label).length, 0);
     const porAcabar      = filtered.reduce((s, p) => s + p.variantes.filter(v => getStockLevel(v.stock).label === STOCK_LEVELS.warning.label).length, 0);
 
+    // Colores Texajo
+    const C = {
+      darkGreen:  [23,  58,  37]  as [number,number,number],
+      copper:     [182, 111, 53]  as [number,number,number],
+      cream:      [245, 242, 234] as [number,number,number],
+      border:     [221, 216, 207] as [number,number,number],
+      muted:      [122, 111, 103] as [number,number,number],
+      ink:        [30,  25,  20]  as [number,number,number],
+      danger:     [185, 28,  28]  as [number,number,number],
+      warning:    [161, 98,  7]   as [number,number,number],
+      ok:         [21,  128, 61]  as [number,number,number],
+      rowAlt:     [249, 247, 243] as [number,number,number],
+    };
+
     const drawPage = () => {
-      // Franja superior verde oscuro
-      doc.setFillColor(23, 58, 37);
-      doc.rect(0, 0, W, 22, 'F');
+      // Fondo blanco
+      doc.setFillColor(255, 255, 255);
+      doc.rect(0, 0, W, H, 'F');
 
-      // Acento cobre
-      doc.setFillColor(182, 111, 53);
-      doc.rect(0, 22, W, 1.2, 'F');
+      // Línea cobre fina en la parte superior (2 px)
+      doc.setFillColor(...C.copper);
+      doc.rect(0, 0, W, 1, 'F');
 
-      // Título
-      doc.setTextColor(245, 242, 234);
-      doc.setFontSize(14);
+      // Título — texto oscuro, sin fondo de color
+      doc.setTextColor(...C.darkGreen);
+      doc.setFontSize(11);
       doc.setFont('helvetica', 'bold');
-      doc.text('REPORTE DE STOCK ODOO', 14, 13);
+      doc.text('Stock Odoo', 14, 11);
 
-      // Subtítulo derecha
-      doc.setFontSize(7.5);
+      // Subtítulo
       doc.setFont('helvetica', 'normal');
-      doc.setTextColor(210, 200, 185);
-      doc.text(`Generado: ${fecha}  ·  ${hora}`, W - 14, 10, { align: 'right' });
-
-      // Filtros activos
-      const filtrosTexto = activeChips.length > 0
-        ? 'Filtros: ' + activeChips.map(c => c.label).join('  ·  ')
-        : 'Sin filtros aplicados';
-      doc.text(filtrosTexto, W - 14, 17, { align: 'right' });
-
-      // Footer
-      doc.setFillColor(245, 242, 234);
-      doc.rect(0, H - 10, W, 10, 'F');
-      doc.setDrawColor(221, 216, 207);
-      doc.setLineWidth(0.3);
-      doc.line(0, H - 10, W, H - 10);
-      doc.setTextColor(122, 111, 103);
       doc.setFontSize(7);
+      doc.setTextColor(...C.muted);
+      doc.text('Texajo — Sistema de Gestión Textil', 14, 16);
+
+      // Fecha y filtros a la derecha
+      doc.setTextColor(...C.muted);
+      doc.setFontSize(7);
+      doc.text(`${fecha}  ·  ${hora}`, W - 14, 11, { align: 'right' });
+      const filtrosTexto = activeChips.length > 0
+        ? activeChips.map(c => c.label).join('  ·  ')
+        : 'Sin filtros';
+      doc.text(filtrosTexto, W - 14, 16, { align: 'right' });
+
+      // Línea separadora bajo el header
+      doc.setDrawColor(...C.border);
+      doc.setLineWidth(0.3);
+      doc.line(14, 20, W - 14, 20);
+
+      // Footer — solo línea y texto pequeño
+      doc.setDrawColor(...C.border);
+      doc.line(14, H - 8, W - 14, H - 8);
+      doc.setTextColor(...C.muted);
+      doc.setFontSize(6.5);
       doc.setFont('helvetica', 'normal');
-      doc.text('Texajo — Sistema de Gestión Textil', 14, H - 4);
-      doc.text(`Pág. ${(doc as jsPDF & { internal: { getCurrentPageInfo(): { pageNumber: number } } }).internal.getCurrentPageInfo().pageNumber}`, W - 14, H - 4, { align: 'right' });
+      doc.text('Texajo', 14, H - 4);
+      const pageInfo = (doc as jsPDF & { internal: { getCurrentPageInfo(): { pageNumber: number } } })
+        .internal.getCurrentPageInfo();
+      doc.text(`${pageInfo.pageNumber}`, W - 14, H - 4, { align: 'right' });
     };
 
     drawPage();
 
-    // ── Tarjetas de resumen ──────────────────────────────────────────────────
-    const cards = [
-      { label: 'Productos',  value: String(filtered.length),    bg: [23, 58, 37]   as [number,number,number], fg: [245,242,234] as [number,number,number] },
-      { label: 'Variantes',  value: String(totalVariantes),     bg: [50, 80, 60]   as [number,number,number], fg: [245,242,234] as [number,number,number] },
-      { label: 'Total uds',  value: totalStock.toFixed(0),      bg: [182,111,53]   as [number,number,number], fg: [245,242,234] as [number,number,number] },
-      { label: 'Críticos',   value: String(criticos),           bg: [220, 38, 38]  as [number,number,number], fg: [255,255,255] as [number,number,number] },
-      { label: 'Por acabar', value: String(porAcabar),          bg: [202,138,4]    as [number,number,number], fg: [255,255,255] as [number,number,number] },
+    // ── Resumen en una línea de métricas ─────────────────────────────────────
+    const metrics = [
+      { label: 'Productos',  value: String(filtered.length) },
+      { label: 'Variantes',  value: String(totalVariantes) },
+      { label: 'Total uds',  value: totalStock.toFixed(0) },
+      { label: 'Críticos',   value: String(criticos),  color: C.danger },
+      { label: 'Por acabar', value: String(porAcabar), color: C.warning },
     ];
-    const cardW = 36, cardH = 14, cardGap = 4;
-    const cardsTotal = cards.length * cardW + (cards.length - 1) * cardGap;
-    let cx = (W - cardsTotal) / 2;
-    const cy = 27;
-
-    cards.forEach(card => {
-      doc.setFillColor(...card.bg);
-      doc.roundedRect(cx, cy, cardW, cardH, 2, 2, 'F');
-      doc.setTextColor(...card.fg);
-      doc.setFontSize(14);
+    let mx = 14;
+    const my = 26;
+    metrics.forEach((m, i) => {
+      // Separador
+      if (i > 0) {
+        doc.setDrawColor(...C.border);
+        doc.setLineWidth(0.25);
+        doc.line(mx, my - 1, mx, my + 8);
+        mx += 4;
+      }
+      // Número grande
+      doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
-      doc.text(card.value, cx + cardW / 2, cy + 8.5, { align: 'center' });
-      doc.setFontSize(6.5);
+      doc.setTextColor(...(m.color ?? C.darkGreen));
+      doc.text(m.value, mx, my + 6);
+      // Label debajo
+      doc.setFontSize(6);
       doc.setFont('helvetica', 'normal');
-      doc.setTextColor(...card.fg);
-      doc.text(card.label.toUpperCase(), cx + cardW / 2, cy + 12.5, { align: 'center' });
-      cx += cardW + cardGap;
+      doc.setTextColor(...C.muted);
+      doc.text(m.label.toUpperCase(), mx, my + 10);
+      mx += Math.max(doc.getTextWidth(m.value) + 2, 22);
     });
 
+    // Línea bajo las métricas
+    doc.setDrawColor(...C.border);
+    doc.setLineWidth(0.3);
+    doc.line(14, my + 13, W - 14, my + 13);
+
     // ── Tabla ────────────────────────────────────────────────────────────────
-    const head = [['EMPRESA','PRODUCTO','SKU','COLOR','TALLA','STOCK','RESERVADO','DISPONIBLE','NIVEL DE ALERTA']];
+    const head = [['Empresa', 'Producto', 'SKU', 'Color', 'Talla', 'Stock', 'Reservado', 'Disponible', 'Alerta']];
     const body = filtered.flatMap(prod =>
       prod.variantes.map(v => [
         prod.empresa,
@@ -321,48 +351,48 @@ export default function OdooStock() {
     autoTable(doc, {
       head,
       body,
-      startY: cy + cardH + 5,
+      startY: my + 16,
       margin: { left: 14, right: 14, bottom: 14 },
       styles: {
         fontSize: 7,
         cellPadding: { top: 2.5, bottom: 2.5, left: 3, right: 3 },
-        textColor: [30, 25, 20],
-        lineColor: [221, 216, 207],
-        lineWidth: 0.2,
+        textColor: C.ink,
+        lineColor: C.border,
+        lineWidth: 0.15,
+        font: 'helvetica',
       },
       headStyles: {
-        fillColor: [23, 58, 37],
-        textColor: [245, 242, 234],
+        fillColor: [245, 242, 234],
+        textColor: C.muted,
         fontStyle: 'bold',
         fontSize: 6.5,
+        lineColor: C.border,
+        lineWidth: 0.3,
         cellPadding: { top: 3, bottom: 3, left: 3, right: 3 },
       },
-      alternateRowStyles: { fillColor: [248, 246, 241] },
+      alternateRowStyles: { fillColor: C.rowAlt },
       columnStyles: {
-        0: { cellWidth: 28 },
-        1: { cellWidth: 48 },
-        2: { cellWidth: 24, font: 'courier', textColor: [90, 80, 72] },
-        5: { cellWidth: 18, halign: 'right', fontStyle: 'bold' },
-        6: { cellWidth: 22, halign: 'right', textColor: [122, 111, 103] },
-        7: { cellWidth: 24, halign: 'right', fontStyle: 'bold' },
-        8: { cellWidth: 30 },
+        0: { cellWidth: 26, textColor: C.muted },
+        1: { cellWidth: 52 },
+        2: { cellWidth: 26, textColor: C.muted },
+        3: { cellWidth: 'auto' },
+        4: { cellWidth: 16, halign: 'center' },
+        5: { cellWidth: 16, halign: 'right', fontStyle: 'bold' },
+        6: { cellWidth: 20, halign: 'right', textColor: C.muted },
+        7: { cellWidth: 20, halign: 'right', fontStyle: 'bold' },
+        8: { cellWidth: 26 },
       },
       didParseCell: (data) => {
-        if (data.section === 'body' && data.column.index === 8) {
-          const val = String(data.cell.raw);
-          if (val === STOCK_LEVELS.danger.label)       data.cell.styles.textColor = [220, 38, 38];
-          else if (val === STOCK_LEVELS.warning.label) data.cell.styles.textColor = [180, 120, 0];
-          else                                         data.cell.styles.textColor = [22, 163, 74];
+        if (data.section !== 'body' || data.column.index !== 8) return;
+        const val = String(data.cell.raw);
+        if (val === STOCK_LEVELS.danger.label) {
+          data.cell.styles.textColor = C.danger;
           data.cell.styles.fontStyle = 'bold';
-        }
-        // Fila completa con fondo suave según alerta
-        if (data.section === 'body' && data.row.index % 2 === 0) return;
-        if (data.section === 'body') {
-          const nivelCell = data.row.cells[8];
-          if (!nivelCell) return;
-          const nivel = String(nivelCell.raw);
-          if (nivel === STOCK_LEVELS.danger.label)       data.cell.styles.fillColor = [255, 245, 245];
-          else if (nivel === STOCK_LEVELS.warning.label) data.cell.styles.fillColor = [255, 251, 235];
+        } else if (val === STOCK_LEVELS.warning.label) {
+          data.cell.styles.textColor = C.warning;
+          data.cell.styles.fontStyle = 'bold';
+        } else {
+          data.cell.styles.textColor = C.ok;
         }
       },
       didDrawPage: () => { drawPage(); },
