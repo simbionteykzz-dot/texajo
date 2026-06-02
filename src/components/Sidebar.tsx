@@ -2,13 +2,14 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, PackageSearch, Receipt, Factory,
   Scissors, Settings, Tag, CreditCard, ClipboardList,
-  PanelLeftClose, PanelLeftOpen, LogOut, X, Layers, Zap, Shield, History, TableProperties,
+  PanelLeftClose, PanelLeftOpen, LogOut, X, Layers, Zap, Shield, History, TableProperties, Warehouse,
 } from 'lucide-react';
 import logoDashboard from '../assets/branding/logo-dashboard.png';
 import type { PermisosRol } from '../lib/usePermisos';
 
 const NAV_ITEMS = [
   { key: 'dashboard',     name: 'Dashboard',        href: '/',            icon: LayoutDashboard },
+  { key: 'stock_odoo',    name: 'Stock Odoo',       href: '/stock-odoo',  icon: Warehouse },
   { key: 'inventario',    name: 'Inventario',        href: '/inventario',  icon: PackageSearch },
   { key: 'cortes',        name: 'Cortes',            href: '/cortes',      icon: Scissors },
   { key: 'produccion',    name: 'Confeccion',        href: '/produccion',  icon: ClipboardList },

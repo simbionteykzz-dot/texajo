@@ -13,6 +13,7 @@ export const SECCIONES = [
   { key: 'catalogos',    label: 'Catalogos',          href: '/catalogos' },
   { key: 'panel',        label: 'Panel Operativo',    href: '/panel' },
   { key: 'tarifas',      label: 'Tabla de Tarifas',   href: '/tarifas' },
+  { key: 'stock_odoo',   label: 'Stock Odoo',         href: '/stock-odoo' },
   { key: 'configuracion',label: 'Configuracion',      href: '/configuracion' },
 ] as const;
 
@@ -36,6 +37,7 @@ const DEFAULT_PERMISOS_SUPERVISOR: PermisosRol = {
   catalogos: false,
   panel: true,
   tarifas: true,
+  stock_odoo: true,
   configuracion: false,
 };
 
@@ -51,6 +53,7 @@ const DEFAULT_PERMISOS_ENCARGADO: PermisosRol = {
   catalogos: false,
   panel: true,
   tarifas: false,
+  stock_odoo: false,
   configuracion: false,
 };
 

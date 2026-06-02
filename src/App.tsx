@@ -19,6 +19,7 @@ import { PanelOperativo } from './pages/PanelOperativo';
 import { PanelAdmin } from './pages/PanelAdmin';
 import { HistorialGeneral } from './pages/HistorialGeneral';
 import { TablaTarifas } from './pages/TablaTarifas';
+import OdooStock from './pages/OdooStock';
 import { supabase } from './lib/supabase';
 import { useAuthUser } from './lib/useAuthUser';
 import { usePermisos, permisosParaRol } from './lib/usePermisos';
@@ -175,6 +176,7 @@ export default function App() {
                     <Route path="/configuracion" element={<Configuracion />} />
                     <Route path="/panel" element={<PanelOperativo />} />
                     <Route path="/tarifas" element={<TablaTarifas />} />
+                    <Route path="/stock-odoo" element={<OdooStock />} />
                     {esAdmin && <Route path="/admin" element={<PanelAdmin />} />}
                     {esSuperAdmin && <Route path="/historial" element={<HistorialGeneral />} />}
                   </Routes>

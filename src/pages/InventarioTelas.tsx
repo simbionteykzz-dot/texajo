@@ -7,7 +7,6 @@ import { Download, Plus, X, FileText, Trash2 } from 'lucide-react';
 import { TipoMovimientoTela, CategoriaColor } from '../types';
 import { ModuleInfoBox } from '../components/ModuleInfoBox';
 import { exportRowsToXlsx, exportTableToPdf } from '../lib/export';
-
 type InvTab = 'movimientos' | 'matriz' | 'criticos' | 'historico';
 
 const TIPOS: TipoMovimientoTela[] = ['INGRESO', 'A_CORTE', 'A_REPROCESO', 'DE_REPROCESO', 'MUESTRA', 'AJUSTE_POS', 'AJUSTE_NEG'];
@@ -598,7 +597,7 @@ export function InventarioTelas() {
         </div>
       )}
 
-      {/* Modal / form */}
+{/* Modal / form */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white border border-gray-300 w-full max-w-lg max-h-[90vh] overflow-y-auto">
