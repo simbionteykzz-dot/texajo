@@ -248,11 +248,7 @@ export default function OdooStock() {
     };
 
     const drawPage = () => {
-      // Fondo blanco
-      doc.setFillColor(255, 255, 255);
-      doc.rect(0, 0, W, H, 'F');
-
-      // Línea cobre fina en la parte superior (2 px)
+      // Línea cobre fina en la parte superior (1 mm)
       doc.setFillColor(...C.copper);
       doc.rect(0, 0, W, 1, 'F');
 
