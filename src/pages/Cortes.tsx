@@ -74,11 +74,16 @@ export function Cortes() {
   const colorMap = useMemo(() => new Map(colores.map(c => [c.id, c.nombre])), [colores]);
   const telaMap = useMemo(() => new Map(telas.map(t => [t.id, t])), [telas]);
 
-  // Stock actual de telas para el movimiento A_CORTE
+  // Stock actual de telas: suma/resta deltas de todos los movimientos (no depende de stockRollosDespues)
   const stockActualTelas = useMemo(() => {
+    const POSITIVOS = ['INGRESO', 'DE_REPROCESO', 'AJUSTE_POS'];
+    const NEGATIVOS = ['A_CORTE', 'A_REPROCESO', 'MUESTRA', 'AJUSTE_NEG'];
     const map = new Map<string, number>();
-    for (const m of [...movimientosTela].sort((a, b) => a.fecha.localeCompare(b.fecha))) {
-      map.set(`${m.telaId}|${m.colorId}`, m.stockRollosDespues);
+    for (const m of movimientosTela) {
+      const key = `${m.telaId}|${m.colorId}`;
+      const prev = map.get(key) ?? 0;
+      const delta = POSITIVOS.includes(m.tipo) ? m.rollos : NEGATIVOS.includes(m.tipo) ? -m.rollos : 0;
+      map.set(key, prev + delta);
     }
     return map;
   }, [movimientosTela]);
@@ -182,7 +187,25 @@ export function Cortes() {
   // Descuenta inventario automáticamente al completar un corte
   const descontarInventario = (corte: Corte): boolean => {
     if (!corte.telaId || !corte.colorId) return true;
-    const key = `${corte.telaId}|${corte.colorId}`;
+    // Normalizar colorId: si no existe como ID canónico, buscar por nombre
+    let colorId = corte.colorId;
+    if (!colores.find(c => c.id === colorId)) {
+      const byName = colores.find(c => c.nombre.toLowerCase() === colorId.toLowerCase());
+      if (byName) {
+        colorId = byName.id;
+        updateCorte(corte.id, { colorId });
+      }
+    }
+    // Normalizar telaId: si no existe como ID canónico, buscar por nombre
+    let telaId = corte.telaId;
+    if (!telas.find(t => t.id === telaId)) {
+      const byName = telas.find(t => t.nombre.toLowerCase() === (telaId ?? '').toLowerCase());
+      if (byName) {
+        telaId = byName.id;
+        updateCorte(corte.id, { telaId });
+      }
+    }
+    const key = `${telaId}|${colorId}`;
     const stockAntes = stockActualTelas.get(key) ?? 0;
     const rollos = corte.rollosUsados || 0;
     const stockDespues = stockAntes - rollos;
