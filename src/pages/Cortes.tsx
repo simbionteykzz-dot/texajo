@@ -223,34 +223,6 @@ export function Cortes() {
       return;
     }
 
-    // Validar stock disponible antes de guardar (descontando cortes EN_PROCESO pendientes)
-    if (form.telaId) {
-      // Rollos ya comprometidos por cortes EN_PROCESO que aún no se han completado
-      const comprometidos = new Map<string, number>();
-      for (const c of cortes) {
-        if (c.estado === 'EN_PROCESO' && c.telaId === form.telaId) {
-          const k = `${c.telaId}|${c.colorId}`;
-          comprometidos.set(k, (comprometidos.get(k) ?? 0) + c.rollosUsados);
-        }
-      }
-
-      for (const det of coloresValidos) {
-        const rollosSolicitados = parseFloat(det.rollosUsados) || 0;
-        if (rollosSolicitados === 0) continue;
-        const key = `${form.telaId}|${det.colorId}`;
-        const stockBase = stockActualTelas.get(key) ?? 0;
-        const stockComprometido = comprometidos.get(key) ?? 0;
-        const stockDisponible = stockBase - stockComprometido;
-        if (rollosSolicitados > stockDisponible) {
-          const colorNombre = colores.find(c => c.id === det.colorId)?.nombre ?? det.colorId;
-          addToast(
-            `Stock insuficiente para color ${colorNombre}: se necesitan ${rollosSolicitados} rollos, disponibles ${stockDisponible} (stock ${stockBase} − ${stockComprometido} comprometidos)`,
-            'error'
-          );
-          return;
-        }
-      }
-    }
 
     coloresValidos.forEach((det, idx) => {
       const sufijo = coloresValidos.length > 1 ? `-${String.fromCharCode(65 + idx)}` : '';
