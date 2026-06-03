@@ -401,7 +401,7 @@ export function Cortes() {
           <table className="min-w-full text-xs">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
-                {['N° Corte', 'Fecha', 'Cliente', 'Producto', 'Color', 'Prendas', 'Kg', 'Costo MO', 'Estado', 'Pago Cli.', 'Planilla', 'Acciones'].map(h => (
+                {['N° Corte', 'Fecha', 'Cliente', 'Producto', 'Color', 'Prendas', 'Kg', 'Rollos', 'Costo MO', 'Estado', 'Pago Cli.', 'Planilla', 'Acciones'].map(h => (
                   <th key={h} className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -416,6 +416,11 @@ export function Cortes() {
                   <td className="px-3 py-2 whitespace-nowrap">{colorMap.get(c.colorId) ?? c.colorId}</td>
                   <td className="px-3 py-2 font-mono text-right">{c.totalPrendas}</td>
                   <td className="px-3 py-2 font-mono text-right">{c.kgUsados.toFixed(1)}</td>
+                  <td className="px-3 py-2 font-mono text-right">
+                    {c.telaId && c.rollosUsados === 0
+                      ? <span className="text-orange-500 font-bold" title="Sin rollos — no descontará inventario">0 ⚠</span>
+                      : c.rollosUsados || '—'}
+                  </td>
                   <td className="px-3 py-2 font-mono text-right text-xs">
                     {c.costoMoCorte > 0 ? `S/ ${c.costoMoCorte.toFixed(2)}` : '—'}
                   </td>
@@ -491,7 +496,7 @@ export function Cortes() {
             </tbody>
             <tfoot>
               <tr className="border-t-2 border-gray-300 bg-gray-50">
-                <td colSpan={7} className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">Total</td>
+                <td colSpan={8} className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">Total</td>
                 <td className="px-3 py-2 font-mono text-right text-xs font-bold">
                   S/ {cortesFiltrados.reduce((s, c) => s + c.costoMoCorte, 0).toFixed(2)}
                 </td>
@@ -749,7 +754,14 @@ export function Cortes() {
                               <input type="number" min={0} step={0.1} value={det.kgUsados} onChange={setDet('kgUsados')} className="input-base text-xs py-1 text-right w-full min-w-[52px]" placeholder="0" />
                             </td>
                             <td className="px-2 py-1">
-                              <input type="number" min={0} step={0.5} value={det.rollosUsados} onChange={setDet('rollosUsados')} className="input-base text-xs py-1 text-right w-full min-w-[52px]" placeholder="0" />
+                              <input
+                                type="number" min={0} step={0.5}
+                                value={det.rollosUsados}
+                                onChange={setDet('rollosUsados')}
+                                className={`input-base text-xs py-1 text-right w-full min-w-[52px] ${form.telaId && !parseFloat(det.rollosUsados) ? 'border-orange-400 bg-orange-50' : ''}`}
+                                placeholder={form.telaId ? 'Requerido' : '0'}
+                                required={!!form.telaId}
+                              />
                             </td>
                             <td className="px-2 py-1">
                               <input type="number" min={0} value={det.tendidas} onChange={setDet('tendidas')} className="input-base text-xs py-1 text-center w-full min-w-[52px]" placeholder="0" />
