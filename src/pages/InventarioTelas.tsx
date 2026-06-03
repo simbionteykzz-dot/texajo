@@ -43,6 +43,7 @@ export function InventarioTelas() {
   const [segmentMode, setSegmentMode] = useState<SegmentMode>('ninguno');
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<InvTab>('movimientos');
+  const [filterTipo, setFilterTipo] = useState<TipoMovimientoTela | ''>('');
 
   const telaMap = useMemo(() => new Map(telas.map(t => [t.id, t])), [telas]);
   const colorMap = useMemo(() => new Map(colores.map(c => [c.id, c])), [colores]);
@@ -107,9 +108,13 @@ export function InventarioTelas() {
 
   const movsFiltrados = useMemo(() => {
     return [...movimientosTela]
-      .filter(m => (!filterTela || m.telaId === filterTela) && (!filterColor || m.colorId === filterColor))
+      .filter(m =>
+        (!filterTela || m.telaId === filterTela) &&
+        (!filterColor || m.colorId === filterColor) &&
+        (!filterTipo || m.tipo === filterTipo)
+      )
       .sort((a, b) => b.fecha.localeCompare(a.fecha));
-  }, [movimientosTela, filterTela, filterColor]);
+  }, [movimientosTela, filterTela, filterColor, filterTipo]);
 
   // Segmentación: agrupa movsFiltrados por tipo o por tela
   const segmentGroups = useMemo(() => {
@@ -387,6 +392,26 @@ export function InventarioTelas() {
             })()}
           </div>
         )}
+      </div>
+
+      {/* Subtabs por tipo de movimiento */}
+      <div className="flex flex-wrap gap-1 border-b border-gray-100 mb-2">
+        {([['', 'General'], ...TIPOS.map(t => [t, TIPO_LABEL[t]])] as [string, string][]).map(([val, label]) => {
+          const count = val === '' ? movimientosTela.length : movimientosTela.filter(m => m.tipo === val).length;
+          return (
+            <button
+              key={val}
+              onClick={() => setFilterTipo(val as TipoMovimientoTela | '')}
+              className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 border-b-2 transition-colors ${
+                filterTipo === val
+                  ? 'border-[#B66F35] text-[#B66F35]'
+                  : 'border-transparent text-gray-400 hover:text-gray-600'
+              }`}
+            >
+              {label} <span className="font-normal opacity-60">({count})</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Filtros + segmentación + tabla */}

@@ -26,9 +26,10 @@ export function ProduccionConfeccion() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [filtroProductoId, setFiltroProductoId] = useState('');
 
+  type FilaRow = { talla: 'S' | 'M' | 'L' | 'XL'; cantidad: string };
   const [form, setForm] = useState({
-    corteId: '', talla: 'M' as 'S' | 'M' | 'L' | 'XL',
-    cantidad: '', fecha: new Date().toISOString().slice(0, 10),
+    corteId: '', fecha: new Date().toISOString().slice(0, 10),
+    filas: [{ talla: 'M' as 'S' | 'M' | 'L' | 'XL', cantidad: '' }] as FilaRow[],
   });
 
   const productoMap = useMemo(() => new Map(productos.map(p => [p.id, p])), [productos]);
@@ -80,33 +81,32 @@ export function ProduccionConfeccion() {
   const handleAddFila = (e: React.FormEvent) => {
     e.preventDefault();
     const corte = corteMap.get(form.corteId);
-    if (!corte || !form.cantidad) {
-      addToast('Selecciona corte y cantidad', 'error');
-      return;
-    }
+    if (!corte) { addToast('Selecciona un corte', 'error'); return; }
+    const filasValidas = form.filas.filter(f => f.cantidad && parseInt(f.cantidad) > 0);
+    if (filasValidas.length === 0) { addToast('Ingresa al menos una talla con cantidad', 'error'); return; }
     const tarifas = tarifasDelCorte(form.corteId);
-    const asignaciones: SeguimientoAsignacion[] = tarifas.map(t => ({
-      tarifaId: t.id, operacion: t.operacion, orden: t.orden, operarioId: '', pago: 0,
-    }));
-
-    const fila: SeguimientoFila = {
-      id: uid(),
-      corteId: form.corteId,
-      nCorte: corte.nCorte,
-      productoId: corte.productoId,
-      fecha: form.fecha,
-      colorId: corte.colorId,
-      talla: form.talla,
-      cantidad: parseInt(form.cantidad),
-      asignaciones,
-      pctAvance: 0,
-      estado: 'PENDIENTE',
-      totalPago: 0,
-    };
-    addSeguimientoFila(fila);
-    addToast('Fila de seguimiento creada', 'success');
+    for (const row of filasValidas) {
+      const asignaciones: SeguimientoAsignacion[] = tarifas.map(t => ({
+        tarifaId: t.id, operacion: t.operacion, orden: t.orden, operarioId: '', pago: 0,
+      }));
+      addSeguimientoFila({
+        id: uid(),
+        corteId: form.corteId,
+        nCorte: corte.nCorte,
+        productoId: corte.productoId,
+        fecha: form.fecha,
+        colorId: corte.colorId,
+        talla: row.talla,
+        cantidad: parseInt(row.cantidad),
+        asignaciones,
+        pctAvance: 0,
+        estado: 'PENDIENTE',
+        totalPago: 0,
+      });
+    }
+    addToast(`${filasValidas.length} fila${filasValidas.length > 1 ? 's' : ''} de seguimiento creada${filasValidas.length > 1 ? 's' : ''}`, 'success');
     setShowForm(false);
-    setForm({ corteId: '', talla: 'M', cantidad: '', fecha: new Date().toISOString().slice(0, 10) });
+    setForm({ corteId: '', fecha: new Date().toISOString().slice(0, 10), filas: [{ talla: 'M', cantidad: '' }] });
   };
 
   const handleAsignarOperario = (filaId: string, tarifaId: string, operarioId: string) => {
@@ -500,19 +500,45 @@ export function ProduccionConfeccion() {
                   ))}
                 </select>
               </F>
-              <div className="grid grid-cols-2 gap-4">
-                <F label="Talla">
-                  <select value={form.talla} onChange={e => setForm(f => ({ ...f, talla: e.target.value as 'S'|'M'|'L'|'XL' }))} className="input-base">
-                    {['S', 'M', 'L', 'XL'].map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                </F>
-                <F label="Cantidad">
-                  <input type="number" min={1} value={form.cantidad} onChange={e => setForm(f => ({ ...f, cantidad: e.target.value }))} className="input-base" required />
-                </F>
-              </div>
               <F label="Fecha">
                 <input type="date" value={form.fecha} onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))} className="input-base" />
               </F>
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500">Tallas y Cantidades</label>
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, filas: [...f.filas, { talla: 'M', cantidad: '' }] }))}
+                    className="text-[10px] font-bold uppercase tracking-widest text-[#B66F35] hover:underline flex items-center gap-1"
+                  >
+                    <Plus className="h-3 w-3" /> Agregar talla
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {form.filas.map((row, i) => (
+                    <div key={i} className="flex gap-2 items-center">
+                      <select
+                        value={row.talla}
+                        onChange={e => setForm(f => { const filas = [...f.filas]; filas[i] = { ...filas[i], talla: e.target.value as 'S'|'M'|'L'|'XL' }; return { ...f, filas }; })}
+                        className="input-base w-20"
+                      >
+                        {['S', 'M', 'L', 'XL'].map(t => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                      <input
+                        type="number" min={1} placeholder="Cant."
+                        value={row.cantidad}
+                        onChange={e => setForm(f => { const filas = [...f.filas]; filas[i] = { ...filas[i], cantidad: e.target.value }; return { ...f, filas }; })}
+                        className="input-base flex-1"
+                      />
+                      {form.filas.length > 1 && (
+                        <button type="button" onClick={() => setForm(f => ({ ...f, filas: f.filas.filter((_, j) => j !== i) }))} className="text-gray-400 hover:text-red-500">
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setShowForm(false)} className="btn-secondary">Cancelar</button>
                 <button type="submit" className="btn-primary">Crear</button>
