@@ -123,6 +123,25 @@ export const mockProductos: Producto[] = [
   { id: 'PROD-BUZO-PNT',         nombre: 'Buzo Pantalón',     costoMoTotal: 1.60, precioServicio: 3.50, notas: '' },
   { id: 'PROD-CC-PIQUE',         nombre: 'Cuello Chino Piqué', costoMoTotal: 1.82, precioServicio: 4.00, notas: '' },
   { id: 'PROD-CC-WAFLE',         nombre: 'Cuello Chino Wafle', costoMoTotal: 1.82, precioServicio: 4.00, notas: 'Wafle camisa' },
+  // Productos con tarifas reales ingresadas
+  { id: 'PROD-JERSEY-MC',        nombre: 'Jersey Manga Corta',   costoMoTotal: 0.95, precioServicio: 1.70, notas: '' },
+  { id: 'PROD-JERSEY-ML',        nombre: 'Jersey Manga Larga',   costoMoTotal: 1.00, precioServicio: 2.00, notas: '' },
+  { id: 'PROD-WAFLE-CLASICO',    nombre: 'Wafle Clasico',        costoMoTotal: 0.95, precioServicio: 1.70, notas: '' },
+  { id: 'PROD-WAFLE-ML',         nombre: 'Wafle Manga Larga',    costoMoTotal: 1.00, precioServicio: 2.00, notas: '' },
+  { id: 'PROD-WAFLE-CAMISERO',   nombre: 'Wafle Camisero',       costoMoTotal: 1.96, precioServicio: 4.00, notas: '' },
+  { id: 'PROD-PIQUE-CAMISERO',   nombre: 'Pique Camisero',       costoMoTotal: 1.96, precioServicio: 4.00, notas: '' },
+  { id: 'PROD-TOP-CERO-RIB',     nombre: 'Top Cero Rib',         costoMoTotal: 0.56, precioServicio: 1.20, notas: '' },
+  { id: 'PROD-TOP-MC-RIB',       nombre: 'Top MC Rib',           costoMoTotal: 0.72, precioServicio: 1.50, notas: '' },
+  { id: 'PROD-TOP-ML-RIB',       nombre: 'Top ML Rib',           costoMoTotal: 0.77, precioServicio: 1.70, notas: '' },
+  { id: 'PROD-BABY-TY-MC2',      nombre: 'Baby Ty MC',           costoMoTotal: 0.90, precioServicio: 1.70, notas: 'baby ty mc' },
+  { id: 'PROD-BABY-TY-ML2',      nombre: 'Baby Ty ML',           costoMoTotal: 0.95, precioServicio: 1.70, notas: 'baby ty ml' },
+  { id: 'PROD-BABY-TY-CINTA-MC2',nombre: 'Baby Ty Cinta MC',     costoMoTotal: 0.72, precioServicio: 1.70, notas: 'baby ty cinta mc' },
+  { id: 'PROD-BABY-TY-CINTA-ML2',nombre: 'Baby Ty Cinta ML',     costoMoTotal: 0.77, precioServicio: 1.70, notas: 'baby ty cinta ml' },
+  { id: 'PROD-POLERA-NERU',      nombre: 'Polera Neru',          costoMoTotal: 3.15, precioServicio: 6.00, notas: '' },
+  { id: 'PROD-POLERAS-CR',       nombre: 'Poleras Cuello Redondo', costoMoTotal: 1.79, precioServicio: 3.50, notas: '' },
+  { id: 'PROD-PIQUE-CC',         nombre: 'Pique Cuello Chino',   costoMoTotal: 1.82, precioServicio: 4.00, notas: '' },
+  { id: 'PROD-WAFLE-CAMISA',     nombre: 'Wafle Camisa',         costoMoTotal: 3.35, precioServicio: 7.00, notas: '' },
+  { id: 'PROD-CUELLO-CHINO-WAFLE', nombre: 'Cuello Chino Wafle', costoMoTotal: 1.82, precioServicio: 4.00, notas: 'cuello chino wafle' },
 ];
 
 // ─── Tarifas de Operación ─────────────────────────────────────────────────
@@ -288,7 +307,7 @@ export const mockTarifasOperaciones: TarifaOperacion[] = [
   { id: 'T-CCPQ-09', productoId: 'PROD-CC-PIQUE', orden: 9,  operacion: 'Basta manga',            tarifa: 0.10, notas: '', clave: 'Cuello Chino Piqué|9' },
   { id: 'T-CCPQ-10', productoId: 'PROD-CC-PIQUE', orden: 10, operacion: 'Basta faldón',           tarifa: 0.11, notas: '', clave: 'Cuello Chino Piqué|10' },
 
-  // Cuello Chino Wafle
+  // Cuello Chino Wafle (legacy)
   { id: 'T-CCWF-01', productoId: 'PROD-CC-WAFLE', orden: 1,  operacion: 'Pegado Pechera 2pzas',   tarifa: 0.50, notas: '', clave: 'Cuello Chino Wafle|1' },
   { id: 'T-CCWF-02', productoId: 'PROD-CC-WAFLE', orden: 2,  operacion: 'Orill pechera+remallé',  tarifa: 0.10, notas: '', clave: 'Cuello Chino Wafle|2' },
   { id: 'T-CCWF-03', productoId: 'PROD-CC-WAFLE', orden: 3,  operacion: 'Despunte pechera',       tarifa: 0.10, notas: '', clave: 'Cuello Chino Wafle|3' },
@@ -299,6 +318,190 @@ export const mockTarifasOperaciones: TarifaOperacion[] = [
   { id: 'T-CCWF-08', productoId: 'PROD-CC-WAFLE', orden: 8,  operacion: 'Manga y cerrado',        tarifa: 0.30, notas: '', clave: 'Cuello Chino Wafle|8' },
   { id: 'T-CCWF-09', productoId: 'PROD-CC-WAFLE', orden: 9,  operacion: 'Basta manga',            tarifa: 0.10, notas: '', clave: 'Cuello Chino Wafle|9' },
   { id: 'T-CCWF-10', productoId: 'PROD-CC-WAFLE', orden: 10, operacion: 'Basta faldón',           tarifa: 0.11, notas: '', clave: 'Cuello Chino Wafle|10' },
+
+  // ── Tarifas reales ingresadas ────────────────────────────────────────────
+
+  // Jersey Manga Corta
+  { id: 'T-JMC-01', productoId: 'PROD-JERSEY-MC', orden: 1, operacion: 'Hombro',    tarifa: 0.10, notas: '', clave: 'Jersey Manga Corta|1' },
+  { id: 'T-JMC-02', productoId: 'PROD-JERSEY-MC', orden: 2, operacion: 'Cuello',    tarifa: 0.15, notas: '', clave: 'Jersey Manga Corta|2' },
+  { id: 'T-JMC-03', productoId: 'PROD-JERSEY-MC', orden: 3, operacion: 'Despunte',  tarifa: 0.08, notas: '', clave: 'Jersey Manga Corta|3' },
+  { id: 'T-JMC-04', productoId: 'PROD-JERSEY-MC', orden: 4, operacion: 'Tapeta',    tarifa: 0.11, notas: '', clave: 'Jersey Manga Corta|4' },
+  { id: 'T-JMC-05', productoId: 'PROD-JERSEY-MC', orden: 5, operacion: 'B. Manga',  tarifa: 0.10, notas: '', clave: 'Jersey Manga Corta|5' },
+  { id: 'T-JMC-06', productoId: 'PROD-JERSEY-MC', orden: 6, operacion: 'Manga y CC',tarifa: 0.30, notas: '', clave: 'Jersey Manga Corta|6' },
+  { id: 'T-JMC-07', productoId: 'PROD-JERSEY-MC', orden: 7, operacion: 'Faldón',    tarifa: 0.11, notas: '', clave: 'Jersey Manga Corta|7' },
+
+  // Jersey Manga Larga
+  { id: 'T-JML-01', productoId: 'PROD-JERSEY-ML', orden: 1, operacion: 'Hombro',    tarifa: 0.10, notas: '', clave: 'Jersey Manga Larga|1' },
+  { id: 'T-JML-02', productoId: 'PROD-JERSEY-ML', orden: 2, operacion: 'Cuello',    tarifa: 0.15, notas: '', clave: 'Jersey Manga Larga|2' },
+  { id: 'T-JML-03', productoId: 'PROD-JERSEY-ML', orden: 3, operacion: 'Despunte',  tarifa: 0.08, notas: '', clave: 'Jersey Manga Larga|3' },
+  { id: 'T-JML-04', productoId: 'PROD-JERSEY-ML', orden: 4, operacion: 'Tapeta',    tarifa: 0.11, notas: '', clave: 'Jersey Manga Larga|4' },
+  { id: 'T-JML-05', productoId: 'PROD-JERSEY-ML', orden: 5, operacion: 'B. Manga',  tarifa: 0.10, notas: '', clave: 'Jersey Manga Larga|5' },
+  { id: 'T-JML-06', productoId: 'PROD-JERSEY-ML', orden: 6, operacion: 'Manga y CC',tarifa: 0.35, notas: '', clave: 'Jersey Manga Larga|6' },
+  { id: 'T-JML-07', productoId: 'PROD-JERSEY-ML', orden: 7, operacion: 'Faldón',    tarifa: 0.11, notas: '', clave: 'Jersey Manga Larga|7' },
+
+  // Wafle Clasico
+  { id: 'T-WFC-01', productoId: 'PROD-WAFLE-CLASICO', orden: 1, operacion: 'Hombro',    tarifa: 0.10, notas: '', clave: 'Wafle Clasico|1' },
+  { id: 'T-WFC-02', productoId: 'PROD-WAFLE-CLASICO', orden: 2, operacion: 'Cuello',    tarifa: 0.15, notas: '', clave: 'Wafle Clasico|2' },
+  { id: 'T-WFC-03', productoId: 'PROD-WAFLE-CLASICO', orden: 3, operacion: 'Despunte',  tarifa: 0.08, notas: '', clave: 'Wafle Clasico|3' },
+  { id: 'T-WFC-04', productoId: 'PROD-WAFLE-CLASICO', orden: 4, operacion: 'Tapeta',    tarifa: 0.11, notas: '', clave: 'Wafle Clasico|4' },
+  { id: 'T-WFC-05', productoId: 'PROD-WAFLE-CLASICO', orden: 5, operacion: 'B. Manga',  tarifa: 0.10, notas: '', clave: 'Wafle Clasico|5' },
+  { id: 'T-WFC-06', productoId: 'PROD-WAFLE-CLASICO', orden: 6, operacion: 'Manga y CC',tarifa: 0.30, notas: '', clave: 'Wafle Clasico|6' },
+  { id: 'T-WFC-07', productoId: 'PROD-WAFLE-CLASICO', orden: 7, operacion: 'Faldón',    tarifa: 0.11, notas: '', clave: 'Wafle Clasico|7' },
+
+  // Wafle Manga Larga
+  { id: 'T-WFML-01', productoId: 'PROD-WAFLE-ML', orden: 1, operacion: 'Hombro',        tarifa: 0.10, notas: '', clave: 'Wafle Manga Larga|1' },
+  { id: 'T-WFML-02', productoId: 'PROD-WAFLE-ML', orden: 2, operacion: 'Cuello',        tarifa: 0.15, notas: '', clave: 'Wafle Manga Larga|2' },
+  { id: 'T-WFML-03', productoId: 'PROD-WAFLE-ML', orden: 3, operacion: 'Despunte',      tarifa: 0.08, notas: '', clave: 'Wafle Manga Larga|3' },
+  { id: 'T-WFML-04', productoId: 'PROD-WAFLE-ML', orden: 4, operacion: 'Tapeta',        tarifa: 0.11, notas: '', clave: 'Wafle Manga Larga|4' },
+  { id: 'T-WFML-05', productoId: 'PROD-WAFLE-ML', orden: 5, operacion: 'B. Manga',      tarifa: 0.10, notas: '', clave: 'Wafle Manga Larga|5' },
+  { id: 'T-WFML-06', productoId: 'PROD-WAFLE-ML', orden: 6, operacion: 'Manga y Cerrado', tarifa: 0.35, notas: '', clave: 'Wafle Manga Larga|6' },
+  { id: 'T-WFML-07', productoId: 'PROD-WAFLE-ML', orden: 7, operacion: 'Faldón',        tarifa: 0.11, notas: '', clave: 'Wafle Manga Larga|7' },
+
+  // Wafle Camisero
+  { id: 'T-WFCAM-01', productoId: 'PROD-WAFLE-CAMISERO', orden: 1, operacion: 'Bastillado de plaqueta', tarifa: 0.10, notas: '', clave: 'Wafle Camisero|1' },
+  { id: 'T-WFCAM-02', productoId: 'PROD-WAFLE-CAMISERO', orden: 2, operacion: 'Pegado de plaqueta',     tarifa: 0.20, notas: '', clave: 'Wafle Camisero|2' },
+  { id: 'T-WFCAM-03', productoId: 'PROD-WAFLE-CAMISERO', orden: 3, operacion: 'Hombro',                 tarifa: 0.10, notas: '', clave: 'Wafle Camisero|3' },
+  { id: 'T-WFCAM-04', productoId: 'PROD-WAFLE-CAMISERO', orden: 4, operacion: 'Cuello',                 tarifa: 0.20, notas: '', clave: 'Wafle Camisero|4' },
+  { id: 'T-WFCAM-05', productoId: 'PROD-WAFLE-CAMISERO', orden: 5, operacion: 'Pegado de cinta',        tarifa: 0.15, notas: '', clave: 'Wafle Camisero|5' },
+  { id: 'T-WFCAM-06', productoId: 'PROD-WAFLE-CAMISERO', orden: 6, operacion: 'Tumbado',                tarifa: 0.60, notas: '', clave: 'Wafle Camisero|6' },
+  { id: 'T-WFCAM-07', productoId: 'PROD-WAFLE-CAMISERO', orden: 7, operacion: 'Manga y cerrado',        tarifa: 0.50, notas: '', clave: 'Wafle Camisero|7' },
+  { id: 'T-WFCAM-08', productoId: 'PROD-WAFLE-CAMISERO', orden: 8, operacion: 'Faldón',                 tarifa: 0.11, notas: '', clave: 'Wafle Camisero|8' },
+
+  // Pique Camisero
+  { id: 'T-PQCAM-01', productoId: 'PROD-PIQUE-CAMISERO', orden: 1, operacion: 'Bastillado de plaqueta', tarifa: 0.10, notas: '', clave: 'Pique Camisero|1' },
+  { id: 'T-PQCAM-02', productoId: 'PROD-PIQUE-CAMISERO', orden: 2, operacion: 'Pegado de plaqueta',     tarifa: 0.20, notas: '', clave: 'Pique Camisero|2' },
+  { id: 'T-PQCAM-03', productoId: 'PROD-PIQUE-CAMISERO', orden: 3, operacion: 'Hombro',                 tarifa: 0.10, notas: '', clave: 'Pique Camisero|3' },
+  { id: 'T-PQCAM-04', productoId: 'PROD-PIQUE-CAMISERO', orden: 4, operacion: 'Cuello',                 tarifa: 0.20, notas: '', clave: 'Pique Camisero|4' },
+  { id: 'T-PQCAM-05', productoId: 'PROD-PIQUE-CAMISERO', orden: 5, operacion: 'Pegado de cinta',        tarifa: 0.15, notas: '', clave: 'Pique Camisero|5' },
+  { id: 'T-PQCAM-06', productoId: 'PROD-PIQUE-CAMISERO', orden: 6, operacion: 'Tumbado',                tarifa: 0.60, notas: '', clave: 'Pique Camisero|6' },
+  { id: 'T-PQCAM-07', productoId: 'PROD-PIQUE-CAMISERO', orden: 7, operacion: 'Manga y cerrado',        tarifa: 0.50, notas: '', clave: 'Pique Camisero|7' },
+  { id: 'T-PQCAM-08', productoId: 'PROD-PIQUE-CAMISERO', orden: 8, operacion: 'Faldón',                 tarifa: 0.11, notas: '', clave: 'Pique Camisero|8' },
+
+  // Top Cero Rib
+  { id: 'T-TCR-01', productoId: 'PROD-TOP-CERO-RIB', orden: 1, operacion: 'Hombro',  tarifa: 0.08, notas: '', clave: 'Top Cero Rib|1' },
+  { id: 'T-TCR-02', productoId: 'PROD-TOP-CERO-RIB', orden: 2, operacion: 'Cinta',   tarifa: 0.20, notas: '', clave: 'Top Cero Rib|2' },
+  { id: 'T-TCR-03', productoId: 'PROD-TOP-CERO-RIB', orden: 3, operacion: 'Atraque', tarifa: 0.05, notas: '', clave: 'Top Cero Rib|3' },
+  { id: 'T-TCR-04', productoId: 'PROD-TOP-CERO-RIB', orden: 4, operacion: 'Cerrado', tarifa: 0.15, notas: '', clave: 'Top Cero Rib|4' },
+  { id: 'T-TCR-05', productoId: 'PROD-TOP-CERO-RIB', orden: 5, operacion: 'Faldón',  tarifa: 0.08, notas: '', clave: 'Top Cero Rib|5' },
+
+  // Top MC Rib
+  { id: 'T-TMCR-01', productoId: 'PROD-TOP-MC-RIB', orden: 1, operacion: 'Hombro 1', tarifa: 0.05, notas: '', clave: 'Top MC Rib|1' },
+  { id: 'T-TMCR-02', productoId: 'PROD-TOP-MC-RIB', orden: 2, operacion: 'Cinta',    tarifa: 0.10, notas: '', clave: 'Top MC Rib|2' },
+  { id: 'T-TMCR-03', productoId: 'PROD-TOP-MC-RIB', orden: 3, operacion: 'Hombro 2', tarifa: 0.05, notas: '', clave: 'Top MC Rib|3' },
+  { id: 'T-TMCR-04', productoId: 'PROD-TOP-MC-RIB', orden: 4, operacion: 'Atraque',  tarifa: 0.05, notas: '', clave: 'Top MC Rib|4' },
+  { id: 'T-TMCR-05', productoId: 'PROD-TOP-MC-RIB', orden: 5, operacion: 'B. Manga', tarifa: 0.08, notas: '', clave: 'Top MC Rib|5' },
+  { id: 'T-TMCR-06', productoId: 'PROD-TOP-MC-RIB', orden: 6, operacion: 'Manga y C',tarifa: 0.30, notas: '', clave: 'Top MC Rib|6' },
+  { id: 'T-TMCR-07', productoId: 'PROD-TOP-MC-RIB', orden: 7, operacion: 'Faldón',   tarifa: 0.09, notas: '', clave: 'Top MC Rib|7' },
+
+  // Top ML Rib
+  { id: 'T-TMLR-01', productoId: 'PROD-TOP-ML-RIB', orden: 1, operacion: 'Hombro 1', tarifa: 0.05, notas: '', clave: 'Top ML Rib|1' },
+  { id: 'T-TMLR-02', productoId: 'PROD-TOP-ML-RIB', orden: 2, operacion: 'Cinta',    tarifa: 0.10, notas: '', clave: 'Top ML Rib|2' },
+  { id: 'T-TMLR-03', productoId: 'PROD-TOP-ML-RIB', orden: 3, operacion: 'Hombro 2', tarifa: 0.05, notas: '', clave: 'Top ML Rib|3' },
+  { id: 'T-TMLR-04', productoId: 'PROD-TOP-ML-RIB', orden: 4, operacion: 'Atraque',  tarifa: 0.05, notas: '', clave: 'Top ML Rib|4' },
+  { id: 'T-TMLR-05', productoId: 'PROD-TOP-ML-RIB', orden: 5, operacion: 'B. Manga', tarifa: 0.08, notas: '', clave: 'Top ML Rib|5' },
+  { id: 'T-TMLR-06', productoId: 'PROD-TOP-ML-RIB', orden: 6, operacion: 'Manga y C',tarifa: 0.35, notas: '', clave: 'Top ML Rib|6' },
+  { id: 'T-TMLR-07', productoId: 'PROD-TOP-ML-RIB', orden: 7, operacion: 'Faldón',   tarifa: 0.09, notas: '', clave: 'Top ML Rib|7' },
+
+  // Baby Ty MC (tarifas reales)
+  { id: 'T-BTMC2-01', productoId: 'PROD-BABY-TY-MC2', orden: 1, operacion: 'Hombro',    tarifa: 0.08, notas: '', clave: 'Baby Ty MC|1' },
+  { id: 'T-BTMC2-02', productoId: 'PROD-BABY-TY-MC2', orden: 2, operacion: 'Cuello',    tarifa: 0.18, notas: '', clave: 'Baby Ty MC|2' },
+  { id: 'T-BTMC2-03', productoId: 'PROD-BABY-TY-MC2', orden: 3, operacion: 'Despunte',  tarifa: 0.07, notas: '', clave: 'Baby Ty MC|3' },
+  { id: 'T-BTMC2-04', productoId: 'PROD-BABY-TY-MC2', orden: 4, operacion: 'Tapeta',    tarifa: 0.09, notas: '', clave: 'Baby Ty MC|4' },
+  { id: 'T-BTMC2-05', productoId: 'PROD-BABY-TY-MC2', orden: 5, operacion: 'B. Manga',  tarifa: 0.08, notas: '', clave: 'Baby Ty MC|5' },
+  { id: 'T-BTMC2-06', productoId: 'PROD-BABY-TY-MC2', orden: 6, operacion: 'Manga y C', tarifa: 0.30, notas: '', clave: 'Baby Ty MC|6' },
+  { id: 'T-BTMC2-07', productoId: 'PROD-BABY-TY-MC2', orden: 7, operacion: 'Faldón',    tarifa: 0.10, notas: '', clave: 'Baby Ty MC|7' },
+
+  // Baby Ty ML (tarifas reales)
+  { id: 'T-BTML2-01', productoId: 'PROD-BABY-TY-ML2', orden: 1, operacion: 'Hombro',    tarifa: 0.08, notas: '', clave: 'Baby Ty ML|1' },
+  { id: 'T-BTML2-02', productoId: 'PROD-BABY-TY-ML2', orden: 2, operacion: 'Cuello',    tarifa: 0.18, notas: '', clave: 'Baby Ty ML|2' },
+  { id: 'T-BTML2-03', productoId: 'PROD-BABY-TY-ML2', orden: 3, operacion: 'Despunte',  tarifa: 0.07, notas: '', clave: 'Baby Ty ML|3' },
+  { id: 'T-BTML2-04', productoId: 'PROD-BABY-TY-ML2', orden: 4, operacion: 'Tapeta',    tarifa: 0.09, notas: '', clave: 'Baby Ty ML|4' },
+  { id: 'T-BTML2-05', productoId: 'PROD-BABY-TY-ML2', orden: 5, operacion: 'B. Manga',  tarifa: 0.08, notas: '', clave: 'Baby Ty ML|5' },
+  { id: 'T-BTML2-06', productoId: 'PROD-BABY-TY-ML2', orden: 6, operacion: 'Manga y C', tarifa: 0.35, notas: '', clave: 'Baby Ty ML|6' },
+  { id: 'T-BTML2-07', productoId: 'PROD-BABY-TY-ML2', orden: 7, operacion: 'Faldón',    tarifa: 0.10, notas: '', clave: 'Baby Ty ML|7' },
+
+  // Baby Ty Cinta MC (tarifas reales)
+  { id: 'T-BTCMC2-01', productoId: 'PROD-BABY-TY-CINTA-MC2', orden: 1, operacion: 'Hombro 1', tarifa: 0.05, notas: '', clave: 'Baby Ty Cinta MC|1' },
+  { id: 'T-BTCMC2-02', productoId: 'PROD-BABY-TY-CINTA-MC2', orden: 2, operacion: 'Cinta',    tarifa: 0.10, notas: '', clave: 'Baby Ty Cinta MC|2' },
+  { id: 'T-BTCMC2-03', productoId: 'PROD-BABY-TY-CINTA-MC2', orden: 3, operacion: 'Hombro 2', tarifa: 0.05, notas: '', clave: 'Baby Ty Cinta MC|3' },
+  { id: 'T-BTCMC2-04', productoId: 'PROD-BABY-TY-CINTA-MC2', orden: 4, operacion: 'Atraque',  tarifa: 0.05, notas: '', clave: 'Baby Ty Cinta MC|4' },
+  { id: 'T-BTCMC2-05', productoId: 'PROD-BABY-TY-CINTA-MC2', orden: 5, operacion: 'B. Manga', tarifa: 0.08, notas: '', clave: 'Baby Ty Cinta MC|5' },
+  { id: 'T-BTCMC2-06', productoId: 'PROD-BABY-TY-CINTA-MC2', orden: 6, operacion: 'Manga y C',tarifa: 0.30, notas: '', clave: 'Baby Ty Cinta MC|6' },
+  { id: 'T-BTCMC2-07', productoId: 'PROD-BABY-TY-CINTA-MC2', orden: 7, operacion: 'Faldón',   tarifa: 0.10, notas: '', clave: 'Baby Ty Cinta MC|7' },
+
+  // Baby Ty Cinta ML (tarifas reales)
+  { id: 'T-BTCML2-01', productoId: 'PROD-BABY-TY-CINTA-ML2', orden: 1, operacion: 'Hombro 1', tarifa: 0.05, notas: '', clave: 'Baby Ty Cinta ML|1' },
+  { id: 'T-BTCML2-02', productoId: 'PROD-BABY-TY-CINTA-ML2', orden: 2, operacion: 'Cinta',    tarifa: 0.10, notas: '', clave: 'Baby Ty Cinta ML|2' },
+  { id: 'T-BTCML2-03', productoId: 'PROD-BABY-TY-CINTA-ML2', orden: 3, operacion: 'Hombro 2', tarifa: 0.05, notas: '', clave: 'Baby Ty Cinta ML|3' },
+  { id: 'T-BTCML2-04', productoId: 'PROD-BABY-TY-CINTA-ML2', orden: 4, operacion: 'Atraque',  tarifa: 0.05, notas: '', clave: 'Baby Ty Cinta ML|4' },
+  { id: 'T-BTCML2-05', productoId: 'PROD-BABY-TY-CINTA-ML2', orden: 5, operacion: 'B. Manga', tarifa: 0.08, notas: '', clave: 'Baby Ty Cinta ML|5' },
+  { id: 'T-BTCML2-06', productoId: 'PROD-BABY-TY-CINTA-ML2', orden: 6, operacion: 'Manga y C',tarifa: 0.35, notas: '', clave: 'Baby Ty Cinta ML|6' },
+  { id: 'T-BTCML2-07', productoId: 'PROD-BABY-TY-CINTA-ML2', orden: 7, operacion: 'Faldón',   tarifa: 0.10, notas: '', clave: 'Baby Ty Cinta ML|7' },
+
+  // Polera Neru
+  { id: 'T-PNERU-01', productoId: 'PROD-POLERA-NERU', orden: 1,  operacion: 'Hombro',          tarifa: 0.10, notas: '', clave: 'Polera Neru|1' },
+  { id: 'T-PNERU-02', productoId: 'PROD-POLERA-NERU', orden: 2,  operacion: 'C. Cadena',       tarifa: 0.10, notas: '', clave: 'Polera Neru|2' },
+  { id: 'T-PNERU-03', productoId: 'PROD-POLERA-NERU', orden: 3,  operacion: 'C. Nuca',         tarifa: 0.20, notas: '', clave: 'Polera Neru|3' },
+  { id: 'T-PNERU-04', productoId: 'PROD-POLERA-NERU', orden: 4,  operacion: 'Cierre',          tarifa: 0.80, notas: '', clave: 'Polera Neru|4' },
+  { id: 'T-PNERU-05', productoId: 'PROD-POLERA-NERU', orden: 5,  operacion: 'Despunte cuello', tarifa: 0.15, notas: '', clave: 'Polera Neru|5' },
+  { id: 'T-PNERU-06', productoId: 'PROD-POLERA-NERU', orden: 6,  operacion: 'Asentado',        tarifa: 0.30, notas: '', clave: 'Polera Neru|6' },
+  { id: 'T-PNERU-07', productoId: 'PROD-POLERA-NERU', orden: 7,  operacion: 'Desp. Cierre',    tarifa: 0.15, notas: '', clave: 'Polera Neru|7' },
+  { id: 'T-PNERU-08', productoId: 'PROD-POLERA-NERU', orden: 8,  operacion: 'Manga y cerrado', tarifa: 0.35, notas: '', clave: 'Polera Neru|8' },
+  { id: 'T-PNERU-09', productoId: 'PROD-POLERA-NERU', orden: 9,  operacion: 'R.PyP',           tarifa: 0.60, notas: '', clave: 'Polera Neru|9' },
+  { id: 'T-PNERU-10', productoId: 'PROD-POLERA-NERU', orden: 10, operacion: 'D.PyP',           tarifa: 0.40, notas: '', clave: 'Polera Neru|10' },
+
+  // Poleras Cuello Redondo
+  { id: 'T-PCR-01', productoId: 'PROD-POLERAS-CR', orden: 1, operacion: 'Hombro',          tarifa: 0.10, notas: '', clave: 'Poleras Cuello Redondo|1' },
+  { id: 'T-PCR-02', productoId: 'PROD-POLERAS-CR', orden: 2, operacion: 'Cuello',          tarifa: 0.15, notas: '', clave: 'Poleras Cuello Redondo|2' },
+  { id: 'T-PCR-03', productoId: 'PROD-POLERAS-CR', orden: 3, operacion: 'Despunte',        tarifa: 0.08, notas: '', clave: 'Poleras Cuello Redondo|3' },
+  { id: 'T-PCR-04', productoId: 'PROD-POLERAS-CR', orden: 4, operacion: 'Tapeta',          tarifa: 0.11, notas: '', clave: 'Poleras Cuello Redondo|4' },
+  { id: 'T-PCR-05', productoId: 'PROD-POLERAS-CR', orden: 5, operacion: 'Manga y Cerrado', tarifa: 0.35, notas: '', clave: 'Poleras Cuello Redondo|5' },
+  { id: 'T-PCR-06', productoId: 'PROD-POLERAS-CR', orden: 6, operacion: 'R.PyP',           tarifa: 0.60, notas: '', clave: 'Poleras Cuello Redondo|6' },
+  { id: 'T-PCR-07', productoId: 'PROD-POLERAS-CR', orden: 7, operacion: 'D.PyP',           tarifa: 0.40, notas: '', clave: 'Poleras Cuello Redondo|7' },
+
+  // Pique Cuello Chino
+  { id: 'T-PQCC-01', productoId: 'PROD-PIQUE-CC', orden: 1,  operacion: 'Pegado de Pech - 2 pzas',         tarifa: 0.50, notas: '', clave: 'Pique Cuello Chino|1' },
+  { id: 'T-PQCC-02', productoId: 'PROD-PIQUE-CC', orden: 2,  operacion: 'Orill borde de pechera+remallé base', tarifa: 0.10, notas: '', clave: 'Pique Cuello Chino|2' },
+  { id: 'T-PQCC-03', productoId: 'PROD-PIQUE-CC', orden: 3,  operacion: 'Despunte de pechera',             tarifa: 0.10, notas: '', clave: 'Pique Cuello Chino|3' },
+  { id: 'T-PQCC-04', productoId: 'PROD-PIQUE-CC', orden: 4,  operacion: 'Hombro',                          tarifa: 0.10, notas: '', clave: 'Pique Cuello Chino|4' },
+  { id: 'T-PQCC-05', productoId: 'PROD-PIQUE-CC', orden: 5,  operacion: 'Cuello',                          tarifa: 0.25, notas: '', clave: 'Pique Cuello Chino|5' },
+  { id: 'T-PQCC-06', productoId: 'PROD-PIQUE-CC', orden: 6,  operacion: 'Despunte cuello',                 tarifa: 0.15, notas: '', clave: 'Pique Cuello Chino|6' },
+  { id: 'T-PQCC-07', productoId: 'PROD-PIQUE-CC', orden: 7,  operacion: 'Pegado de cinta Tapeta',          tarifa: 0.11, notas: '', clave: 'Pique Cuello Chino|7' },
+  { id: 'T-PQCC-08', productoId: 'PROD-PIQUE-CC', orden: 8,  operacion: 'Manga y cerrado',                 tarifa: 0.30, notas: '', clave: 'Pique Cuello Chino|8' },
+  { id: 'T-PQCC-09', productoId: 'PROD-PIQUE-CC', orden: 9,  operacion: 'Basta manga',                     tarifa: 0.10, notas: '', clave: 'Pique Cuello Chino|9' },
+  { id: 'T-PQCC-10', productoId: 'PROD-PIQUE-CC', orden: 10, operacion: 'Basta faldón',                    tarifa: 0.11, notas: '', clave: 'Pique Cuello Chino|10' },
+
+  // Wafle Camisa
+  { id: 'T-WFCS-01', productoId: 'PROD-WAFLE-CAMISA', orden: 1,  operacion: 'Pegado canesú',      tarifa: 0.20, notas: '', clave: 'Wafle Camisa|1' },
+  { id: 'T-WFCS-02', productoId: 'PROD-WAFLE-CAMISA', orden: 2,  operacion: 'Despunte canesú',    tarifa: 0.10, notas: '', clave: 'Wafle Camisa|2' },
+  { id: 'T-WFCS-03', productoId: 'PROD-WAFLE-CAMISA', orden: 3,  operacion: 'Basta bolsillo',     tarifa: 0.04, notas: '', clave: 'Wafle Camisa|3' },
+  { id: 'T-WFCS-04', productoId: 'PROD-WAFLE-CAMISA', orden: 4,  operacion: 'Pegado bolsillo',    tarifa: 0.40, notas: '', clave: 'Wafle Camisa|4' },
+  { id: 'T-WFCS-05', productoId: 'PROD-WAFLE-CAMISA', orden: 5,  operacion: 'Orillado solapa',    tarifa: 0.16, notas: '', clave: 'Wafle Camisa|5' },
+  { id: 'T-WFCS-06', productoId: 'PROD-WAFLE-CAMISA', orden: 6,  operacion: 'Dobles solapa',      tarifa: 0.20, notas: '', clave: 'Wafle Camisa|6' },
+  { id: 'T-WFCS-07', productoId: 'PROD-WAFLE-CAMISA', orden: 7,  operacion: 'Pegado solapa',      tarifa: 0.20, notas: '', clave: 'Wafle Camisa|7' },
+  { id: 'T-WFCS-08', productoId: 'PROD-WAFLE-CAMISA', orden: 8,  operacion: 'Unión hombro',       tarifa: 0.25, notas: '', clave: 'Wafle Camisa|8' },
+  { id: 'T-WFCS-09', productoId: 'PROD-WAFLE-CAMISA', orden: 9,  operacion: 'Despunte hombro',    tarifa: 0.15, notas: '', clave: 'Wafle Camisa|9' },
+  { id: 'T-WFCS-10', productoId: 'PROD-WAFLE-CAMISA', orden: 10, operacion: 'Despunte solapa',    tarifa: 0.20, notas: '', clave: 'Wafle Camisa|10' },
+  { id: 'T-WFCS-11', productoId: 'PROD-WAFLE-CAMISA', orden: 11, operacion: 'Despunte pechera',   tarifa: 0.30, notas: '', clave: 'Wafle Camisa|11' },
+  { id: 'T-WFCS-12', productoId: 'PROD-WAFLE-CAMISA', orden: 12, operacion: 'Orillado cuello',    tarifa: 0.15, notas: '', clave: 'Wafle Camisa|12' },
+  { id: 'T-WFCS-13', productoId: 'PROD-WAFLE-CAMISA', orden: 13, operacion: 'Despunte cuello',    tarifa: 0.15, notas: '', clave: 'Wafle Camisa|13' },
+  { id: 'T-WFCS-14', productoId: 'PROD-WAFLE-CAMISA', orden: 14, operacion: 'Pegado de cuello',   tarifa: 0.50, notas: '', clave: 'Wafle Camisa|14' },
+  { id: 'T-WFCS-15', productoId: 'PROD-WAFLE-CAMISA', orden: 15, operacion: 'Asentado de cuello', tarifa: 0.25, notas: '', clave: 'Wafle Camisa|15' },
+  { id: 'T-WFCS-16', productoId: 'PROD-WAFLE-CAMISA', orden: 16, operacion: 'Basta manga',        tarifa: 0.10, notas: '', clave: 'Wafle Camisa|16' },
+  { id: 'T-WFCS-17', productoId: 'PROD-WAFLE-CAMISA', orden: 17, operacion: 'Manga y cerrado',    tarifa: 0.35, notas: '', clave: 'Wafle Camisa|17' },
+  { id: 'T-WFCS-18', productoId: 'PROD-WAFLE-CAMISA', orden: 18, operacion: 'Basta faldón',       tarifa: 0.10, notas: '', clave: 'Wafle Camisa|18' },
+
+  // Cuello Chino Wafle (nuevo, con tarifas reales)
+  { id: 'T-CCWF2-01', productoId: 'PROD-CUELLO-CHINO-WAFLE', orden: 1,  operacion: 'Pegado de Pech - 2 pzas',         tarifa: 0.50, notas: '', clave: 'Cuello Chino Wafle2|1' },
+  { id: 'T-CCWF2-02', productoId: 'PROD-CUELLO-CHINO-WAFLE', orden: 2,  operacion: 'Orill borde de pechera+remallé base', tarifa: 0.10, notas: '', clave: 'Cuello Chino Wafle2|2' },
+  { id: 'T-CCWF2-03', productoId: 'PROD-CUELLO-CHINO-WAFLE', orden: 3,  operacion: 'Despunte de pechera',             tarifa: 0.10, notas: '', clave: 'Cuello Chino Wafle2|3' },
+  { id: 'T-CCWF2-04', productoId: 'PROD-CUELLO-CHINO-WAFLE', orden: 4,  operacion: 'Hombro',                          tarifa: 0.10, notas: '', clave: 'Cuello Chino Wafle2|4' },
+  { id: 'T-CCWF2-05', productoId: 'PROD-CUELLO-CHINO-WAFLE', orden: 5,  operacion: 'Cuello',                          tarifa: 0.25, notas: '', clave: 'Cuello Chino Wafle2|5' },
+  { id: 'T-CCWF2-06', productoId: 'PROD-CUELLO-CHINO-WAFLE', orden: 6,  operacion: 'Despunte cuello',                 tarifa: 0.15, notas: '', clave: 'Cuello Chino Wafle2|6' },
+  { id: 'T-CCWF2-07', productoId: 'PROD-CUELLO-CHINO-WAFLE', orden: 7,  operacion: 'Pegado de cinta Tapeta',          tarifa: 0.11, notas: '', clave: 'Cuello Chino Wafle2|7' },
+  { id: 'T-CCWF2-08', productoId: 'PROD-CUELLO-CHINO-WAFLE', orden: 8,  operacion: 'Manga y cerrado',                 tarifa: 0.30, notas: '', clave: 'Cuello Chino Wafle2|8' },
+  { id: 'T-CCWF2-09', productoId: 'PROD-CUELLO-CHINO-WAFLE', orden: 9,  operacion: 'Basta manga',                     tarifa: 0.10, notas: '', clave: 'Cuello Chino Wafle2|9' },
+  { id: 'T-CCWF2-10', productoId: 'PROD-CUELLO-CHINO-WAFLE', orden: 10, operacion: 'Basta faldón',                    tarifa: 0.11, notas: '', clave: 'Cuello Chino Wafle2|10' },
 ];
 
 // ─── Operarios (24 reales) ─────────────────────────────────────────────────

@@ -32,7 +32,7 @@ const emptyForm = (): MovForm => ({
 type SegmentMode = 'ninguno' | 'tipo' | 'tela';
 
 export function InventarioTelas() {
-  const { movimientosTela, telas, colores, clientes, proveedores, preciosTelas, config, addMovimientoTela, deleteMovimientoTela } = useAppContext();
+  const { movimientosTela, telas, colores, clientes, proveedores, preciosTelas, config, cortes, addMovimientoTela, deleteMovimientoTela } = useAppContext();
   const { addToast } = useToast();
   const authUser = useAuthUser();
   const esAdmin = authUser?.rol === 'Administrador General' || authUser?.rol === 'Super Admin';
@@ -82,6 +82,28 @@ export function InventarioTelas() {
     }
     return map;
   }, [movimientosTela]);
+
+  // Rollos comprometidos por cortes EN_PROCESO (no completados aún)
+  const rollосComprometidos = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const c of cortes) {
+      if (c.estado === 'EN_PROCESO' && c.telaId && c.colorId && c.rollosUsados > 0) {
+        const key = `${c.telaId}|${c.colorId}`;
+        map.set(key, (map.get(key) ?? 0) + c.rollosUsados);
+      }
+    }
+    return map;
+  }, [cortes]);
+
+  // Stock disponible real = stock actual − comprometidos EN_PROCESO
+  const stockDisponible = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const [key, rollos] of stockActual.entries()) {
+      const comprometidos = rollосComprometidos.get(key) ?? 0;
+      map.set(key, Math.max(0, rollos - comprometidos));
+    }
+    return map;
+  }, [stockActual, rollосComprometidos]);
 
   const movsFiltrados = useMemo(() => {
     return [...movimientosTela]
@@ -173,12 +195,14 @@ export function InventarioTelas() {
         const precioKg = cat
           ? (preciosTelas.find(p => p.telaId === telaId && p.categoriaColor === cat)?.precioKg ?? null)
           : null;
+        const comprometidos = rollосComprometidos.get(k) ?? 0;
+        const disponible = Math.max(0, rollos - comprometidos);
         const kgTotal = rollos * kgPorRollo;
-        return { telaId, colorId, rollos, kgTotal, precioKg };
+        return { telaId, colorId, rollos, disponible, comprometidos, kgTotal, precioKg };
       })
       .filter(s => s.rollos > 0)
       .sort((a, b) => (telaMap.get(a.telaId)?.nombre ?? '').localeCompare(telaMap.get(b.telaId)?.nombre ?? ''));
-  }, [stockActual, telaMap, colorMap, preciosTelas, config.kgPorRolloDefault]);
+  }, [stockActual, rollосComprometidos, telaMap, colorMap, preciosTelas, config.kgPorRolloDefault]);
 
   // Tab Matriz: grilla telas × colores
   const matrizData = useMemo(() => {
@@ -192,11 +216,13 @@ export function InventarioTelas() {
     return Array.from(stockActual.entries())
       .map(([k, rollos]) => {
         const [telaId, colorId] = k.split('|');
-        return { telaId, colorId, rollos };
+        const comprometidos = rollосComprometidos.get(k) ?? 0;
+        const disponible = Math.max(0, rollos - comprometidos);
+        return { telaId, colorId, rollos, disponible, comprometidos };
       })
-      .filter(s => s.rollos <= config.umbralCritico)
-      .sort((a, b) => a.rollos - b.rollos);
-  }, [stockActual, config.umbralCritico]);
+      .filter(s => s.disponible <= config.umbralCritico)
+      .sort((a, b) => a.disponible - b.disponible);
+  }, [stockActual, rollосComprometidos, config.umbralCritico]);
 
   // Tab Histórico: resumen mensual (últimos 24 meses)
   const historicoMensual = useMemo(() => {
@@ -339,14 +365,17 @@ export function InventarioTelas() {
                     </div>
                   )}
                   {stockSummary.map(s => {
-                    const isCrit = s.rollos <= config.umbralCritico;
-                    const isBajo = !isCrit && s.rollos <= config.umbralBajo;
+                    const isCrit = s.disponible <= config.umbralCritico;
+                    const isBajo = !isCrit && s.disponible <= config.umbralBajo;
                     return (
                       <div key={`${s.telaId}|${s.colorId}`} className={`border p-3 ${isCrit ? 'border-red-300 bg-red-50' : isBajo ? 'border-yellow-300 bg-yellow-50' : 'border-gray-200 bg-white'}`}>
                         <p className="text-[10px] font-bold uppercase text-gray-500 truncate">{telaMap.get(s.telaId)?.nombre}</p>
                         <p className="text-xs text-gray-600 truncate">{colorMap.get(s.colorId)?.nombre}</p>
-                        <p className={`text-xl font-black mt-1 ${isCrit ? 'text-red-700' : isBajo ? 'text-yellow-700' : ''}`}>{s.rollos} <span className="text-xs font-normal">rollos</span></p>
-                        <p className="text-[10px] text-gray-400 mt-0.5">{s.kgTotal.toFixed(0)} kg</p>
+                        <p className={`text-xl font-black mt-1 ${isCrit ? 'text-red-700' : isBajo ? 'text-yellow-700' : ''}`}>{s.disponible} <span className="text-xs font-normal">disponibles</span></p>
+                        {s.comprometidos > 0 && (
+                          <p className="text-[10px] text-blue-600 font-semibold mt-0.5">{s.comprometidos} en corte · {s.rollos} físicos</p>
+                        )}
+                        <p className="text-[10px] text-gray-400 mt-0.5">{s.kgTotal.toFixed(0)} kg físicos</p>
                         {esAdmin && s.precioKg !== null && (
                           <p className="text-[10px] text-gray-400 mt-0.5">Valor aprox. S/ {(s.kgTotal * s.precioKg).toFixed(0)}</p>
                         )}
@@ -500,17 +529,21 @@ export function InventarioTelas() {
                   <tr key={t.id} className="hover:bg-gray-50">
                     <td className="px-3 py-2 border border-gray-200 font-bold text-gray-700 sticky left-0 bg-white z-10 whitespace-nowrap">{t.nombre}</td>
                     {matrizData.coloresSorted.map(c => {
-                      const rollos = stockActual.get(`${t.id}|${c.id}`) ?? 0;
-                      const isCrit = rollos > 0 && rollos <= config.umbralCritico;
-                      const isBajo = rollos > 0 && !isCrit && rollos <= config.umbralBajo;
+                      const key = `${t.id}|${c.id}`;
+                      const rollos = stockActual.get(key) ?? 0;
+                      const comprometidos = rollосComprometidos.get(key) ?? 0;
+                      const disponible = Math.max(0, rollos - comprometidos);
+                      const isCrit = rollos > 0 && disponible <= config.umbralCritico;
+                      const isBajo = rollos > 0 && !isCrit && disponible <= config.umbralBajo;
                       return (
-                        <td key={c.id} className={`px-2 py-2 border border-gray-200 text-center font-mono font-bold ${
+                        <td key={c.id} title={comprometidos > 0 ? `${disponible} disponibles (${comprometidos} en corte, ${rollos} físicos)` : undefined} className={`px-2 py-2 border border-gray-200 text-center font-mono font-bold ${
                           rollos === 0 ? 'text-gray-300' :
                           isCrit ? 'text-red-700 bg-red-50' :
                           isBajo ? 'text-yellow-700 bg-yellow-50' :
                           'text-green-700 bg-green-50'
                         }`}>
-                          {rollos === 0 ? '—' : rollos}
+                          {rollos === 0 ? '—' : disponible}
+                          {comprometidos > 0 && <span className="block text-[9px] font-normal text-blue-500">({comprometidos} en corte)</span>}
                         </td>
                       );
                     })}
@@ -537,7 +570,7 @@ export function InventarioTelas() {
                 <table className="texajo-table">
                   <thead>
                     <tr>
-                      {['Tela', 'Color', 'Stock Rollos', 'Umbral Crítico', 'Estado'].map(h => (
+                      {['Tela', 'Color', 'Disponibles', 'En Corte', 'Físicos', 'Umbral Crítico', 'Estado'].map(h => (
                         <th key={h}>{h}</th>
                       ))}
                     </tr>
@@ -547,7 +580,9 @@ export function InventarioTelas() {
                       <tr key={`${s.telaId}|${s.colorId}`}>
                         <td className="font-bold">{telaMap.get(s.telaId)?.nombre ?? s.telaId}</td>
                         <td>{colorMap.get(s.colorId)?.nombre ?? s.colorId}</td>
-                        <td className="font-mono text-right font-black text-red-700">{s.rollos}</td>
+                        <td className="font-mono text-right font-black text-red-700">{s.disponible}</td>
+                        <td className="font-mono text-right text-blue-600">{s.comprometidos > 0 ? s.comprometidos : '—'}</td>
+                        <td className="font-mono text-right text-gray-500">{s.rollos}</td>
                         <td className="font-mono text-right text-gray-500">{config.umbralCritico}</td>
                         <td><span className="inline-block px-2 py-0.5 text-[10px] font-bold uppercase bg-red-100 text-red-800">CRÍTICO</span></td>
                       </tr>

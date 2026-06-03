@@ -57,6 +57,7 @@ export function Cortes() {
     addCorte, updateCorte, deleteCorte,
     addMovimientoTela, addSeguimientoFila,
   } = useAppContext();
+
   const { addToast } = useToast();
   const [showForm, setShowForm] = useState(false);
   const [filterEstado, setFilterEstado] = useState('');
@@ -148,6 +149,36 @@ export function Cortes() {
     }
   };
 
+  // Anula un corte: si estaba COMPLETADO revierte el movimiento A_CORTE con un AJUSTE_POS
+  const anularCorte = (corte: Corte) => {
+    if (corte.estado === 'COMPLETADO' && corte.telaId && corte.colorId && corte.rollosUsados > 0) {
+      const key = `${corte.telaId}|${corte.colorId}`;
+      const stockAntes = stockActualTelas.get(key) ?? 0;
+      const stockDespues = stockAntes + corte.rollosUsados;
+      const color = colores.find(c => c.id === corte.colorId);
+      const mov: MovimientoTela = {
+        id: uid(),
+        fecha: new Date().toISOString().slice(0, 10),
+        tipo: 'AJUSTE_POS',
+        clienteId: corte.clienteId,
+        telaId: corte.telaId,
+        colorId: corte.colorId,
+        rollos: corte.rollosUsados,
+        kgTotal: corte.kgUsados || 0,
+        categoriaColor: color?.categoria ?? 'OSCURO',
+        precioKg: 0,
+        totalSoles: 0,
+        stockRollosAntes: stockAntes,
+        stockRollosDespues: stockDespues,
+        responsable: '',
+        notas: `Reversión por anulación de corte ${corte.nCorte}`,
+      };
+      addMovimientoTela(mov);
+    }
+    updateCorte(corte.id, { estado: 'ANULADO' });
+    addToast(`Corte ${corte.nCorte} anulado`, 'success');
+  };
+
   // Descuenta inventario automáticamente al completar un corte
   const descontarInventario = (corte: Corte): boolean => {
     if (!corte.telaId || !corte.colorId) return true;
@@ -190,6 +221,35 @@ export function Cortes() {
     if (!form.nCorte || !form.clienteId || !form.productoId || coloresValidos.length === 0) {
       addToast('Completa nCorte, cliente, producto y al menos un color', 'error');
       return;
+    }
+
+    // Validar stock disponible antes de guardar (descontando cortes EN_PROCESO pendientes)
+    if (form.telaId) {
+      // Rollos ya comprometidos por cortes EN_PROCESO que aún no se han completado
+      const comprometidos = new Map<string, number>();
+      for (const c of cortes) {
+        if (c.estado === 'EN_PROCESO' && c.telaId === form.telaId) {
+          const k = `${c.telaId}|${c.colorId}`;
+          comprometidos.set(k, (comprometidos.get(k) ?? 0) + c.rollosUsados);
+        }
+      }
+
+      for (const det of coloresValidos) {
+        const rollosSolicitados = parseFloat(det.rollosUsados) || 0;
+        if (rollosSolicitados === 0) continue;
+        const key = `${form.telaId}|${det.colorId}`;
+        const stockBase = stockActualTelas.get(key) ?? 0;
+        const stockComprometido = comprometidos.get(key) ?? 0;
+        const stockDisponible = stockBase - stockComprometido;
+        if (rollosSolicitados > stockDisponible) {
+          const colorNombre = colores.find(c => c.id === det.colorId)?.nombre ?? det.colorId;
+          addToast(
+            `Stock insuficiente para color ${colorNombre}: se necesitan ${rollosSolicitados} rollos, disponibles ${stockDisponible} (stock ${stockBase} − ${stockComprometido} comprometidos)`,
+            'error'
+          );
+          return;
+        }
+      }
     }
 
     coloresValidos.forEach((det, idx) => {
@@ -403,6 +463,15 @@ export function Cortes() {
                           }}
                           className="text-[10px] font-bold uppercase text-blue-600 hover:text-blue-800"
                         >Completar</button>
+                      )}
+                      {(c.estado === 'EN_PROCESO' || c.estado === 'COMPLETADO') && (
+                        <button
+                          onClick={() => {
+                            if (!window.confirm(`¿Anular corte ${c.nCorte}? ${c.estado === 'COMPLETADO' ? 'Se revertirá el descuento de inventario.' : ''}`)) return;
+                            anularCorte(c);
+                          }}
+                          className="text-[10px] font-bold uppercase text-red-500 hover:text-red-700"
+                        >Anular</button>
                       )}
                       {confirmDelete === c.id ? (
                         <span className="flex items-center gap-1 whitespace-nowrap">
