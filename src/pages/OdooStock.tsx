@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { RefreshCw, ChevronDown, ChevronRight, AlertCircle, Loader2, X, FileSpreadsheet, FileText } from 'lucide-react';
+import { RefreshCw, ChevronDown, ChevronRight, AlertCircle, Loader2, X, FileSpreadsheet, FileText, LayoutDashboard, List } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -80,6 +80,170 @@ function CheckList({ options, selected, onChange }: {
   );
 }
 
+// ── Mini barra de porcentaje ──────────────────────────────────────────────────
+
+function PctBar({ pct, color = '#173A25' }: { pct: number; color?: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex-1 h-1.5 bg-[#DDD8CF] rounded-full overflow-hidden">
+        <div
+          className="h-full rounded-full transition-all duration-500"
+          style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: color }}
+        />
+      </div>
+      <span className="text-[10px] font-mono font-bold text-[#7A6F67] w-8 text-right">
+        {pct.toFixed(1)}%
+      </span>
+    </div>
+  );
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+
+function Dashboard({ rows }: { rows: import('../lib/odooService').ProductRow[] }) {
+  const totalStock = rows.reduce((s, p) => s + p.totalStock, 0);
+  const totalVariantes = rows.reduce((s, p) => s + p.variantes.length, 0);
+  const totalDisponible = rows.reduce((s, p) => s + p.variantes.reduce((a, v) => a + v.stockDisponible, 0), 0);
+  const totalReservado  = rows.reduce((s, p) => s + p.variantes.reduce((a, v) => a + v.stockReservado, 0), 0);
+
+  const criticos  = rows.reduce((s, p) => s + p.variantes.filter(v => v.stock <= 0).length, 0);
+  const warning   = rows.reduce((s, p) => s + p.variantes.filter(v => v.stock > 0 && v.stock <= 10).length, 0);
+  const ok        = totalVariantes - criticos - warning;
+
+  // Por empresa (marca)
+  const porEmpresa = useMemo(() => {
+    const map = new Map<string, number>();
+    rows.forEach(p => map.set(p.empresa || '(sin marca)', (map.get(p.empresa || '(sin marca)') ?? 0) + p.totalStock));
+    return [...map.entries()]
+      .map(([name, stock]) => ({ name, stock, pct: totalStock > 0 ? (stock / totalStock) * 100 : 0 }))
+      .sort((a, b) => b.stock - a.stock)
+      .slice(0, 8);
+  }, [rows, totalStock]);
+
+  // Por producto (top 8)
+  const porProducto = useMemo(() => {
+    return rows
+      .map(p => ({ name: p.templateName, stock: p.totalStock, pct: totalStock > 0 ? (p.totalStock / totalStock) * 100 : 0 }))
+      .sort((a, b) => b.stock - a.stock)
+      .slice(0, 8);
+  }, [rows, totalStock]);
+
+  // Por color (top 8)
+  const porColor = useMemo(() => {
+    const map = new Map<string, number>();
+    rows.forEach(p => p.variantes.forEach(v => {
+      const key = v.color || '(sin color)';
+      map.set(key, (map.get(key) ?? 0) + v.stock);
+    }));
+    return [...map.entries()]
+      .map(([name, stock]) => ({ name, stock, pct: totalStock > 0 ? (stock / totalStock) * 100 : 0 }))
+      .sort((a, b) => b.stock - a.stock)
+      .slice(0, 8);
+  }, [rows, totalStock]);
+
+  const COLORS = ['#173A25', '#2A5C40', '#3D7D5A', '#B6702A', '#C0977A', '#9A8F87', '#7A6F67', '#DDD8CF'];
+
+  return (
+    <div className="space-y-4">
+      {/* KPIs */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-2">
+        {[
+          { label: 'Productos',   value: rows.length,             sub: 'en vista' },
+          { label: 'Variantes',   value: totalVariantes,          sub: 'en vista' },
+          { label: 'Stock total', value: Math.round(totalStock),  sub: 'unidades' },
+          { label: 'Disponible',  value: Math.round(totalDisponible), sub: 'unidades' },
+          { label: 'Reservado',   value: Math.round(totalReservado),  sub: 'unidades' },
+          { label: 'Sin stock',   value: criticos, sub: 'variantes', accent: criticos > 0 ? '#b91c1c' : undefined },
+          { label: 'Por acabar',  value: warning,  sub: 'variantes', accent: warning  > 0 ? '#a16207' : undefined },
+        ].map(kpi => (
+          <div key={kpi.label} className="bg-white border border-[#DDD8CF] px-3 py-2.5">
+            <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-[#9A8F87]">{kpi.label}</p>
+            <p className="text-xl font-bold font-mono mt-0.5" style={{ color: kpi.accent ?? '#173A25' }}>
+              {kpi.value.toLocaleString('es-PE')}
+            </p>
+            <p className="text-[9px] text-[#9A8F87] mt-0.5">{kpi.sub}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Alertas visuales */}
+      <div className="bg-white border border-[#DDD8CF] px-4 py-3">
+        <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-[#9A8F87] mb-2">Distribución por estado</p>
+        <div className="flex items-center h-3 rounded-full overflow-hidden gap-px">
+          {ok        > 0 && <div style={{ flex: ok }}        className="h-full bg-green-500" title={`OK: ${ok}`} />}
+          {warning   > 0 && <div style={{ flex: warning }}   className="h-full bg-yellow-400" title={`Por acabar: ${warning}`} />}
+          {criticos  > 0 && <div style={{ flex: criticos }}  className="h-full bg-red-500" title={`Sin stock: ${criticos}`} />}
+        </div>
+        <div className="flex gap-4 mt-1.5">
+          {[
+            { dot: 'bg-green-500',  label: 'OK',          val: ok },
+            { dot: 'bg-yellow-400', label: 'Por acabar',  val: warning },
+            { dot: 'bg-red-500',    label: 'Sin stock',   val: criticos },
+          ].map(({ dot, label, val }) => (
+            <span key={label} className="flex items-center gap-1.5 text-[10px] text-[#7A6F67]">
+              <span className={`w-2 h-2 rounded-full ${dot}`} />
+              {label} <span className="font-bold font-mono">{val}</span>
+              <span className="text-[#DDD8CF]">·</span>
+              <span className="font-mono">{totalVariantes > 0 ? ((val / totalVariantes) * 100).toFixed(1) : 0}%</span>
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Tres columnas de rankings */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {/* Por marca */}
+        <div className="bg-white border border-[#DDD8CF] px-4 py-3">
+          <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-[#9A8F87] mb-3">% Stock por marca</p>
+          <div className="space-y-2.5">
+            {porEmpresa.map((e, i) => (
+              <div key={e.name}>
+                <div className="flex items-center justify-between mb-0.5">
+                  <span className="text-[10px] font-bold text-[#1A1A1A] truncate max-w-[70%]">{e.name}</span>
+                  <span className="text-[10px] font-mono text-[#7A6F67]">{Math.round(e.stock).toLocaleString('es-PE')} uds</span>
+                </div>
+                <PctBar pct={e.pct} color={COLORS[i % COLORS.length]} />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Por producto */}
+        <div className="bg-white border border-[#DDD8CF] px-4 py-3">
+          <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-[#9A8F87] mb-3">% Stock por producto <span className="normal-case font-normal">(top 8)</span></p>
+          <div className="space-y-2.5">
+            {porProducto.map((p, i) => (
+              <div key={p.name}>
+                <div className="flex items-center justify-between mb-0.5">
+                  <span className="text-[10px] font-bold text-[#1A1A1A] truncate max-w-[70%]" title={p.name}>{p.name}</span>
+                  <span className="text-[10px] font-mono text-[#7A6F67]">{Math.round(p.stock).toLocaleString('es-PE')} uds</span>
+                </div>
+                <PctBar pct={p.pct} color={COLORS[i % COLORS.length]} />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Por color */}
+        <div className="bg-white border border-[#DDD8CF] px-4 py-3">
+          <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-[#9A8F87] mb-3">% Stock por color <span className="normal-case font-normal">(top 8)</span></p>
+          <div className="space-y-2.5">
+            {porColor.map((c, i) => (
+              <div key={c.name}>
+                <div className="flex items-center justify-between mb-0.5">
+                  <span className="text-[10px] font-bold text-[#1A1A1A] truncate max-w-[70%]">{c.name}</span>
+                  <span className="text-[10px] font-mono text-[#7A6F67]">{Math.round(c.stock).toLocaleString('es-PE')} uds</span>
+                </div>
+                <PctBar pct={c.pct} color={COLORS[i % COLORS.length]} />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function OdooStock() {
@@ -87,6 +251,7 @@ export default function OdooStock() {
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const [vista, setVista]       = useState<'tabla' | 'dashboard'>('tabla');
 
   // Filters
   const [filtroEmpresas, setFiltroEmpresas]   = useState<Set<string>>(new Set());
@@ -437,7 +602,33 @@ export default function OdooStock() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {filtered.length > 0 && (
+          {raw && (
+            <div className="flex border border-[#DDD8CF] overflow-hidden">
+              <button
+                onClick={() => setVista('tabla')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.1em] transition-colors ${
+                  vista === 'tabla'
+                    ? 'bg-[#173A25] text-[#F5F2EA]'
+                    : 'bg-white text-[#7A6F67] hover:text-[#173A25]'
+                }`}
+              >
+                <List className="h-3 w-3" />
+                Tabla
+              </button>
+              <button
+                onClick={() => setVista('dashboard')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.1em] transition-colors border-l border-[#DDD8CF] ${
+                  vista === 'dashboard'
+                    ? 'bg-[#173A25] text-[#F5F2EA]'
+                    : 'bg-white text-[#7A6F67] hover:text-[#173A25]'
+                }`}
+              >
+                <LayoutDashboard className="h-3 w-3" />
+                Dashboard
+              </button>
+            </div>
+          )}
+          {filtered.length > 0 && vista === 'tabla' && (
             <>
               <button
                 onClick={exportarExcel}
@@ -639,20 +830,27 @@ export default function OdooStock() {
               </div>
               <div className="flex items-center gap-3 text-[9px] font-bold uppercase tracking-[0.14em] text-[#9A8F87] ml-auto">
                 <span>{filtered.length} productos · {filtered.reduce((s, p) => s + p.variantes.length, 0)} variantes</span>
-                <button onClick={expandAll}   className="hover:text-[#1A1A1A] underline transition-colors">Expandir</button>
-                <button onClick={collapseAll} className="hover:text-[#1A1A1A] underline transition-colors">Colapsar</button>
+                {vista === 'tabla' && (
+                  <>
+                    <button onClick={expandAll}   className="hover:text-[#1A1A1A] underline transition-colors">Expandir</button>
+                    <button onClick={collapseAll} className="hover:text-[#1A1A1A] underline transition-colors">Colapsar</button>
+                  </>
+                )}
               </div>
             </div>
 
+            {/* Dashboard */}
+            {vista === 'dashboard' && <Dashboard rows={filtered} />}
+
             {/* Sin resultados */}
-            {filtered.length === 0 && !loading && (
+            {vista === 'tabla' && filtered.length === 0 && !loading && (
               <p className="text-center text-[11px] text-[#9A8F87] py-16 font-mono uppercase tracking-widest">
                 Sin resultados
               </p>
             )}
 
             {/* Filas de productos */}
-            {filtered.map(prod => {
+            {vista === 'tabla' && filtered.map(prod => {
               const isOpen = expanded.has(prod.templateId);
               return (
                 <div key={prod.templateId} className="bg-white border border-[#DDD8CF] overflow-hidden">
