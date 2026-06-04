@@ -180,15 +180,19 @@ export function InventarioTelas() {
 
   const setColorFromSelectors = (base: string, tonal: string) => {
     if (!base) { setForm(f => ({ ...f, colorBase: base, colorTonal: '', colorId: '' })); return; }
-    const group = colorGroups.find(g => g.baseId === base);
-    if (!group) return;
+    const group = colorGroups.find(g => g.baseId === base) ?? colorGroups.find(g => g.variants.some(v => v.id === base));
+    if (!group) {
+      // Fallback: color ID directo (sin grupo)
+      setForm(f => ({ ...f, colorBase: base, colorTonal: 'Base', colorId: base }));
+      return;
+    }
     if (tonal === '' && group.variants.length === 1) {
-      setForm(f => ({ ...f, colorBase: base, colorTonal: group.variants[0].tonal, colorId: group.variants[0].id }));
+      setForm(f => ({ ...f, colorBase: group.baseId, colorTonal: group.variants[0].tonal, colorId: group.variants[0].id }));
       return;
     }
     const variant = group.variants.find(v => v.tonal === tonal);
     const colorId = variant?.id ?? '';
-    setForm(f => ({ ...f, colorBase: base, colorTonal: tonal, colorId }));
+    setForm(f => ({ ...f, colorBase: group.baseId, colorTonal: tonal, colorId }));
   };
 
   const set = (field: keyof MovForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
