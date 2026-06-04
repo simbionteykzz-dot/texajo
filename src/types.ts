@@ -74,17 +74,16 @@ export interface RecetaComplemento {
 export interface Producto {
   id: string;
   nombre: string;
-  marca?: string;
-  costoMoTotal: number; // suma de todas sus tarifas
+  costoMoTotal: number; // suma de tarifas de operaciones (S/./prenda)
   precioServicio: number; // precio cobrado al cliente por prenda
-  telaBase?: string;           // nombre de tela típica → auto-relleno en cortes
+  telaId?: string;             // FK a Tela.id — auto-relleno en cortes
+  telaBase?: string;           // nombre libre (legacy/fallback)
   limiteConsumo?: number;      // kg/prenda máximo permitido
-  limiteRendimiento?: number;  // prendas/rollo mínimo permitido
-  propS?: number;              // proporción talla S por tendida (plantilla para cortes)
+  limiteRendimiento?: number;  // prendas/kg mínimo permitido
+  propS?: number;
   propM?: number;
   propL?: number;
   propXL?: number;
-  recetaComplementos?: RecetaComplemento[]; // complementos requeridos por prenda
   notas: string;
 }
 

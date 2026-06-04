@@ -6,7 +6,6 @@ import { Download, Plus, X, CheckCircle, Clock, XCircle, FileText, Trash2 } from
 import { Corte, SeguimientoAsignacion, SeguimientoFila, MovimientoTela } from '../types';
 import { ModuleInfoBox } from '../components/ModuleInfoBox';
 import { exportRowsToXlsx, exportTableToPdf } from '../lib/export';
-import { supabase } from '../lib/supabase';
 
 const uid = () => crypto.randomUUID();
 
@@ -68,7 +67,7 @@ export function Cortes() {
   const [filterCliente, setFilterCliente] = useState('');
   const [form, setForm] = useState<CorteForm>(emptyForm());
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-  const [mostrarTodosProductos, setMostrarTodosProductos] = useState(false);
+  const [mostrarTodosProductos, setMostrarTodosProductos] = useState(true);
 
   const capWords = (s: string) =>
     s.replace(/(^|\s)(\S)/g, (_, sp, ch) => sp + ch.toUpperCase());
@@ -130,15 +129,24 @@ export function Cortes() {
     const prod = productoMap.get(form.productoId);
     if (!prod) return;
     setForm(f => {
-      let updated: Partial<CorteForm> = {};
-      // Auto-relleno tela base
-      if (prod.telaBase && !f.telaId) {
-        const telaMatch = telas.find(t => t.nombre.toLowerCase() === prod.telaBase!.toLowerCase());
-        if (telaMatch) updated.telaId = telaMatch.id;
-      }
-      return { ...f, ...updated };
+      const partial: Partial<CorteForm> = {};
+      if (prod.telaId && !f.telaId) partial.telaId = prod.telaId;
+      const pS = prod.propS ?? 0, pM = prod.propM ?? 0, pL = prod.propL ?? 0, pXL = prod.propXL ?? 0;
+      const hasProps = pS > 0 || pM > 0 || pL > 0 || pXL > 0;
+      const updatedColores = hasProps
+        ? f.colores.map(c => {
+            if (c.propS || c.propM || c.propL || c.propXL) return c;
+            const t = parseInt(c.tendidas) || 0;
+            return {
+              ...c,
+              propS: String(pS), propM: String(pM), propL: String(pL), propXL: String(pXL),
+              ...(t > 0 ? { cantS: String(pS * t), cantM: String(pM * t), cantL: String(pL * t), cantXL: String(pXL * t) } : {}),
+            };
+          })
+        : f.colores;
+      return { ...f, ...partial, colores: updatedColores };
     });
-  }, [form.productoId, productoMap, telas]);
+  }, [form.productoId, productoMap]);
 
 
   const cortesFiltrados = useMemo(() =>
@@ -597,7 +605,7 @@ export function Cortes() {
                   <select value={form.cortador} onChange={set('cortador')} className="input-base">
                     <option value="">Seleccionar…</option>
                     {[...operarios]
-                      .filter(o => o.estado === 'ACTIVO' && (o.nombre === 'Yerson' || o.nombre === 'Jose'))
+                      .filter(o => o.estado === 'ACTIVO')
                       .sort((a, b) => a.nombre.localeCompare(b.nombre))
                       .map(o => <option key={o.id} value={o.nombre}>{o.nombre}</option>)}
                   </select>
@@ -606,7 +614,7 @@ export function Cortes() {
                   <select value={form.ayudante} onChange={set('ayudante')} className="input-base">
                     <option value="">Seleccionar…</option>
                     {[...operarios]
-                      .filter(o => o.estado === 'ACTIVO' && (o.nombre === 'Yerson' || o.nombre === 'Jose'))
+                      .filter(o => o.estado === 'ACTIVO')
                       .sort((a, b) => a.nombre.localeCompare(b.nombre))
                       .map(o => <option key={o.id} value={o.nombre}>{o.nombre}</option>)}
                   </select>
@@ -730,17 +738,19 @@ export function Cortes() {
                                   });
                                   if (!colorId || !form.productoId) return;
                                   const pcLocal = productoColores.find(x => x.productoId === form.productoId && x.colorId === colorId);
-                                  if (pcLocal) {
+                                  const prodProps = productoMap.get(form.productoId);
+                                  const src = pcLocal ?? (prodProps ? { propS: prodProps.propS ?? 0, propM: prodProps.propM ?? 0, propL: prodProps.propL ?? 0, propXL: prodProps.propXL ?? 0 } : null);
+                                  if (src) {
                                     setForm(f => {
                                       const next = [...f.colores];
                                       const t = parseInt(next[idx].tendidas) || 0;
                                       next[idx] = {
                                         ...next[idx],
-                                        propS: String(pcLocal.propS), propM: String(pcLocal.propM),
-                                        propL: String(pcLocal.propL), propXL: String(pcLocal.propXL),
+                                        propS: String(src.propS), propM: String(src.propM),
+                                        propL: String(src.propL), propXL: String(src.propXL),
                                         ...(t > 0 ? {
-                                          cantS: String(pcLocal.propS * t), cantM: String(pcLocal.propM * t),
-                                          cantL: String(pcLocal.propL * t), cantXL: String(pcLocal.propXL * t),
+                                          cantS: String(src.propS * t), cantM: String(src.propM * t),
+                                          cantL: String(src.propL * t), cantXL: String(src.propXL * t),
                                         } : {}),
                                       };
                                       return { ...f, colores: next };
@@ -777,47 +787,23 @@ export function Cortes() {
                                       });
                                       if (!form.productoId || !colorId) return;
                                       const pcLocal = productoColores.find(x => x.productoId === form.productoId && x.colorId === colorId);
-                                      if (pcLocal) {
+                                      const prodProps = productoMap.get(form.productoId);
+                                      const src = pcLocal ?? (prodProps ? { propS: prodProps.propS ?? 0, propM: prodProps.propM ?? 0, propL: prodProps.propL ?? 0, propXL: prodProps.propXL ?? 0 } : null);
+                                      if (src) {
                                         setForm(f => {
                                           const next = [...f.colores];
                                           const t = parseInt(next[idx].tendidas) || 0;
                                           next[idx] = {
                                             ...next[idx],
-                                            propS: String(pcLocal.propS), propM: String(pcLocal.propM),
-                                            propL: String(pcLocal.propL), propXL: String(pcLocal.propXL),
+                                            propS: String(src.propS), propM: String(src.propM),
+                                            propL: String(src.propL), propXL: String(src.propXL),
                                             ...(t > 0 ? {
-                                              cantS: String(pcLocal.propS * t), cantM: String(pcLocal.propM * t),
-                                              cantL: String(pcLocal.propL * t), cantXL: String(pcLocal.propXL * t),
+                                              cantS: String(src.propS * t), cantM: String(src.propM * t),
+                                              cantL: String(src.propL * t), cantXL: String(src.propXL * t),
                                             } : {}),
                                           };
                                           return { ...f, colores: next };
                                         });
-                                        return;
-                                      }
-                                      const { data } = await supabase
-                                        .from('producto_colores')
-                                        .select('producto_id,color_id,prop_s,prop_m,prop_l,prop_xl')
-                                        .eq('producto_id', form.productoId);
-                                      if (data) {
-                                        const row = data.find((r: {color_id: string}) => r.color_id === colorId);
-                                        if (row) {
-                                          const pS = row.prop_s ?? 0, pM = row.prop_m ?? 0;
-                                          const pL = row.prop_l ?? 0, pXL = row.prop_xl ?? 0;
-                                          setForm(f => {
-                                            const next = [...f.colores];
-                                            const t = parseInt(next[idx].tendidas) || 0;
-                                            next[idx] = {
-                                              ...next[idx],
-                                              propS: String(pS), propM: String(pM),
-                                              propL: String(pL), propXL: String(pXL),
-                                              ...(t > 0 ? {
-                                                cantS: String(pS * t), cantM: String(pM * t),
-                                                cantL: String(pL * t), cantXL: String(pXL * t),
-                                              } : {}),
-                                            };
-                                            return { ...f, colores: next };
-                                          });
-                                        }
                                       }
                                     }}
                                     className="input-base text-xs py-1 w-full"
