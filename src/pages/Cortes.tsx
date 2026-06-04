@@ -53,8 +53,9 @@ const ESTADO_ICON: Record<string, React.ReactNode> = {
 export function Cortes() {
   const {
     cortes, clientes, productos, colores, telas, tarifasOperaciones, operarios,
-    movimientosTela, seguimientoFilas, productoColores,
+    movimientosTela, seguimientoFilas, boletaLineas, productoColores,
     addCorte, updateCorte, deleteCorte,
+    deleteSeguimientoFila, deleteBoletaLinea,
     addMovimientoTela, addSeguimientoFila,
   } = useAppContext();
 
@@ -184,26 +185,24 @@ export function Cortes() {
     addToast(`Corte ${corte.nCorte} anulado`, 'success');
   };
 
+  // Normaliza un ID que puede ser nombre plano → ID canónico buscando en el catálogo
+  const normalizeColorId = (raw: string): string => {
+    if (colores.find(c => c.id === raw)) return raw;
+    return colores.find(c => c.nombre.toLowerCase() === raw.toLowerCase())?.id ?? raw;
+  };
+  const normalizeTelaId = (raw: string): string => {
+    if (telas.find(t => t.id === raw)) return raw;
+    return telas.find(t => t.nombre.toLowerCase() === raw.toLowerCase())?.id ?? raw;
+  };
+
   // Descuenta inventario automáticamente al completar un corte
   const descontarInventario = (corte: Corte): boolean => {
     if (!corte.telaId || !corte.colorId) return true;
-    // Normalizar colorId: si no existe como ID canónico, buscar por nombre
-    let colorId = corte.colorId;
-    if (!colores.find(c => c.id === colorId)) {
-      const byName = colores.find(c => c.nombre.toLowerCase() === colorId.toLowerCase());
-      if (byName) {
-        colorId = byName.id;
-        updateCorte(corte.id, { colorId });
-      }
-    }
-    // Normalizar telaId: si no existe como ID canónico, buscar por nombre
-    let telaId = corte.telaId;
-    if (!telas.find(t => t.id === telaId)) {
-      const byName = telas.find(t => t.nombre.toLowerCase() === (telaId ?? '').toLowerCase());
-      if (byName) {
-        telaId = byName.id;
-        updateCorte(corte.id, { telaId });
-      }
+    const colorId = normalizeColorId(corte.colorId);
+    const telaId = normalizeTelaId(corte.telaId);
+    // Si se normalizaron, persistir los IDs correctos en el corte
+    if (colorId !== corte.colorId || telaId !== corte.telaId) {
+      updateCorte(corte.id, { colorId, telaId });
     }
     const key = `${telaId}|${colorId}`;
     const stockAntes = stockActualTelas.get(key) ?? 0;
@@ -214,14 +213,14 @@ export function Cortes() {
       return false;
     }
     const kgTotal = corte.kgUsados || 0;
-    const color = colores.find(c => c.id === corte.colorId);
+    const color = colores.find(c => c.id === colorId);
     const mov: MovimientoTela = {
       id: uid(),
       fecha: corte.fecha,
       tipo: 'A_CORTE',
       clienteId: corte.clienteId,
-      telaId: corte.telaId,
-      colorId: corte.colorId,
+      telaId,
+      colorId,
       rollos,
       kgTotal,
       categoriaColor: color?.categoria ?? 'OSCURO',
@@ -475,7 +474,13 @@ export function Cortes() {
                       )}
                       {confirmDelete === c.id ? (
                         <span className="flex items-center gap-1 whitespace-nowrap">
-                          <button onClick={() => { deleteCorte(c.id); setConfirmDelete(null); addToast('Corte eliminado', 'success'); }} className="text-[10px] font-bold text-red-600 hover:text-red-800 uppercase">Sí</button>
+                          <button onClick={() => {
+                            seguimientoFilas.filter(f => f.corteId === c.id).forEach(f => deleteSeguimientoFila(f.id));
+                            boletaLineas.filter(b => b.corteId === c.id).forEach(b => deleteBoletaLinea(b.id));
+                            deleteCorte(c.id);
+                            setConfirmDelete(null);
+                            addToast('Corte eliminado', 'success');
+                          }} className="text-[10px] font-bold text-red-600 hover:text-red-800 uppercase">Sí</button>
                           <span className="text-gray-300">/</span>
                           <button onClick={() => setConfirmDelete(null)} className="text-[10px] font-bold text-gray-400 hover:text-gray-600 uppercase">No</button>
                         </span>

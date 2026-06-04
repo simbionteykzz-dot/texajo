@@ -37,6 +37,7 @@ export function ProduccionConfeccion() {
   const operarioMap = useMemo(() => new Map(operarios.map(o => [o.id, o])), [operarios]);
   const corteMap = useMemo(() => new Map(cortes.map(c => [c.id, c])), [cortes]);
 
+
   const tarifasDelCorte = (corteId: string) => {
     const corte = corteMap.get(corteId);
     if (!corte) return [];
@@ -85,10 +86,19 @@ export function ProduccionConfeccion() {
     const filasValidas = form.filas.filter(f => f.cantidad && parseInt(f.cantidad) > 0);
     if (filasValidas.length === 0) { addToast('Ingresa al menos una talla con cantidad', 'error'); return; }
     const tarifas = tarifasDelCorte(form.corteId);
+    // Buscar operarios ya asignados en boletas de Destajo para este corte
+    const boletasDelCorte = boletaLineas.filter(b => b.corteId === form.corteId);
     for (const row of filasValidas) {
-      const asignaciones: SeguimientoAsignacion[] = tarifas.map(t => ({
-        tarifaId: t.id, operacion: t.operacion, orden: t.orden, operarioId: '', pago: 0,
-      }));
+      const cantidad = parseInt(row.cantidad);
+      const asignaciones: SeguimientoAsignacion[] = tarifas.map(t => {
+        const boleta = boletasDelCorte.find(b => b.tarifaId === t.id);
+        const operarioId = boleta?.operarioId ?? '';
+        const pago = operarioId ? cantidad * t.tarifa : 0;
+        return { tarifaId: t.id, operacion: t.operacion, orden: t.orden, operarioId, pago };
+      });
+      const assignedCount = asignaciones.filter(a => a.operarioId).length;
+      const pctAvance = asignaciones.length > 0 ? Math.round((assignedCount / asignaciones.length) * 100) : 0;
+      const totalPago = asignaciones.reduce((s, a) => s + a.pago, 0);
       addSeguimientoFila({
         id: uid(),
         corteId: form.corteId,
@@ -97,11 +107,11 @@ export function ProduccionConfeccion() {
         fecha: form.fecha,
         colorId: corte.colorId,
         talla: row.talla,
-        cantidad: parseInt(row.cantidad),
+        cantidad,
         asignaciones,
-        pctAvance: 0,
-        estado: 'PENDIENTE',
-        totalPago: 0,
+        pctAvance,
+        estado: pctAvance === 100 ? 'LISTO' : 'PENDIENTE',
+        totalPago,
       });
     }
     addToast(`${filasValidas.length} fila${filasValidas.length > 1 ? 's' : ''} de seguimiento creada${filasValidas.length > 1 ? 's' : ''}`, 'success');
@@ -362,7 +372,7 @@ export function ProduccionConfeccion() {
                                     >
                                       <option value="">—</option>
                                       {operarios.filter(o => o.estado === 'ACTIVO').map(o => (
-                                        <option key={o.id} value={o.id}>{o.codigo}</option>
+                                        <option key={o.id} value={o.id}>{o.nombre ?? o.codigo}</option>
                                       ))}
                                     </select>
                                   </td>
