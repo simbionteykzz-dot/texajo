@@ -37,7 +37,7 @@ const toOperario = (r: any): Operario => ({ id: r.id, codigo: r.codigo, nombre: 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const toMovTela = (r: any): MovimientoTela => ({ id: r.id, fecha: r.fecha, tipo: r.tipo, clienteId: r.cliente_id, telaId: r.tela_id, colorId: r.color_id, rollos: r.rollos, kgTotal: r.kg_total, categoriaColor: r.categoria_color, precioKg: r.precio_kg, totalSoles: r.total_soles, stockRollosAntes: r.stock_rollos_antes, stockRollosDespues: r.stock_rollos_despues, responsable: r.responsable, proveedorId: r.proveedor_id ?? undefined, nFactura: r.n_factura ?? undefined, costoRealFact: r.costo_real_fact ?? undefined, corteId: r.corte_id ?? undefined, nCorte: r.n_corte ?? undefined, notas: r.notas });
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const toCorte = (r: any): Corte => ({ id: r.id, nCorte: r.n_corte, fecha: r.fecha, clienteId: r.cliente_id, productoId: r.producto_id, colorId: r.color_id, telaId: r.tela_id ?? undefined, cortador: r.cortador, ayudante: r.ayudante, kgUsados: r.kg_usados, rollosUsados: r.rollos_usados, tendidas: r.tendidas, mtsPorTendida: r.mts_por_tendida, ancho: r.ancho, cantS: r.cant_s, cantM: r.cant_m, cantL: r.cant_l, cantXL: r.cant_xl, totalPrendas: r.total_prendas, consumo: r.consumo, rendimiento: r.rendimiento, revision: r.revision, traslado: r.traslado, estado: r.estado, pagoCliente: r.pago_cliente, pagoPlanilla: r.pago_planilla, costoMoCorte: r.costo_mo_corte, notas: r.notas });
+const toCorte = (r: any): Corte => ({ id: r.id, nCorte: r.n_corte, fecha: r.fecha, clienteId: r.cliente_id, productoId: r.producto_id, colorId: r.color_id, tonalidad: r.tonalidad ?? undefined, telaId: r.tela_id ?? undefined, cortador: r.cortador, ayudante: r.ayudante, kgUsados: r.kg_usados, rollosUsados: r.rollos_usados, tendidas: r.tendidas, mtsPorTendida: r.mts_por_tendida, ancho: r.ancho_cm ?? r.ancho, cantS: r.cant_s, cantM: r.cant_m, cantL: r.cant_l, cantXL: r.cant_xl, totalPrendas: r.total_prendas, consumo: r.consumo, rendimiento: r.rendimiento, revision: r.revision, traslado: r.traslado, estado: r.estado, pagoCliente: r.pago_cliente, pagoPlanilla: r.pago_planilla, costoMoCorte: r.costo_mo_corte, notas: r.notas });
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const toSeguimientoFila = (r: any): SeguimientoFila => ({ id: r.id, corteId: r.corte_id, nCorte: r.n_corte, productoId: r.producto_id, fecha: r.fecha, colorId: r.color_id, talla: r.talla, cantidad: r.cantidad, asignaciones: r.asignaciones ?? [], pctAvance: r.pct_avance, estado: r.estado, totalPago: r.total_pago });
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -56,8 +56,26 @@ const toExtorno = (r: any): StockExtorno => ({ id: r.id, programaId: r.programa_
 const toCobro = (r: any): CobroDiario => ({ id: r.id, fecha: r.fecha, nCorte: r.n_corte, nFactura: r.n_factura, clienteId: r.cliente_id, productoId: r.producto_id, colorId: r.color_id, cantS: r.cant_s, cantM: r.cant_m, cantL: r.cant_l, cantXL: r.cant_xl, totalPrendas: r.total_prendas, precioUnitario: r.precio_unitario, bruto: r.bruto, detraccion10Pct: r.detraccion_10pct, disponible90Pct: r.disponible_90pct, estado: r.estado, notas: r.notas, fechaCobro: r.fecha_cobro ?? undefined });
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const toMovComplemento = (r: any): MovimientoComplemento => ({ id: r.id, fecha: r.fecha, tipo: r.tipo, tipoComplemento: r.tipo_complemento, colorId: r.color_id, talla: r.talla, cantidad: r.cantidad, precioUnit: r.precio_unit, totalSoles: r.total_soles, stockAntes: r.stock_antes, stockDespues: r.stock_despues, corteId: r.corte_id ?? undefined, nCorte: r.n_corte ?? undefined, productoDestinoId: r.producto_destino_id ?? undefined, proveedorId: r.proveedor_id ?? undefined, nFactura: r.n_factura ?? undefined, responsable: r.responsable, notas: r.notas });
+// Config es tabla key-value: [{clave, valor}]. Convertimos el array a objeto Config.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const toConfig = (r: any): Config => ({ umbralCritico: r.umbral_critico, umbralBajo: r.umbral_bajo, mermaPct: r.merma_pct, detraccionPct: r.detraccion_pct, igvPct: r.igv_pct, incluirIgv: r.incluir_igv, tipoCambioUsd: r.tipo_cambio_usd, kgPorRolloDefault: r.kg_por_rollo_default, comisionJoseKg: r.comision_jose_kg, mermaMaxTej: r.merma_max_tej, mermaMaxTint: r.merma_max_tint, tiposComplemento: r.tipos_complemento ?? undefined });
+const toConfig = (rows: any[]): Config => {
+  const kv: Record<string, string> = {};
+  for (const r of rows) kv[r.clave] = r.valor;
+  const num = (k: string, def: number) => parseFloat(kv[k] ?? String(def));
+  return {
+    umbralCritico:    num('umbral_critico',     5),
+    umbralBajo:       num('umbral_bajo',        15),
+    mermaPct:         num('merma_estandar',   0.15),
+    detraccionPct:    num('detraccion',         0.10),
+    igvPct:           num('igv',               0.18),
+    incluirIgv:       (kv['incluir_igv'] ?? 'NO') === 'SI',
+    tipoCambioUsd:    num('tc_default',         3.50),
+    kgPorRolloDefault:num('kg_por_rollo',       20),
+    comisionJoseKg:   num('comision_jose_kg',   0.30),
+    mermaMaxTej:      5,
+    mermaMaxTint:     10,
+  };
+};
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const toProductoColor = (r: any): ProductoColor => ({ id: r.id, productoId: r.producto_id, colorId: r.color_id, propS: r.prop_s, propM: r.prop_m, propL: r.prop_l, propXL: r.prop_xl });
 
@@ -77,7 +95,7 @@ const fromProducto = (v: Producto) => ({ id: v.id, nombre: v.nombre, marca: v.ma
 const fromTarifa = (v: TarifaOperacion) => ({ id: v.id, producto_id: v.productoId, orden: v.orden, operacion: v.operacion, tarifa: v.tarifa, notas: v.notas, clave: v.clave });
 const fromOperario = (v: Operario) => ({ id: v.id, codigo: v.codigo, nombre: v.nombre, estado: v.estado, dni: v.dni ?? null, telefono: v.telefono ?? null, modulo: v.modulo ?? null, maquina: v.maquina ?? null, fecha_ingreso: v.fechaIngreso ?? null });
 const fromMovTela = (v: MovimientoTela) => ({ id: v.id, fecha: v.fecha, tipo: v.tipo, cliente_id: v.clienteId, tela_id: v.telaId, color_id: v.colorId, rollos: v.rollos, kg_total: v.kgTotal, categoria_color: v.categoriaColor, precio_kg: v.precioKg, total_soles: v.totalSoles, stock_rollos_antes: v.stockRollosAntes, stock_rollos_despues: v.stockRollosDespues, responsable: v.responsable, proveedor_id: v.proveedorId ?? null, n_factura: v.nFactura ?? null, costo_real_fact: v.costoRealFact ?? null, corte_id: v.corteId ?? null, n_corte: v.nCorte ?? null, notas: v.notas });
-const fromCorte = (v: Corte) => ({ id: v.id, n_corte: v.nCorte, fecha: v.fecha, cliente_id: v.clienteId, producto_id: v.productoId, color_id: v.colorId, tela_id: v.telaId ?? null, cortador: v.cortador, ayudante: v.ayudante, kg_usados: v.kgUsados, rollos_usados: v.rollosUsados, tendidas: v.tendidas, mts_por_tendida: v.mtsPorTendida, ancho: v.ancho, cant_s: v.cantS, cant_m: v.cantM, cant_l: v.cantL, cant_xl: v.cantXL, total_prendas: v.totalPrendas, consumo: v.consumo, rendimiento: v.rendimiento, revision: v.revision, traslado: v.traslado, estado: v.estado, pago_cliente: v.pagoCliente, pago_planilla: v.pagoPlanilla, costo_mo_corte: v.costoMoCorte, notas: v.notas });
+const fromCorte = (v: Corte) => ({ id: v.id, n_corte: v.nCorte, fecha: v.fecha, cliente_id: v.clienteId, producto_id: v.productoId, color_id: v.colorId, tonalidad: v.tonalidad ?? null, tela_id: v.telaId ?? null, cortador: v.cortador, ayudante: v.ayudante, kg_usados: v.kgUsados, rollos_usados: v.rollosUsados, tendidas: v.tendidas, mts_por_tendida: v.mtsPorTendida, ancho_cm: v.ancho, cant_s: v.cantS, cant_m: v.cantM, cant_l: v.cantL, cant_xl: v.cantXL, total_prendas: v.totalPrendas, consumo: v.consumo, rendimiento: v.rendimiento, revision: v.revision, traslado: v.traslado, estado: v.estado, pago_cliente: v.pagoCliente, pago_planilla: v.pagoPlanilla, costo_mo_corte: v.costoMoCorte, notas: v.notas });
 const fromSeguimientoFila = (v: SeguimientoFila) => ({ id: v.id, corte_id: v.corteId, n_corte: v.nCorte, producto_id: v.productoId, fecha: v.fecha, color_id: v.colorId, talla: v.talla, cantidad: v.cantidad, asignaciones: v.asignaciones, pct_avance: v.pctAvance, estado: v.estado, total_pago: v.totalPago });
 const fromBoletaLinea = (v: BoletaLinea) => ({ id: v.id, operario_id: v.operarioId, corte_id: v.corteId, n_corte: v.nCorte, producto_id: v.productoId, tarifa_id: v.tarifaId, operacion: v.operacion, orden: v.orden, tarifa: v.tarifa, cant_prendas: v.cantPrendas, importe: v.importe, periodo: v.periodo, fecha_registro: v.fechaRegistro ?? null, estado_pago: v.estadoPago, fecha_pago: v.fechaPago ?? null });
 const fromDescuento = (v: DescuentoBoleta) => ({ id: v.id, operario_id: v.operarioId, periodo: v.periodo, tipo: v.tipo, monto: v.monto, notas: v.notas });
@@ -87,7 +105,18 @@ const fromCompraHilo = (v: CompraHilo) => ({ id: v.id, fecha: v.fecha, programa_
 const fromExtorno = (v: StockExtorno) => ({ id: v.id, programa_id: v.programaId, programa_detalle_id: v.programaDetalleId ?? null, fecha: v.fecha, kg_conos: v.kgConos, precio_kg_hilo: v.precioKgHilo, total_soles: v.totalSoles, usado: v.usado, notas: v.notas });
 const fromCobro = (v: CobroDiario) => ({ id: v.id, fecha: v.fecha, n_corte: v.nCorte, n_factura: v.nFactura, cliente_id: v.clienteId, producto_id: v.productoId, color_id: v.colorId, cant_s: v.cantS, cant_m: v.cantM, cant_l: v.cantL, cant_xl: v.cantXL, total_prendas: v.totalPrendas, precio_unitario: v.precioUnitario, bruto: v.bruto, detraccion_10pct: v.detraccion10Pct, disponible_90pct: v.disponible90Pct, estado: v.estado, notas: v.notas, fecha_cobro: v.fechaCobro ?? null });
 const fromMovComplemento = (v: MovimientoComplemento) => ({ id: v.id, fecha: v.fecha, tipo: v.tipo, tipo_complemento: v.tipoComplemento, color_id: v.colorId, talla: v.talla, cantidad: v.cantidad, precio_unit: v.precioUnit, total_soles: v.totalSoles, stock_antes: v.stockAntes, stock_despues: v.stockDespues, corte_id: v.corteId ?? null, n_corte: v.nCorte ?? null, producto_destino_id: v.productoDestinoId ?? null, proveedor_id: v.proveedorId ?? null, n_factura: v.nFactura ?? null, responsable: v.responsable, notas: v.notas });
-const fromConfig = (v: Config) => ({ umbral_critico: v.umbralCritico, umbral_bajo: v.umbralBajo, merma_pct: v.mermaPct, detraccion_pct: v.detraccionPct, igv_pct: v.igvPct, incluir_igv: v.incluirIgv, tipo_cambio_usd: v.tipoCambioUsd, kg_por_rollo_default: v.kgPorRolloDefault, comision_jose_kg: v.comisionJoseKg, merma_max_tej: v.mermaMaxTej, merma_max_tint: v.mermaMaxTint, tipos_complemento: v.tiposComplemento ?? null });
+// Config key-value → array de rows para upsert
+const fromConfig = (v: Config): Array<{clave: string; valor: string}> => [
+  { clave: 'umbral_critico',    valor: String(v.umbralCritico) },
+  { clave: 'umbral_bajo',       valor: String(v.umbralBajo) },
+  { clave: 'merma_estandar',    valor: String(v.mermaPct) },
+  { clave: 'detraccion',        valor: String(v.detraccionPct) },
+  { clave: 'igv',               valor: String(v.igvPct) },
+  { clave: 'incluir_igv',       valor: v.incluirIgv ? 'SI' : 'NO' },
+  { clave: 'tc_default',        valor: String(v.tipoCambioUsd) },
+  { clave: 'kg_por_rollo',      valor: String(v.kgPorRolloDefault) },
+  { clave: 'comision_jose_kg',  valor: String(v.comisionJoseKg) },
+];
 
 // ─── Tipos de AppState para carga inicial ────────────────────────────────────
 
@@ -149,7 +178,7 @@ export async function loadAllFromDb(): Promise<DbAppState> {
     supabase.from('cobros_diarios').select('*'),
     supabase.from('movimientos_complemento').select('*'),
     supabase.from('producto_colores').select('*'),
-    supabase.from('config').select('*').eq('id', 'singleton').maybeSingle(),
+    supabase.from('config').select('*'),
   ]);
 
   // Loguear errores individuales para diagnóstico
@@ -207,7 +236,7 @@ export async function loadAllFromDb(): Promise<DbAppState> {
     cobrosDiarios:          (cd.data   ?? []).map(toCobro),
     movimientosComplemento: (mc.data       ?? []).map(toMovComplemento),
     productoColores:        productoColoresData.map(toProductoColor),
-    config:                 cfg.data ? toConfig(cfg.data) : null,
+    config:                 (cfg.data && cfg.data.length > 0) ? toConfig(cfg.data) : null,
   };
 }
 
@@ -225,7 +254,7 @@ export async function seedInitialData(state: Omit<DbAppState, 'config'> & { conf
     supabase.from('productos').upsert(state.productos.map(fromProducto)),
     supabase.from('tarifas_operaciones').upsert(state.tarifasOperaciones.map(fromTarifa)),
     supabase.from('operarios').upsert(state.operarios.map(fromOperario)),
-    supabase.from('config').upsert([{ id: 'singleton', ...fromConfig(state.config) }]),
+    supabase.from('config').upsert(fromConfig(state.config), { onConflict: 'clave' }),
   ]);
 }
 
@@ -373,7 +402,7 @@ export const db = {
   },
   config: {
     upsert: async (v: Config) => {
-      const { error } = await supabase.from('config').upsert({ id: 'singleton', ...fromConfig(v) });
+      const { error } = await supabase.from('config').upsert(fromConfig(v), { onConflict: 'clave' });
       if (error) throw error;
     },
   },

@@ -12,6 +12,8 @@ const uid = () => crypto.randomUUID();
 
 interface ColorDetalle {
   colorId: string;
+  colorBase: string;
+  colorTonal: string;
   kgUsados: string;
   rollosUsados: string;
   tendidas: string;
@@ -30,7 +32,8 @@ interface CorteForm {
 }
 
 const emptyColorDetalle = (): ColorDetalle => ({
-  colorId: '', kgUsados: '', rollosUsados: '',
+  colorId: '', colorBase: '', colorTonal: '',
+  kgUsados: '', rollosUsados: '',
   tendidas: '', propS: '', propM: '', propL: '', propXL: '',
   cantS: '0', cantM: '0', cantL: '0', cantXL: '0',
 });
@@ -74,6 +77,39 @@ export function Cortes() {
   const productoMap = useMemo(() => new Map(productos.map(p => [p.id, p])), [productos]);
   const colorMap = useMemo(() => new Map(colores.map(c => [c.id, c.nombre])), [colores]);
   const telaMap = useMemo(() => new Map(telas.map(t => [t.id, t])), [telas]);
+
+  const colorGroups = useMemo(() => {
+    type Group = { baseId: string; baseName: string; variants: { id: string; tonal: string }[] };
+    const byName = new Map<string, Group>();
+
+    for (const c of colores) {
+      const numSuffix = c.nombre.match(/\s+(\d+)$/);
+      const baseName = numSuffix ? c.nombre.slice(0, -numSuffix[0].length).trim() : c.nombre.trim();
+      const tonal = numSuffix ? numSuffix[1] : 'Base';
+
+      if (!byName.has(baseName)) {
+        byName.set(baseName, { baseId: c.id, baseName, variants: [] });
+      }
+      const grp = byName.get(baseName)!;
+
+      if (!numSuffix) {
+        // Sin sufijo numérico → es una "Base". Si ya hay otra Base en el grupo, no duplicar.
+        const alreadyHasBase = grp.variants.some(v => v.tonal === 'Base');
+        if (alreadyHasBase) continue;
+        grp.baseId = c.id;
+      }
+      grp.variants.push({ id: c.id, tonal });
+    }
+
+    for (const g of byName.values()) {
+      g.variants.sort((a, b) => {
+        if (a.tonal === 'Base') return -1;
+        if (b.tonal === 'Base') return 1;
+        return parseInt(a.tonal) - parseInt(b.tonal);
+      });
+    }
+    return Array.from(byName.values()).sort((a, b) => a.baseName.localeCompare(b.baseName));
+  }, [colores]);
 
   // Stock actual de telas: suma/resta deltas de todos los movimientos (no depende de stockRollosDespues)
   const stockActualTelas = useMemo(() => {
@@ -624,7 +660,8 @@ export function Cortes() {
                     <thead>
                       <tr className="bg-gray-50 border-b border-gray-200">
                         {form.colores.length > 1 && <th className="px-2 py-1.5 text-[10px] font-bold uppercase text-gray-400 w-6">#</th>}
-                        <th className="px-2 py-1.5 text-[10px] font-bold uppercase text-gray-500 text-left min-w-[140px] w-40">Color</th>
+                        <th className="px-2 py-1.5 text-[10px] font-bold uppercase text-gray-500 text-left min-w-[120px] w-32">Color</th>
+                        <th className="px-2 py-1.5 text-[10px] font-bold uppercase text-gray-500 text-left min-w-[90px] w-24">Tonalidad</th>
                         <th className="px-3 py-1.5 text-[10px] font-bold uppercase text-gray-500 text-right w-16">Kg</th>
                         <th className="px-3 py-1.5 text-[10px] font-bold uppercase text-gray-500 text-right w-16">Rollos</th>
                         <th className="px-3 py-1.5 text-[10px] font-bold uppercase text-gray-500 text-center w-16">Tendidas</th>
@@ -673,24 +710,26 @@ export function Cortes() {
                                 {String.fromCharCode(65 + idx)}
                               </td>
                             )}
-                            <td className="px-2 py-1 min-w-[140px] w-40">
+                            <td className="px-2 py-1 min-w-[120px] w-32">
                               <select
-                                value={det.colorId}
+                                value={det.colorBase}
                                 onChange={async e => {
-                                  const colorId = e.target.value;
-                                  const productoId = form.productoId;
-                                  // Actualiza colorId inmediatamente
+                                  const base = e.target.value;
+                                  const group = colorGroups.find(g => g.baseId === base);
+                                  const singleVariant = group?.variants.length === 1 ? group.variants[0] : null;
+                                  const colorId = singleVariant?.id ?? '';
                                   setForm(f => {
                                     const next = [...f.colores];
-                                    next[idx] = { ...next[idx], colorId };
+                                    next[idx] = {
+                                      ...next[idx],
+                                      colorBase: base,
+                                      colorTonal: singleVariant ? singleVariant.tonal : '',
+                                      colorId,
+                                    };
                                     return { ...f, colores: next };
                                   });
-                                  if (!productoId || !colorId) return;
-
-                                  // 1. Buscar primero en estado global
-                                  const pcLocal = productoColores.find(
-                                    x => x.productoId === productoId && x.colorId === colorId
-                                  );
+                                  if (!colorId || !form.productoId) return;
+                                  const pcLocal = productoColores.find(x => x.productoId === form.productoId && x.colorId === colorId);
                                   if (pcLocal) {
                                     setForm(f => {
                                       const next = [...f.colores];
@@ -706,38 +745,6 @@ export function Cortes() {
                                       };
                                       return { ...f, colores: next };
                                     });
-                                    return;
-                                  }
-
-                                  // 2. Consultar Supabase directamente — traer TODOS los de este producto
-                                  console.log('[props] buscando producto_colores productoId=', productoId, 'colorId=', colorId);
-                                  const { data, error } = await supabase
-                                    .from('producto_colores')
-                                    .select('producto_id,color_id,prop_s,prop_m,prop_l,prop_xl')
-                                    .eq('producto_id', productoId);
-                                  console.log('[props] resultado:', data, 'error:', error);
-                                  if (data) {
-                                    const row = data.find((r: {color_id: string}) => r.color_id === colorId);
-                                    if (row) {
-                                      const pS = row.prop_s ?? 0, pM = row.prop_m ?? 0;
-                                      const pL = row.prop_l ?? 0, pXL = row.prop_xl ?? 0;
-                                      setForm(f => {
-                                        const next = [...f.colores];
-                                        const t = parseInt(next[idx].tendidas) || 0;
-                                        next[idx] = {
-                                          ...next[idx],
-                                          propS: String(pS), propM: String(pM),
-                                          propL: String(pL), propXL: String(pXL),
-                                          ...(t > 0 ? {
-                                            cantS: String(pS * t), cantM: String(pM * t),
-                                            cantL: String(pL * t), cantXL: String(pXL * t),
-                                          } : {}),
-                                        };
-                                        return { ...f, colores: next };
-                                      });
-                                    } else {
-                                      console.warn('[props] no hay fila para colorId=', colorId, 'en data:', data);
-                                    }
                                   }
                                 }}
                                 className="input-base text-xs py-1 w-full"
@@ -745,10 +752,84 @@ export function Cortes() {
                               >
                                 <option value="">Seleccionar…</option>
                                 {(form.productoId && !det.todosColores
-                                  ? colores.filter(c => productoColores.some(pc => pc.productoId === form.productoId && pc.colorId === c.id))
-                                  : colores
-                                ).map(c => <option key={c.id} value={c.id}>{capWords(c.nombre)}</option>)}
+                                  ? colorGroups.filter(g => g.variants.some(v => productoColores.some(pc => pc.productoId === form.productoId && pc.colorId === v.id)))
+                                  : colorGroups
+                                ).map(g => <option key={g.baseId} value={g.baseId}>{capWords(g.baseName)}</option>)}
                               </select>
+                            </td>
+                            <td className="px-2 py-1 min-w-[90px] w-24">
+                              {(() => {
+                                const group = colorGroups.find(g => g.baseId === det.colorBase);
+                                const variants = group?.variants ?? [];
+                                if (!det.colorBase) return <span className="text-[10px] text-gray-300 italic">—</span>;
+                                if (variants.length === 1) return <span className="text-[10px] text-gray-500 font-mono">Base</span>;
+                                return (
+                                  <select
+                                    value={det.colorTonal}
+                                    onChange={async e => {
+                                      const tonal = e.target.value;
+                                      const variant = variants.find(v => v.tonal === tonal);
+                                      const colorId = variant?.id ?? '';
+                                      setForm(f => {
+                                        const next = [...f.colores];
+                                        next[idx] = { ...next[idx], colorTonal: tonal, colorId };
+                                        return { ...f, colores: next };
+                                      });
+                                      if (!form.productoId || !colorId) return;
+                                      const pcLocal = productoColores.find(x => x.productoId === form.productoId && x.colorId === colorId);
+                                      if (pcLocal) {
+                                        setForm(f => {
+                                          const next = [...f.colores];
+                                          const t = parseInt(next[idx].tendidas) || 0;
+                                          next[idx] = {
+                                            ...next[idx],
+                                            propS: String(pcLocal.propS), propM: String(pcLocal.propM),
+                                            propL: String(pcLocal.propL), propXL: String(pcLocal.propXL),
+                                            ...(t > 0 ? {
+                                              cantS: String(pcLocal.propS * t), cantM: String(pcLocal.propM * t),
+                                              cantL: String(pcLocal.propL * t), cantXL: String(pcLocal.propXL * t),
+                                            } : {}),
+                                          };
+                                          return { ...f, colores: next };
+                                        });
+                                        return;
+                                      }
+                                      const { data } = await supabase
+                                        .from('producto_colores')
+                                        .select('producto_id,color_id,prop_s,prop_m,prop_l,prop_xl')
+                                        .eq('producto_id', form.productoId);
+                                      if (data) {
+                                        const row = data.find((r: {color_id: string}) => r.color_id === colorId);
+                                        if (row) {
+                                          const pS = row.prop_s ?? 0, pM = row.prop_m ?? 0;
+                                          const pL = row.prop_l ?? 0, pXL = row.prop_xl ?? 0;
+                                          setForm(f => {
+                                            const next = [...f.colores];
+                                            const t = parseInt(next[idx].tendidas) || 0;
+                                            next[idx] = {
+                                              ...next[idx],
+                                              propS: String(pS), propM: String(pM),
+                                              propL: String(pL), propXL: String(pXL),
+                                              ...(t > 0 ? {
+                                                cantS: String(pS * t), cantM: String(pM * t),
+                                                cantL: String(pL * t), cantXL: String(pXL * t),
+                                              } : {}),
+                                            };
+                                            return { ...f, colores: next };
+                                          });
+                                        }
+                                      }
+                                    }}
+                                    className="input-base text-xs py-1 w-full"
+                                    required={idx === 0}
+                                  >
+                                    <option value="">—</option>
+                                    {variants.map(v => (
+                                      <option key={v.id} value={v.tonal}>{v.tonal === 'Base' ? 'Base' : `Tn-${v.tonal}`}</option>
+                                    ))}
+                                  </select>
+                                );
+                              })()}
                             </td>
                             <td className="px-2 py-1">
                               <input type="number" min={0} step={0.1} value={det.kgUsados} onChange={setDet('kgUsados')} className="input-base text-xs py-1 text-right w-full min-w-[52px]" placeholder="0" />

@@ -163,6 +163,7 @@ export interface Corte {
   clienteId: string;
   productoId: string;
   colorId: string;
+  tonalidad?: string; // ej: "1", "2" — variante del color base (nullable)
   telaId?: string; // referencia a Tela.id para descuento automático de inventario
   cortador: string; // nombre libre, no referencia Operario.id
   ayudante: string;
