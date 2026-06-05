@@ -103,6 +103,11 @@ CREATE TABLE productos (
   pretinas_por_prenda INTEGER NOT NULL DEFAULT 0,
   cierre_origen     TEXT CHECK (cierre_origen IN ('DIRECTO','NINGUNO')),
   cierres_por_prenda INTEGER NOT NULL DEFAULT 0,
+  -- proporciones default por producto (fallback al crear cortes)
+  prop_s            NUMERIC(6,2) DEFAULT 0,
+  prop_m            NUMERIC(6,2) DEFAULT 0,
+  prop_l            NUMERIC(6,2) DEFAULT 0,
+  prop_xl           NUMERIC(6,2) DEFAULT 0,
   activo            BOOLEAN NOT NULL DEFAULT TRUE,
   notas             TEXT
 );

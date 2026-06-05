@@ -101,7 +101,8 @@ INSERT INTO productos (
   cuello_origen, cuellos_por_prenda,
   puno_origen, punos_por_prenda,
   pretina_origen, pretinas_por_prenda,
-  cierre_origen, cierres_por_prenda
+  cierre_origen, cierres_por_prenda,
+  prop_s, prop_m, prop_l, prop_xl
 )
 SELECT p.nombre,
        t.id,
@@ -110,30 +111,32 @@ SELECT p.nombre,
        p.cuello_origen, p.cuellos_por_prenda,
        p.puno_origen, p.punos_por_prenda,
        p.pretina_origen, p.pretinas_por_prenda,
-       p.cierre_origen, p.cierres_por_prenda
+       p.cierre_origen, p.cierres_por_prenda,
+       p.prop_s, p.prop_m, p.prop_l, p.prop_xl
 FROM (VALUES
-  -- (nombre, tela_nombre, costo_mo, precio_venta, lim_consumo, lim_rend, cuello_origen, cuellos, puno_origen, punos, pretina_origen, pretinas, cierre_origen, cierres)
-  ('jersey manga corta',       'jersey 30/1',        0.95, 1.70, 0.65, 6.0,  'RIB 1x1',     1, 'NINGUNO', 0, 'NINGUNO', 0, 'NINGUNO', 0),
-  ('jersey manga larga',       'jersey 30/1',        1.00, 2.00, 0.81, 5.5,  'RIB 1x1',     1, 'NINGUNO', 0, 'NINGUNO', 0, 'NINGUNO', 0),
-  ('wafle clasico',            'wafle 30/1',         0.95, 1.70, 0.60, 5.0,  'NINGUNO',     0, 'NINGUNO', 0, 'NINGUNO', 0, 'NINGUNO', 0),
-  ('wafle manga larga',        'wafle 30/1',         1.00, 2.00, 0.70, 5.0,  'NINGUNO',     0, 'NINGUNO', 0, 'NINGUNO', 0, 'NINGUNO', 0),
-  ('wafle camisero',           'wafle 30/1',         1.96, 4.00, 0.65, 4.5,  'RECTILÍNEO',  1, 'RECTILÍNEO', 2, 'NINGUNO', 0, 'NINGUNO', 0),
-  ('pique camisero',           'pique 30/1',         1.96, 4.00, 0.65, 5.0,  'RECTILÍNEO',  1, 'RECTILÍNEO', 2, 'NINGUNO', 0, 'NINGUNO', 0),
-  ('top cero rib',             'jersey 30/1',        0.56, 1.10, 0.55, 7.0,  'RIB 2x1',     1, 'NINGUNO', 0, 'NINGUNO', 0, 'NINGUNO', 0),
-  ('top mc rib',               'jersey 30/1',        0.72, 1.70, 0.55, 7.0,  'RIB 2x1',     1, 'NINGUNO', 0, 'NINGUNO', 0, 'NINGUNO', 0),
-  ('top ml rib',               'jersey 30/1',        0.77, 1.70, 0.60, 6.5,  'RIB 2x1',     1, 'NINGUNO', 0, 'NINGUNO', 0, 'NINGUNO', 0),
-  ('baby ty mc',               'jersey 30/1',        0.90, 1.70, 0.55, 7.0,  'NINGUNO',     0, 'NINGUNO', 0, 'NINGUNO', 0, 'NINGUNO', 0),
-  ('baby ty ml',               'jersey 30/1',        0.95, 1.70, 0.60, 6.5,  'NINGUNO',     0, 'NINGUNO', 0, 'NINGUNO', 0, 'NINGUNO', 0),
-  ('baby ty cinta mc',         'jersey 30/1',        0.73, 1.70, 0.55, 7.0,  'NINGUNO',     0, 'NINGUNO', 0, 'NINGUNO', 0, 'NINGUNO', 0),
-  ('baby ty cinta ml',         'jersey 30/1',        0.78, 1.70, 0.60, 6.5,  'NINGUNO',     0, 'NINGUNO', 0, 'NINGUNO', 0, 'NINGUNO', 0),
-  ('poleras cuello redondo',   'french terry 24/1',  1.79, NULL, 0.80, 4.5,  'RIB 2x1',     1, 'RIB 2x1', 2, 'RIB 2x1', 1, 'NINGUNO', 0),
-  ('polera neru',              'french terry 24/1',  3.15, 6.00, 0.85, 4.0,  'NINGUNO',     0, 'RIB 2x1', 2, 'RIB 2x1', 1, 'DIRECTO', 1),
-  ('pique cuello chino',       'pique 30/1',         1.82, NULL, 0.65, 5.0,  'RIB 1x1',     1, 'NINGUNO', 0, 'NINGUNO', 0, 'NINGUNO', 0),
-  ('cuello chino wafle',       'wafle 30/1',         1.82, NULL, 0.70, 5.0,  'RIB 1x1',     1, 'NINGUNO', 0, 'NINGUNO', 0, 'NINGUNO', 0),
-  ('wafle camisa',             'wafle 30/1',         3.80, NULL, 0.80, 4.0,  'NINGUNO',     0, 'NINGUNO', 0, 'NINGUNO', 0, 'NINGUNO', 0)
+  -- (nombre, tela_nombre, costo_mo, precio_venta, lim_consumo, lim_rend, cuello_origen, cuellos, puno_origen, punos, pretina_origen, pretinas, cierre_origen, cierres, prop_s, prop_m, prop_l, prop_xl)
+  ('jersey manga corta',       'jersey 30/1',        0.95, 1.70, 0.65, 6.0,  'RIB 1x1',     1, 'NINGUNO', 0, 'NINGUNO', 0, 'NINGUNO', 0,  4, 6, 6, 4),
+  ('jersey manga larga',       'jersey 30/1',        1.00, 2.00, 0.81, 5.5,  'RIB 1x1',     1, 'NINGUNO', 0, 'NINGUNO', 0, 'NINGUNO', 0,  2, 4, 4, 2),
+  ('wafle clasico',            'wafle 30/1',         0.95, 1.70, 0.60, 5.0,  'NINGUNO',     0, 'NINGUNO', 0, 'NINGUNO', 0, 'NINGUNO', 0,  4, 6, 6, 4),
+  ('wafle manga larga',        'wafle 30/1',         1.00, 2.00, 0.70, 5.0,  'NINGUNO',     0, 'NINGUNO', 0, 'NINGUNO', 0, 'NINGUNO', 0,  3, 6, 6, 0),
+  ('wafle camisero',           'wafle 30/1',         1.96, 4.00, 0.65, 4.5,  'RECTILÍNEO',  1, 'RECTILÍNEO', 2, 'NINGUNO', 0, 'NINGUNO', 0,  2, 4, 4, 2),
+  ('pique camisero',           'pique 30/1',         1.96, 4.00, 0.65, 5.0,  'RECTILÍNEO',  1, 'RECTILÍNEO', 2, 'NINGUNO', 0, 'NINGUNO', 0,  2, 4, 4, 2),
+  ('top cero rib',             'jersey 30/1',        0.56, 1.10, 0.55, 7.0,  'RIB 2x1',     1, 'NINGUNO', 0, 'NINGUNO', 0, 'NINGUNO', 0,  0, 0, 4, 0),
+  ('top mc rib',               'jersey 30/1',        0.72, 1.70, 0.55, 7.0,  'RIB 2x1',     1, 'NINGUNO', 0, 'NINGUNO', 0, 'NINGUNO', 0,  8, 0, 0, 0),
+  ('top ml rib',               'jersey 30/1',        0.77, 1.70, 0.60, 6.5,  'RIB 2x1',     1, 'NINGUNO', 0, 'NINGUNO', 0, 'NINGUNO', 0,  0, 6, 0, 0),
+  ('baby ty mc',               'jersey 30/1',        0.90, 1.70, 0.55, 7.0,  'NINGUNO',     0, 'NINGUNO', 0, 'NINGUNO', 0, 'NINGUNO', 0,  4, 4, 4, 0),
+  ('baby ty ml',               'jersey 30/1',        0.95, 1.70, 0.60, 6.5,  'NINGUNO',     0, 'NINGUNO', 0, 'NINGUNO', 0, 'NINGUNO', 0,  2, 2, 2, 0),
+  ('baby ty cinta mc',         'jersey 30/1',        0.73, 1.70, 0.55, 7.0,  'NINGUNO',     0, 'NINGUNO', 0, 'NINGUNO', 0, 'NINGUNO', 0,  2, 2, 2, 0),
+  ('baby ty cinta ml',         'jersey 30/1',        0.78, 1.70, 0.60, 6.5,  'NINGUNO',     0, 'NINGUNO', 0, 'NINGUNO', 0, 'NINGUNO', 0,  2, 2, 2, 0),
+  ('poleras cuello redondo',   'french terry 24/1',  1.79, NULL, 0.80, 4.5,  'RIB 2x1',     1, 'RIB 2x1', 2, 'RIB 2x1', 1, 'NINGUNO', 0,  2, 3, 2, 0),
+  ('polera neru',              'french terry 24/1',  3.15, 6.00, 0.85, 4.0,  'NINGUNO',     0, 'RIB 2x1', 2, 'RIB 2x1', 1, 'DIRECTO', 1,  4, 6, 4, 0),
+  ('pique cuello chino',       'pique 30/1',         1.82, NULL, 0.65, 5.0,  'RIB 1x1',     1, 'NINGUNO', 0, 'NINGUNO', 0, 'NINGUNO', 0,  2, 4, 4, 2),
+  ('cuello chino wafle',       'wafle 30/1',         1.82, NULL, 0.70, 5.0,  'RIB 1x1',     1, 'NINGUNO', 0, 'NINGUNO', 0, 'NINGUNO', 0,  2, 4, 4, 2),
+  ('wafle camisa',             'wafle 30/1',         3.80, NULL, 0.80, 4.0,  'NINGUNO',     0, 'NINGUNO', 0, 'NINGUNO', 0, 'NINGUNO', 0,  1, 2, 2, 1)
 ) AS p(nombre, tela_nombre, costo_mo, precio_venta, limite_consumo, limite_rendimiento,
         cuello_origen, cuellos_por_prenda, puno_origen, punos_por_prenda,
-        pretina_origen, pretinas_por_prenda, cierre_origen, cierres_por_prenda)
+        pretina_origen, pretinas_por_prenda, cierre_origen, cierres_por_prenda,
+        prop_s, prop_m, prop_l, prop_xl)
 JOIN telas t ON t.nombre = p.tela_nombre;
 
 -- ─────────────────────────────────────────────────────────────

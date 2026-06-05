@@ -589,7 +589,7 @@ export function Cortes() {
                     <option value="">Seleccionar…</option>
                     {(mostrarTodosProductos
                       ? productos
-                      : productos.filter(p => productoColores.some(pc => pc.productoId === p.id))
+                      : productos.filter(p => (p.propS ?? 0) > 0 || (p.propM ?? 0) > 0 || (p.propL ?? 0) > 0 || (p.propXL ?? 0) > 0)
                     ).map(p => <option key={p.id} value={p.id}>{capWords(p.nombre)}</option>)}
                   </select>
                 </F>
@@ -761,7 +761,7 @@ export function Cortes() {
                                 required={idx === 0}
                               >
                                 <option value="">Seleccionar…</option>
-                                {(form.productoId && !det.todosColores
+                                {(form.productoId && !det.todosColores && productoColores.some(pc => pc.productoId === form.productoId)
                                   ? colorGroups.filter(g => g.variants.some(v => productoColores.some(pc => pc.productoId === form.productoId && pc.colorId === v.id)))
                                   : colorGroups
                                 ).map(g => <option key={g.baseId} value={g.baseId}>{capWords(g.baseName)}</option>)}
