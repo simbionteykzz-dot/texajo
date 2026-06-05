@@ -737,9 +737,8 @@ export function Cortes() {
                                     return { ...f, colores: next };
                                   });
                                   if (!colorId || !form.productoId) return;
-                                  const pcLocal = productoColores.find(x => x.productoId === form.productoId && x.colorId === colorId);
                                   const prodProps = productoMap.get(form.productoId);
-                                  const src = pcLocal ?? (prodProps ? { propS: prodProps.propS ?? 0, propM: prodProps.propM ?? 0, propL: prodProps.propL ?? 0, propXL: prodProps.propXL ?? 0 } : null);
+                                  const src = prodProps ? { propS: prodProps.propS ?? 0, propM: prodProps.propM ?? 0, propL: prodProps.propL ?? 0, propXL: prodProps.propXL ?? 0 } : null;
                                   if (src) {
                                     setForm(f => {
                                       const next = [...f.colores];
@@ -786,9 +785,8 @@ export function Cortes() {
                                         return { ...f, colores: next };
                                       });
                                       if (!form.productoId || !colorId) return;
-                                      const pcLocal = productoColores.find(x => x.productoId === form.productoId && x.colorId === colorId);
                                       const prodProps = productoMap.get(form.productoId);
-                                      const src = pcLocal ?? (prodProps ? { propS: prodProps.propS ?? 0, propM: prodProps.propM ?? 0, propL: prodProps.propL ?? 0, propXL: prodProps.propXL ?? 0 } : null);
+                                      const src = prodProps ? { propS: prodProps.propS ?? 0, propM: prodProps.propM ?? 0, propL: prodProps.propL ?? 0, propXL: prodProps.propXL ?? 0 } : null;
                                       if (src) {
                                         setForm(f => {
                                           const next = [...f.colores];

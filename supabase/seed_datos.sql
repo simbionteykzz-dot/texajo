@@ -42,12 +42,13 @@ INSERT INTO proveedores (nombre, tipo, ruc, contacto, notas) VALUES
   ('TECNOLOGIA Y TINTURA', 'COMPLEMENTO',  '20444555666', NULL,              'Rib 1x1 y 2x1');
 
 -- ─────────────────────────────────────────────────────────────
--- COLORES (27 colores base canónicos — Doc 1 con tonalidades absorbidas)
--- Negro 1/Negro 2 → Negro (tonalidad "1"/"2" en cortes)
--- Palo Rosa / P. Rosa → P. Rosa (único nombre canónico)
--- V. Pacay registrado como color propio
+-- COLORES (50 — 27 base + 23 tonalidades numeradas del historial)
+-- Tonalidades numeradas se agrupan en el UI por nombre base:
+--   "Negro 1","Negro 2"... → grupo "Negro" con variantes 1,2,...
+-- "Verde botella" y "Rosa" son bases distintas de "Botella" y "Rosado"
 -- ─────────────────────────────────────────────────────────────
 INSERT INTO colores (nombre, categoria, prioridad) VALUES
+  -- bases canónicas
   ('Negro',         'OSCURO',  1),
   ('Perla',         'PPT',     2),
   ('Blanco',        'PPT',     3),
@@ -74,7 +75,32 @@ INSERT INTO colores (nombre, categoria, prioridad) VALUES
   ('Acero',         'CLARO',   24),
   ('Marino',        'OSCURO',  25),
   ('Pumice',        'CLARO',   26),
-  ('Vino Tinto',    'OSCURO',  27);
+  ('Vino Tinto',    'OSCURO',  27),
+  -- bases faltantes (del historial de cortes)
+  ('Verde botella', 'OSCURO',  28),
+  ('Rosa',          'CLARO',   29),
+  -- tonalidades numeradas
+  ('Palo rosa 1',   'CLARO',   30),
+  ('Palo rosa 2',   'CLARO',   31),
+  ('Negro 1',       'OSCURO',  32),
+  ('Negro 2',       'OSCURO',  33),
+  ('Negro 3',       'OSCURO',  34),
+  ('Negro 4',       'OSCURO',  35),
+  ('Blanco 1',      'PPT',     36),
+  ('Blanco 2',      'PPT',     37),
+  ('Melange 1',     'MELANGE', 38),
+  ('Melange 2',     'MELANGE', 39),
+  ('Melange 3',     'MELANGE', 40),
+  ('Denim 1',       'CLARO',   41),
+  ('Denim 2',       'CLARO',   42),
+  ('Cemento 1',     'CLARO',   43),
+  ('Cemento 2',     'CLARO',   44),
+  ('Cemento 3',     'CLARO',   45),
+  ('Rosado 1',      'CLARO',   46),
+  ('Rosado 2',      'CLARO',   47),
+  ('Rosado 3',      'CLARO',   48),
+  ('Pacay 1',       'CLARO',   49),
+  ('Pacay 2',       'CLARO',   50);
 
 -- ─────────────────────────────────────────────────────────────
 -- TELAS
@@ -610,3 +636,65 @@ JOIN proveedores prov ON prov.nombre = ch.proveedor_nombre;
 INSERT INTO stock_extornos (programa_id, tipo_hilo, kg, precio_kg, valor_total, fecha)
 SELECT prog.id, 'Hilo 30/1 PC', 5, 10.39, 51.94, '2026-04-30'
 FROM programas_zurzam prog WHERE prog.codigo = 'PIQUE-001';
+
+-- ─────────────────────────────────────────────────────────────
+-- PRODUCTO_COLORES (colores históricos por producto)
+-- Derivado del historial de cortes — habilita filtro en formulario
+-- ─────────────────────────────────────────────────────────────
+INSERT INTO producto_colores (producto_id, color_id)
+SELECT p.id, c.id
+FROM (VALUES
+  -- wafle camisero
+  ('wafle camisero', 'Negro'),        ('wafle camisero', 'Blanco'),
+  ('wafle camisero', 'Vino'),         ('wafle camisero', 'Melange'),
+  ('wafle camisero', 'Palo rosa 1'),  ('wafle camisero', 'Palo rosa 2'),
+  ('wafle camisero', 'Verde botella'),('wafle camisero', 'Pacay'),
+  ('wafle camisero', 'Topo'),         ('wafle camisero', 'Denim'),
+  ('wafle camisero', 'Colegial'),     ('wafle camisero', 'Azul Marino'),
+  -- pique camisero
+  ('pique camisero', 'Beige'),        ('pique camisero', 'Azul Marino'),
+  ('pique camisero', 'Vino'),         ('pique camisero', 'Negro'),
+  ('pique camisero', 'Perla'),        ('pique camisero', 'Blanco 1'),
+  ('pique camisero', 'Blanco 2'),     ('pique camisero', 'Denim 1'),
+  ('pique camisero', 'Denim 2'),      ('pique camisero', 'Colegial'),
+  ('pique camisero', 'Pacay'),        ('pique camisero', 'Rosa'),
+  ('pique camisero', 'Melange'),      ('pique camisero', 'Cemento'),
+  -- wafle camisa
+  ('wafle camisa', 'Negro'),          ('wafle camisa', 'Blanco'),
+  ('wafle camisa', 'Azul Marino'),    ('wafle camisa', 'Melange'),
+  ('wafle camisa', 'Beige'),
+  -- wafle clasico
+  ('wafle clasico', 'Azul Marino'),   ('wafle clasico', 'Melange'),
+  ('wafle clasico', 'Verde botella'), ('wafle clasico', 'Pacay'),
+  ('wafle clasico', 'Cemento'),       ('wafle clasico', 'Denim'),
+  ('wafle clasico', 'Colegial'),      ('wafle clasico', 'Rosa'),
+  ('wafle clasico', 'Negro'),         ('wafle clasico', 'Blanco'),
+  ('wafle clasico', 'Negro 1'),       ('wafle clasico', 'Negro 2'),
+  ('wafle clasico', 'Denim 1'),       ('wafle clasico', 'Denim 2'),
+  ('wafle clasico', 'Melange 1'),     ('wafle clasico', 'Melange 2'),
+  ('wafle clasico', 'Topo'),          ('wafle clasico', 'Pacay 1'),
+  ('wafle clasico', 'Pacay 2'),       ('wafle clasico', 'Beige'),
+  ('wafle clasico', 'Rosado'),        ('wafle clasico', 'Blanco 1'),
+  ('wafle clasico', 'Blanco 2'),
+  -- wafle manga larga
+  ('wafle manga larga', 'Negro 1'),   ('wafle manga larga', 'Negro 2'),
+  ('wafle manga larga', 'Pacay'),     ('wafle manga larga', 'Azul Marino'),
+  ('wafle manga larga', 'Blanco'),    ('wafle manga larga', 'Rosa'),
+  ('wafle manga larga', 'Melange'),   ('wafle manga larga', 'Colegial'),
+  -- jersey manga corta
+  ('jersey manga corta', 'Rosa'),         ('jersey manga corta', 'Verde botella'),
+  ('jersey manga corta', 'Pacay'),        ('jersey manga corta', 'Cemento'),
+  ('jersey manga corta', 'Beige'),        ('jersey manga corta', 'Denim'),
+  ('jersey manga corta', 'Cemento 1'),    ('jersey manga corta', 'Cemento 2'),
+  ('jersey manga corta', 'Cemento 3'),    ('jersey manga corta', 'Rosado 1'),
+  ('jersey manga corta', 'Rosado 2'),     ('jersey manga corta', 'Rosado 3'),
+  ('jersey manga corta', 'Negro 1'),      ('jersey manga corta', 'Negro 2'),
+  ('jersey manga corta', 'Negro 3'),      ('jersey manga corta', 'Negro 4'),
+  -- polera neru
+  ('polera neru', 'Melange 1'),       ('polera neru', 'Melange 2'),
+  ('polera neru', 'Melange 3'),       ('polera neru', 'Blanco 1'),
+  ('polera neru', 'Blanco 2')
+) AS pc(producto_nombre, color_nombre)
+JOIN productos p ON LOWER(p.nombre) = LOWER(pc.producto_nombre)
+JOIN colores c ON LOWER(c.nombre) = LOWER(pc.color_nombre)
+ON CONFLICT (producto_id, color_id) DO NOTHING;
