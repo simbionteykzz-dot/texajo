@@ -455,6 +455,10 @@ CREATE TABLE producto_colores (
   producto_id INTEGER NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
   color_id    INTEGER NOT NULL REFERENCES colores(id) ON DELETE CASCADE,
   activo      BOOLEAN NOT NULL DEFAULT TRUE,
+  prop_s      INTEGER,
+  prop_m      INTEGER,
+  prop_l      INTEGER,
+  prop_xl     INTEGER,
   UNIQUE (producto_id, color_id)
 );
 
