@@ -55,9 +55,8 @@ const ESTADO_ICON: Record<string, React.ReactNode> = {
 export function Cortes() {
   const {
     cortes, clientes, productos, colores, telas, tarifasOperaciones, operarios,
-    movimientosTela, seguimientoFilas, boletaLineas, productoColores,
+    movimientosTela, seguimientoFilas, productoColores,
     addCorte, updateCorte, deleteCorte,
-    deleteSeguimientoFila, deleteBoletaLinea,
     addMovimientoTela, addSeguimientoFila,
   } = useAppContext();
 
@@ -519,8 +518,6 @@ export function Cortes() {
                       {confirmDelete === c.id ? (
                         <span className="flex items-center gap-1 whitespace-nowrap">
                           <button onClick={() => {
-                            seguimientoFilas.filter(f => f.corteId === c.id).forEach(f => deleteSeguimientoFila(f.id));
-                            boletaLineas.filter(b => b.corteId === c.id).forEach(b => deleteBoletaLinea(b.id));
                             deleteCorte(c.id);
                             setConfirmDelete(null);
                             addToast('Corte eliminado', 'success');

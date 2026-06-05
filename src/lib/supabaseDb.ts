@@ -354,11 +354,19 @@ export const db = {
     add: (v: SeguimientoFila) => dbInsert('seguimiento_filas', v, fromSeguimientoFila),
     update: (id: string, u: Partial<SeguimientoFila>, cur: SeguimientoFila) => dbUpdate('seguimiento_filas', id, u, fromSeguimientoFila, cur),
     delete: (id: string) => dbDelete('seguimiento_filas', id),
+    deleteByCorteId: async (corteId: string) => {
+      const { error } = await supabase.from('seguimiento_filas').delete().eq('corte_id', corteId);
+      if (error) throw error;
+    },
   },
   boletaLineas: {
     add: (v: BoletaLinea) => dbInsert('boleta_lineas', v, fromBoletaLinea),
     update: (id: string, u: Partial<BoletaLinea>, cur: BoletaLinea) => dbUpdate('boleta_lineas', id, u, fromBoletaLinea, cur),
     delete: (id: string) => dbDelete('boleta_lineas', id),
+    deleteByCorteId: async (corteId: string) => {
+      const { error } = await supabase.from('boleta_lineas').delete().eq('corte_id', corteId);
+      if (error) throw error;
+    },
   },
   descuentosBoleta: {
     add: (v: DescuentoBoleta) => dbInsert('descuentos_boleta', v, fromDescuento),

@@ -396,7 +396,20 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   // ─── Cortes ──────────────────────────────────────────────────────────────
   const addCorte = makeAdd<Corte>('cortes', db.cortes.add);
   const updateCorte = makeUpdate<Corte>('cortes', db.cortes.update);
-  const deleteCorte = makeDelete('cortes', db.cortes.delete);
+  const deleteCorte = (id: string) => {
+    set(p => ({
+      ...p,
+      cortes: p.cortes.filter(x => x.id !== id),
+      seguimientoFilas: p.seguimientoFilas.filter(x => x.corteId !== id),
+      boletaLineas: p.boletaLineas.filter(x => x.corteId !== id),
+    }));
+    Promise.all([
+      db.seguimientoFilas.deleteByCorteId(id),
+      db.boletaLineas.deleteByCorteId(id),
+    ])
+      .then(() => db.cortes.delete(id))
+      .catch(err => logDbError('DELETE cascade', 'cortes', err));
+  };
 
   // ─── Seguimiento ─────────────────────────────────────────────────────────
   const addSeguimientoFila = makeAdd<SeguimientoFila>('seguimientoFilas', db.seguimientoFilas.add);
