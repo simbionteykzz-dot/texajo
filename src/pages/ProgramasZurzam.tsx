@@ -387,7 +387,7 @@ export function ProgramasZurzam() {
         <p className="text-sm text-gray-400 italic">Sin programas registrados.</p>
       ) : (
         <div className="space-y-3">
-          {[...programasZurzam].sort((a, b) => b.fecha.localeCompare(a.fecha)).map(prog => {
+          {[...programasZurzam].sort((a, b) => (b.fecha ?? '').localeCompare(a.fecha ?? '')).map(prog => {
             const detalles = detallesByProg.get(prog.id) ?? [];
             const hilos = hilosByProg.get(prog.id) ?? [];
             const extornos = extornosByProg.get(prog.id) ?? [];

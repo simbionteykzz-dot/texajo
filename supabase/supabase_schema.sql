@@ -308,88 +308,86 @@ CREATE TABLE descuentos_boleta (
 
 CREATE TABLE programas_zurzam (
   id                    SERIAL PRIMARY KEY,
-  codigo                TEXT NOT NULL UNIQUE,    -- ej: PIQUE-001
-  descripcion           TEXT,
-  tipo_hilo             TEXT,
-  kg_hilo               NUMERIC(10,2),
-  tipo_tejido           TEXT,
+  nombre                TEXT NOT NULL,
+  fecha                 DATE NOT NULL DEFAULT CURRENT_DATE,
   cliente_id            INTEGER REFERENCES clientes(id),
+  rollos_objetivo       INTEGER NOT NULL DEFAULT 0,
+  kg_objetivo           NUMERIC(10,2) NOT NULL DEFAULT 0,
   estado                TEXT NOT NULL DEFAULT 'NUEVO'
-                          CHECK (estado IN ('NUEVO','EN COMPRA','EN TEJEDURÍA','EN TINTORERÍA','EN PLANTA','CERRADO')),
-  -- tejeduría
-  kg_tej_enviado        NUMERIC(10,2),
-  kg_tej_retornado      NUMERIC(10,2),
-  kg_conos_extorno      NUMERIC(10,2),
-  -- tintorería
-  kg_tint_enviado       NUMERIC(10,2),
-  kg_tint_retornado     NUMERIC(10,2),
-  rollos_producidos     INTEGER,
-  -- costos totales
-  costo_total           NUMERIC(14,2),
-  costo_kg              NUMERIC(10,4),
-  comision_jose         NUMERIC(12,2),
-  -- fechas
-  fecha_inicio          DATE,
-  fecha_cierre          DATE,
+                          CHECK (estado IN ('NUEVO','EN_COMPRA','EN_TEJEDURIA','EN_TINTORERIA','EN_PLANTA','CERRADO')),
+  comision_jose         NUMERIC(12,2) NOT NULL DEFAULT 0,
+  estado_pago_comision  TEXT NOT NULL DEFAULT 'PENDIENTE'
+                          CHECK (estado_pago_comision IN ('PENDIENTE','PARCIAL','PAGADO','ANULADO')),
+  dias_entrega          INTEGER NOT NULL DEFAULT 0,
   notas                 TEXT,
   created_at            TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Detalle por color dentro de un programa
 CREATE TABLE programa_detalles (
-  id                    SERIAL PRIMARY KEY,
-  programa_id           INTEGER NOT NULL REFERENCES programas_zurzam(id) ON DELETE CASCADE,
-  color_id              INTEGER NOT NULL REFERENCES colores(id),
-  tonalidad             TEXT,
-  servicio_tintoreria   TEXT CHECK (servicio_tintoreria IN ('REACTIVO','DIRECTO','PPT','LAVADO','TERMOFIJADO','COMPACTADO EN RAMA')),
-  rollos_plan           INTEGER,
-  kg_plan               NUMERIC(10,2),
-  -- tejeduría
-  kg_tej_retornado      NUMERIC(10,2),
-  precio_tej_usd        NUMERIC(8,4),
-  tipo_cambio_tej       NUMERIC(6,4) DEFAULT 3.50,
-  costo_tej             NUMERIC(12,2),
-  -- tintorería
-  kg_tint_retornado     NUMERIC(10,2),
-  precio_tint_usd       NUMERIC(8,4),
-  tipo_cambio_tint      NUMERIC(6,4) DEFAULT 3.50,
-  costo_tint            NUMERIC(12,2),
-  -- hilo (prorrateado)
-  costo_hilo            NUMERIC(12,2),
-  costo_total           NUMERIC(12,2),
-  costo_kg              NUMERIC(10,4),
-  notas                 TEXT
+  id                      SERIAL PRIMARY KEY,
+  programa_id             INTEGER NOT NULL REFERENCES programas_zurzam(id) ON DELETE CASCADE,
+  color_id                INTEGER NOT NULL REFERENCES colores(id),
+  categoria_color         TEXT,
+  tipo_servicio           TEXT,
+  prioridad               TEXT NOT NULL DEFAULT 'MEDIA',
+  kg_tej_enviado          NUMERIC(10,2) NOT NULL DEFAULT 0,
+  kg_tej_retornado        NUMERIC(10,2) NOT NULL DEFAULT 0,
+  precio_kg_tej           NUMERIC(8,4)  NOT NULL DEFAULT 0,
+  moneda_tej              TEXT NOT NULL DEFAULT 'PEN',
+  tc_tej                  NUMERIC(6,4)  NOT NULL DEFAULT 1,
+  costo_tejido            NUMERIC(12,2) NOT NULL DEFAULT 0,
+  estado_pago_tej         TEXT NOT NULL DEFAULT 'PENDIENTE',
+  kg_tint_enviado         NUMERIC(10,2) NOT NULL DEFAULT 0,
+  kg_tint_retornado       NUMERIC(10,2) NOT NULL DEFAULT 0,
+  rollos_final            INTEGER NOT NULL DEFAULT 0,
+  precio_kg_tint          NUMERIC(8,4)  NOT NULL DEFAULT 0,
+  moneda_tint             TEXT NOT NULL DEFAULT 'PEN',
+  tc_tint                 NUMERIC(6,4)  NOT NULL DEFAULT 1,
+  costo_tint              NUMERIC(12,2) NOT NULL DEFAULT 0,
+  estado_pago_tint        TEXT NOT NULL DEFAULT 'PENDIENTE',
+  costo_hilo_prorrateado  NUMERIC(12,2) NOT NULL DEFAULT 0,
+  costo_total_color       NUMERIC(12,2) NOT NULL DEFAULT 0,
+  notas                   TEXT,
+  created_at              TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Compras de hilo vinculadas a programas
 CREATE TABLE compras_hilo (
   id              SERIAL PRIMARY KEY,
-  programa_id     INTEGER REFERENCES programas_zurzam(id) ON DELETE SET NULL,
   fecha           DATE NOT NULL DEFAULT CURRENT_DATE,
+  programa_id     INTEGER NOT NULL REFERENCES programas_zurzam(id) ON DELETE CASCADE,
   tipo_hilo       TEXT NOT NULL,
-  kg              NUMERIC(10,2) NOT NULL,
-  precio_kg_usd   NUMERIC(8,4),
-  precio_kg_soles NUMERIC(8,4),
-  tipo_cambio     NUMERIC(6,4) DEFAULT 3.50,
-  total_soles     NUMERIC(14,2),
+  kg_asignados    NUMERIC(10,2) NOT NULL DEFAULT 0,
+  precio_kg       NUMERIC(8,4)  NOT NULL DEFAULT 0,
+  moneda          TEXT NOT NULL DEFAULT 'PEN',
+  tipo_cambio     NUMERIC(6,4)  NOT NULL DEFAULT 1,
+  total_soles     NUMERIC(14,2) NOT NULL DEFAULT 0,
   proveedor_id    INTEGER REFERENCES proveedores(id),
-  num_factura     TEXT,
+  n_factura       TEXT,
+  costo_real_fact NUMERIC(12,2) NOT NULL DEFAULT 0,
+  diferencia      NUMERIC(12,2) NOT NULL DEFAULT 0,
   estado_pago     TEXT NOT NULL DEFAULT 'PENDIENTE'
                     CHECK (estado_pago IN ('PENDIENTE','PAGADO','PARCIAL')),
+  fecha_pago      DATE,
+  monto_pagado    NUMERIC(12,2) NOT NULL DEFAULT 0,
+  saldo           NUMERIC(12,2) NOT NULL DEFAULT 0,
   notas           TEXT,
   created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Stock extorno (conos sobrantes de tejeduría)
 CREATE TABLE stock_extornos (
-  id              SERIAL PRIMARY KEY,
-  programa_id     INTEGER REFERENCES programas_zurzam(id) ON DELETE SET NULL,
-  tipo_hilo       TEXT NOT NULL,
-  kg              NUMERIC(10,2) NOT NULL,
-  precio_kg       NUMERIC(8,4),
-  valor_total     NUMERIC(12,2),
-  fecha           DATE NOT NULL DEFAULT CURRENT_DATE,
-  notas           TEXT
+  id                    SERIAL PRIMARY KEY,
+  programa_id           INTEGER NOT NULL REFERENCES programas_zurzam(id) ON DELETE CASCADE,
+  programa_detalle_id   INTEGER REFERENCES programa_detalles(id) ON DELETE SET NULL,
+  fecha                 DATE NOT NULL DEFAULT CURRENT_DATE,
+  kg_conos              NUMERIC(10,2) NOT NULL DEFAULT 0,
+  precio_kg_hilo        NUMERIC(8,4)  NOT NULL DEFAULT 0,
+  total_soles           NUMERIC(12,2) NOT NULL DEFAULT 0,
+  usado                 BOOLEAN NOT NULL DEFAULT FALSE,
+  notas                 TEXT,
+  created_at            TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- ─────────────────────────────────────────────────────────────
