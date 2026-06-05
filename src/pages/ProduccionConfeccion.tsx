@@ -124,7 +124,17 @@ export function ProduccionConfeccion() {
     if (!fila) return;
     const tarifa = tarifasOperaciones.find(t => t.id === tarifaId);
     const pago = operarioId && tarifa ? fila.cantidad * tarifa.tarifa : 0;
-    const asignaciones = fila.asignaciones.map(a =>
+
+    // Si asignaciones está vacío en DB, reconstruir desde boletaLineas persistidas
+    const tarifasCorte = tarifasDelCorte(fila.corteId);
+    const baseAsignaciones: SeguimientoAsignacion[] = fila.asignaciones.length > 0
+      ? fila.asignaciones
+      : tarifasCorte.map(t => {
+          const bl = boletaLineas.find(b => b.corteId === fila.corteId && b.tarifaId === t.id);
+          return { tarifaId: t.id, operacion: t.operacion, orden: t.orden, operarioId: bl?.operarioId ?? '', pago: bl?.importe ?? 0 };
+        });
+
+    const asignaciones = baseAsignaciones.map(a =>
       a.tarifaId === tarifaId ? { ...a, operarioId, pago } : a
     );
     const totalPago = asignaciones.reduce((s, a) => s + a.pago, 0);
@@ -363,10 +373,15 @@ export function ProduccionConfeccion() {
                               </td>
                               {tarifasDelCorte(corte.id).map(t => {
                                 const asig = fila.asignaciones.find(a => a.tarifaId === t.id);
+                                // Fallback a boletaLineas cuando asignaciones[] está vacío (columna aún no en DB)
+                                const bl = !asig?.operarioId
+                                  ? boletaLineas.find(b => b.corteId === fila.corteId && b.tarifaId === t.id)
+                                  : null;
+                                const currentOperarioId = asig?.operarioId || bl?.operarioId || '';
                                 return (
                                   <td key={t.id} className="px-3 py-2">
                                     <select
-                                      value={asig?.operarioId ?? ''}
+                                      value={currentOperarioId}
                                       onChange={e => handleAsignarOperario(fila.id, t.id, e.target.value)}
                                       className="text-[10px] border border-gray-200 bg-white px-1 py-0.5 w-32"
                                     >
