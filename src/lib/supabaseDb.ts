@@ -37,11 +37,11 @@ const toOperario = (r: any): Operario => ({ id: String(r.id), codigo: r.codigo, 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const toMovTela = (r: any): MovimientoTela => ({ id: String(r.id), fecha: r.fecha, tipo: r.tipo, clienteId: r.cliente_id ? String(r.cliente_id) : '', telaId: String(r.tela_id), colorId: String(r.color_id), rollos: r.rollos, kgTotal: r.kg_total, categoriaColor: r.categoria_color, precioKg: r.precio_kg, totalSoles: r.total_soles, stockRollosAntes: r.stock_rollos_antes, stockRollosDespues: r.stock_rollos_despues, responsable: r.responsable, proveedorId: r.proveedor_id ? String(r.proveedor_id) : undefined, nFactura: r.n_factura ?? undefined, costoRealFact: r.costo_real_fact ?? undefined, corteId: r.corte_id ? String(r.corte_id) : undefined, nCorte: r.n_corte ?? undefined, notas: r.notas });
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const toCorte = (r: any): Corte => ({ id: String(r.id), nCorte: r.n_corte, fecha: r.fecha, clienteId: String(r.cliente_id), productoId: String(r.producto_id), colorId: String(r.color_id), tonalidad: r.tonalidad ?? undefined, telaId: r.tela_id ? String(r.tela_id) : undefined, cortador: r.cortador, ayudante: r.ayudante, kgUsados: r.kg_usados, rollosUsados: r.rollos_usados, tendidas: r.tendidas, mtsPorTendida: r.mts_por_tendida, ancho: r.ancho_cm ?? r.ancho, cantS: r.cant_s, cantM: r.cant_m, cantL: r.cant_l, cantXL: r.cant_xl, totalPrendas: r.total_prendas, consumo: r.consumo, rendimiento: r.rendimiento, revision: r.revision, traslado: r.traslado, estado: r.estado, pagoCliente: r.pago_cliente, pagoPlanilla: r.pago_planilla, costoMoCorte: r.costo_mo_corte, notas: r.notas });
+const toCorte = (r: any): Corte => ({ id: String(r.id), nCorte: r.n_corte, fecha: r.fecha, clienteId: String(r.cliente_id), productoId: String(r.producto_id), colorId: String(r.color_id), tonalidad: r.tonalidad ?? undefined, coloresDetalle: r.colores_detalle ?? undefined, telaId: r.tela_id ? String(r.tela_id) : undefined, cortador: r.cortador, ayudante: r.ayudante, tendedor: r.tendedor ?? '', kgUsados: r.kg_usados, rollosUsados: r.rollos_usados, tendidas: r.tendidas, mtsPorTendida: r.mts_por_tendida, ancho: r.ancho_cm ?? r.ancho, cantS: r.cant_s, cantM: r.cant_m, cantL: r.cant_l, cantXL: r.cant_xl, totalPrendas: r.total_prendas, consumo: r.consumo, rendimiento: r.rendimiento, revision: r.revision === true ? 'VERIFICADO' : (r.revision === 'VERIFICADO' ? 'VERIFICADO' : 'PENDIENTE'), traslado: r.traslado ?? false, estado: r.estado ?? 'EN_PROCESO', pagoCliente: r.pago_cliente === 1 || r.pago_cliente === 'COBRADO' ? 'COBRADO' : 'PENDIENTE', pagoPlanilla: r.pago_planilla === 1 || r.pago_planilla === 'PAGADO' ? 'PAGADO' : 'PENDIENTE', costoMoCorte: r.costo_mo_corte ?? 0, notas: r.notas ?? '' });
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const toSeguimientoFila = (r: any): SeguimientoFila => ({ id: String(r.id), corteId: String(r.corte_id), nCorte: r.n_corte, productoId: String(r.producto_id), fecha: r.fecha, colorId: String(r.color_id), talla: r.talla, cantidad: r.cantidad, asignaciones: r.asignaciones ?? [], pctAvance: r.pct_avance, estado: r.estado, totalPago: r.total_pago });
+const toSeguimientoFila = (r: any): SeguimientoFila => ({ id: String(r.id), corteId: String(r.corte_id), nCorte: r.n_corte, productoId: String(r.producto_id), fecha: r.fecha, colorId: String(r.color_id), talla: r.talla, cantidad: r.cantidad, asignaciones: r.asignaciones ?? [], pctAvance: r.pct_avance ?? r.porcentaje_avance ?? 0, estado: r.estado, totalPago: r.total_pago });
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const toBoletaLinea = (r: any): BoletaLinea => ({ id: String(r.id), operarioId: String(r.operario_id), corteId: r.corte_id ? String(r.corte_id) : '', nCorte: r.n_corte != null ? String(r.n_corte) : '', productoId: r.producto_id ? String(r.producto_id) : '', tarifaId: r.tarifa_id ? String(r.tarifa_id) : '', operacion: r.operacion ?? '', orden: r.orden ?? 0, tarifa: r.tarifa ?? 0, cantPrendas: r.cant_prendas ?? 0, importe: r.importe ?? 0, periodo: r.periodo ?? '', fechaRegistro: r.fecha_registro ?? undefined, estadoPago: r.estado_pago ?? 'PENDIENTE', fechaPago: r.fecha_pago ?? undefined });
+const toBoletaLinea = (r: any): BoletaLinea => ({ id: String(r.id), operarioId: String(r.operario_id), corteId: r.corte_id ? String(r.corte_id) : '', nCorte: r.n_corte != null ? String(r.n_corte) : '', productoId: r.producto_id ? String(r.producto_id) : '', colorId: r.color_id ? String(r.color_id) : undefined, tarifaId: r.tarifa_id ? String(r.tarifa_id) : '', operacion: r.operacion ?? '', orden: r.orden ?? 0, tarifa: r.tarifa ?? 0, cantPrendas: r.cant_prendas ?? 0, importe: r.importe ?? 0, periodo: r.periodo ?? '', fechaRegistro: r.fecha_registro ?? undefined, estadoPago: r.estado_pago ?? 'PENDIENTE', fechaPago: r.fecha_pago ?? undefined });
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const toDescuento = (r: any): DescuentoBoleta => ({ id: String(r.id), operarioId: String(r.operario_id), periodo: r.periodo, tipo: r.tipo, monto: r.monto, notas: r.notas });
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -84,20 +84,24 @@ const toProductoColor = (r: any): ProductoColor => ({ id: String(r.id), producto
 const fromCliente = (v: Cliente) => ({ id: v.id, nombre: v.nombre, contacto: v.contacto, notas: v.notas });
 const fromProveedor = (v: Proveedor) => ({ id: v.id, nombre: v.nombre, ruc: v.ruc, contacto: v.contacto, tipo: v.tipo });
 const fromTela = (v: Tela) => ({ id: v.id, nombre: v.nombre, composicion: v.composicion, kg_por_rollo: v.kgPorRollo, notas: v.notas });
-const fromColor = (v: Color) => ({ id: v.id, nombre: v.nombre, categoria: v.categoria, prioridad: v.prioridad, notas: v.notas });
+const fromColor = (v: Color) => ({ nombre: v.nombre, categoria: v.categoria, prioridad: v.prioridad, notas: v.notas });
 const fromPrecioTela = (v: PrecioTela) => ({ id: v.id, tela_id: v.telaId, categoria_color: v.categoriaColor, precio_kg: v.precioKg });
 const fromPrecioComplemento = (v: PrecioComplemento) => ({ id: v.id, clave: v.clave, tipo: v.tipo, origen: v.origen, talla: v.talla, precio: v.precio });
 const fromPrecioTejeduria = (v: PrecioTejeduria) => ({ id: v.id, tipo_tejido: v.tipoTejido, precio_kg: v.precioKg });
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const toPrecioTintoreria = (r: any): PrecioTintoreria => ({ id: String(r.id), tipoServicio: r.tipo_servicio, tipoTela: r.tipo_tela, precioKg: r.precio_kg, moneda: r.moneda, notas: r.notas ?? '' });
 const fromPrecioTintoreria = (v: PrecioTintoreria) => ({ id: v.id, tipo_servicio: v.tipoServicio, tipo_tela: v.tipoTela, precio_kg: v.precioKg, moneda: v.moneda, notas: v.notas });
-const fromProducto = (v: Producto) => ({ id: v.id, nombre: v.nombre, costo_mo: v.costoMoTotal, precio_venta: v.precioServicio, tela_id: v.telaId ? parseInt(v.telaId) : null, limite_consumo: v.limiteConsumo ?? null, limite_rendimiento: v.limiteRendimiento ?? null, notas: v.notas });
-const fromTarifa = (v: TarifaOperacion) => ({ id: v.id, producto_id: v.productoId, orden: v.orden, operacion: v.operacion, tarifa: v.tarifa, notas: v.notas, clave: v.clave });
-const fromOperario = (v: Operario) => ({ id: v.id, codigo: v.codigo, nombre_completo: v.nombre, activo: v.estado === 'ACTIVO', dni: v.dni ?? null, telefono: v.telefono ?? null, modulo: v.modulo ?? null, maquina: v.maquina ?? null, fecha_ingreso: v.fechaIngreso ?? null });
+const fromProducto = (v: Producto) => ({ id: v.id, nombre: v.nombre, costo_mo: v.costoMoTotal, precio_venta: v.precioServicio, tela_id: v.telaId ? parseInt(v.telaId) : null, limite_consumo: v.limiteConsumo ?? null, limite_rendimiento: v.limiteRendimiento ?? null, prop_s: v.propS ?? null, prop_m: v.propM ?? null, prop_l: v.propL ?? null, prop_xl: v.propXL ?? null, notas: v.notas });
+const fromTarifa = (v: TarifaOperacion) => ({ id: v.id, producto_id: v.productoId, orden: v.orden, operacion: v.operacion, tarifa: v.tarifa, notas: v.notas ?? null, clave: v.clave });
+const fromOperario = (v: Operario) => ({ id: v.id, codigo: v.codigo, nombre_completo: v.nombre, activo: v.estado === 'ACTIVO' });
+// Para INSERT omitimos id (PK integer autoincremental)
+const fromOperarioInsert = (v: Operario) => ({ codigo: v.codigo, nombre_completo: v.nombre, activo: v.estado === 'ACTIVO' });
 const fromMovTela = (v: MovimientoTela) => ({ id: v.id, fecha: v.fecha, tipo: v.tipo, cliente_id: v.clienteId || null, tela_id: v.telaId, color_id: v.colorId, rollos: v.rollos, kg_total: v.kgTotal, categoria_color: v.categoriaColor, precio_kg: v.precioKg, total_soles: v.totalSoles, stock_rollos_antes: v.stockRollosAntes, stock_rollos_despues: v.stockRollosDespues, responsable: v.responsable, proveedor_id: v.proveedorId || null, n_factura: v.nFactura ?? null, costo_real_fact: v.costoRealFact ?? null, corte_id: v.corteId || null, n_corte: v.nCorte ?? null, notas: v.notas });
-const fromCorte = (v: Corte) => ({ id: v.id, n_corte: v.nCorte, fecha: v.fecha, cliente_id: v.clienteId, producto_id: v.productoId, color_id: v.colorId, tonalidad: v.tonalidad ?? null, tela_id: v.telaId ?? null, cortador: v.cortador, ayudante: v.ayudante, kg_usados: v.kgUsados, rollos_usados: v.rollosUsados, tendidas: v.tendidas, mts_por_tendida: v.mtsPorTendida, ancho_cm: v.ancho, cant_s: v.cantS, cant_m: v.cantM, cant_l: v.cantL, cant_xl: v.cantXL, total_prendas: v.totalPrendas, consumo: v.consumo, rendimiento: v.rendimiento, revision: v.revision, traslado: v.traslado, estado: v.estado, pago_cliente: v.pagoCliente, pago_planilla: v.pagoPlanilla, costo_mo_corte: v.costoMoCorte, notas: v.notas });
-const fromSeguimientoFila = (v: SeguimientoFila) => ({ id: v.id, corte_id: v.corteId, n_corte: v.nCorte, producto_id: v.productoId, fecha: v.fecha, color_id: v.colorId, talla: v.talla, cantidad: v.cantidad, asignaciones: v.asignaciones, pct_avance: v.pctAvance, estado: v.estado, total_pago: v.totalPago });
-const fromBoletaLinea = (v: BoletaLinea) => ({ id: v.id, operario_id: v.operarioId, corte_id: v.corteId, n_corte: v.nCorte, producto_id: v.productoId, tarifa_id: v.tarifaId, operacion: v.operacion, orden: v.orden, tarifa: v.tarifa, cant_prendas: v.cantPrendas, importe: v.importe, periodo: v.periodo, fecha_registro: v.fechaRegistro ?? null, estado_pago: v.estadoPago, fecha_pago: v.fechaPago ?? null });
+// fromCorte omite 'id' porque la PK es integer auto-generada; convierte FKs a integer
+const fromCorte = (v: Corte) => ({ n_corte: parseInt(v.nCorte), fecha: v.fecha, cliente_id: parseInt(v.clienteId), producto_id: parseInt(v.productoId), color_id: parseInt(v.colorId), tonalidad: v.tonalidad ?? null, colores_detalle: v.coloresDetalle ?? null, tela_id: v.telaId ? parseInt(v.telaId) : null, cortador: v.cortador, ayudante: v.ayudante, tendedor: v.tendedor, kg_usados: v.kgUsados, rollos_usados: v.rollosUsados, tendidas: v.tendidas, mts_por_tendida: v.mtsPorTendida, ancho_cm: v.ancho, cant_s: v.cantS, cant_m: v.cantM, cant_l: v.cantL, cant_xl: v.cantXL, total_prendas: v.totalPrendas, consumo: v.consumo, rendimiento: v.rendimiento, revision: v.revision === 'VERIFICADO', traslado: v.traslado, estado: v.estado, pago_cliente: v.pagoCliente === 'COBRADO' ? 1 : 0, pago_planilla: v.pagoPlanilla === 'PAGADO' ? 1 : 0, costo_mo_corte: v.costoMoCorte, notas: v.notas });
+const safeInt = (v: string) => { const n = parseInt(v); return isNaN(n) ? v : n; };
+const fromSeguimientoFila = (v: SeguimientoFila) => ({ id: v.id, corte_id: safeInt(v.corteId), n_corte: v.nCorte, producto_id: safeInt(v.productoId), fecha: v.fecha, color_id: safeInt(v.colorId), talla: v.talla, cantidad: v.cantidad, asignaciones: v.asignaciones, pct_avance: v.pctAvance, porcentaje_avance: v.pctAvance, estado: v.estado, total_pago: v.totalPago });
+const fromBoletaLinea = (v: BoletaLinea) => ({ id: v.id, operario_id: v.operarioId, corte_id: v.corteId, n_corte: v.nCorte, producto_id: v.productoId, color_id: v.colorId ?? null, tarifa_id: v.tarifaId, operacion: v.operacion, orden: v.orden, tarifa: v.tarifa, cant_prendas: v.cantPrendas, importe: v.importe, periodo: v.periodo, fecha_registro: v.fechaRegistro ?? null, estado_pago: v.estadoPago, fecha_pago: v.fechaPago ?? null });
 const fromDescuento = (v: DescuentoBoleta) => ({ id: v.id, operario_id: v.operarioId, periodo: v.periodo, tipo: v.tipo, monto: v.monto, notas: v.notas });
 const fromPrograma = (v: ProgramaZurzam) => ({ id: v.id, nombre: v.nombre, fecha: v.fecha, cliente_id: v.clienteId, rollos_objetivo: v.rollosObjetivo, kg_objetivo: v.kgObjetivo, estado: v.estado, comision_jose: v.comisionJose, estado_pago_comision: v.estadoPagoComision, dias_entrega: v.diasEntrega, notas: v.notas });
 const fromDetalle = (v: ProgramaDetalle) => ({ id: v.id, programa_id: v.programaId, color_id: v.colorId, categoria_color: v.categoriaColor, tipo_servicio: v.tipoServicio, prioridad: v.prioridad, kg_tej_enviado: v.kgTejEnviado, kg_tej_retornado: v.kgTejRetornado, precio_kg_tej: v.precioKgTej, moneda_tej: v.monedaTej, tc_tej: v.tcTej, costo_tejido: v.costoTejido, estado_pago_tej: v.estadoPagoTej, kg_tint_enviado: v.kgTintEnviado, kg_tint_retornado: v.kgTintRetornado, rollos_final: v.rollosFinal, precio_kg_tint: v.precioKgTint, moneda_tint: v.monedaTint, tc_tint: v.tcTint, costo_tint: v.costoTint, estado_pago_tint: v.estadoPagoTint, costo_hilo_prorrateado: v.costoHiloProrrateado, costo_total_color: v.costoTotalColor, notas: v.notas });
@@ -262,19 +266,23 @@ export async function seedInitialData(state: Omit<DbAppState, 'config'> & { conf
 
 type TableName = string;
 
-async function dbInsert<T>(table: TableName, row: T, mapper: (v: T) => Record<string, unknown>) {
-  const { error } = await supabase.from(table).insert(mapper(row));
+async function dbInsert<T>(table: TableName, row: T, mapper: (v: T) => Record<string, unknown>): Promise<string | null> {
+  const { data, error } = await supabase.from(table).insert(mapper(row)).select('id').single();
   if (error) throw error;
+  return data ? String(data.id) : null;
 }
 
 async function dbUpdate<T>(table: TableName, id: string, updates: Partial<T>, fullMapper: (v: T) => Record<string, unknown>, current: T) {
   const merged = { ...current, ...updates } as T;
   const mapped = fullMapper(merged);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { id: _id, created_at: _ca, ...fields } = mapped as Record<string, unknown>;
-  void _id; void _ca;
+  const { id: _id, created_at: _ca, updated_at: _ua, ...fields } = mapped as Record<string, unknown>;
+  void _id; void _ca; void _ua;
   const { error } = await supabase.from(table).update(fields).eq('id', id);
-  if (error) throw error;
+  if (error) {
+    console.error('[dbUpdate error]', table, id, error);
+    throw error;
+  }
 }
 
 async function dbDelete(table: TableName, id: string) {
@@ -336,7 +344,7 @@ export const db = {
     delete: (id: string) => dbDelete('tarifas_operaciones', id),
   },
   operarios: {
-    add: (v: Operario) => dbInsert('operarios', v, fromOperario),
+    add: (v: Operario) => dbInsert('operarios', v, fromOperarioInsert),
     update: (id: string, u: Partial<Operario>, cur: Operario) => dbUpdate('operarios', id, u, fromOperario, cur),
     delete: (id: string) => dbDelete('operarios', id),
   },
@@ -346,16 +354,33 @@ export const db = {
     delete: (id: string) => dbDelete('movimientos_tela', id),
   },
   cortes: {
-    add: (v: Corte) => dbInsert('cortes', v, fromCorte),
-    update: (id: string, u: Partial<Corte>, cur: Corte) => dbUpdate('cortes', id, u, fromCorte, cur),
-    delete: (id: string) => dbDelete('cortes', id),
+    add: (v: Corte): Promise<string | null> => dbInsert('cortes', v, fromCorte),
+    update: (id: string, u: Partial<Corte>, cur: Corte) => dbUpdate('cortes', id, u, (v: Corte) => ({ ...fromCorte(v), id: parseInt(id) }), cur),
+    delete: async (id: string) => {
+      const intId = parseInt(id);
+      const numId = isNaN(intId) ? id : intId;
+      const { error } = await supabase.from('cortes').delete().eq('id', numId);
+      if (error) throw error;
+    },
   },
   seguimientoFilas: {
-    add: (v: SeguimientoFila) => dbInsert('seguimiento_filas', v, fromSeguimientoFila),
-    update: (id: string, u: Partial<SeguimientoFila>, cur: SeguimientoFila) => dbUpdate('seguimiento_filas', id, u, fromSeguimientoFila, cur),
+    add: (v: SeguimientoFila): Promise<string | null> => dbInsert('seguimiento_filas', v, fromSeguimientoFila),
+    update: async (id: string, u: Partial<SeguimientoFila>, cur: SeguimientoFila) => {
+      const merged = { ...cur, ...u } as SeguimientoFila;
+      const mapped = fromSeguimientoFila(merged);
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { id: _id, created_at: _ca, updated_at: _ua, ...fields } = mapped as Record<string, unknown>;
+      void _id; void _ca; void _ua;
+      // Upsert directo: garantiza que la fila existe (create or update)
+      const { error } = await supabase
+        .from('seguimiento_filas')
+        .upsert({ id, ...fields }, { onConflict: 'id' })
+        .select('id');
+      if (error) throw error;
+    },
     delete: (id: string) => dbDelete('seguimiento_filas', id),
     deleteByCorteId: async (corteId: string) => {
-      const { error } = await supabase.from('seguimiento_filas').delete().eq('corte_id', corteId);
+      const { error } = await supabase.from('seguimiento_filas').delete().eq('corte_id', safeInt(corteId));
       if (error) throw error;
     },
   },
@@ -364,7 +389,7 @@ export const db = {
     update: (id: string, u: Partial<BoletaLinea>, cur: BoletaLinea) => dbUpdate('boleta_lineas', id, u, fromBoletaLinea, cur),
     delete: (id: string) => dbDelete('boleta_lineas', id),
     deleteByCorteId: async (corteId: string) => {
-      const { error } = await supabase.from('boleta_lineas').delete().eq('corte_id', corteId);
+      const { error } = await supabase.from('boleta_lineas').delete().eq('corte_id', safeInt(corteId));
       if (error) throw error;
     },
   },
@@ -404,7 +429,7 @@ export const db = {
     delete: (id: string) => dbDelete('movimientos_complemento', id),
   },
   productoColores: {
-    add: (v: ProductoColor) => dbInsert('producto_colores', v, (x: ProductoColor) => ({ id: x.id, producto_id: x.productoId, color_id: x.colorId, prop_s: x.propS, prop_m: x.propM, prop_l: x.propL, prop_xl: x.propXL })),
+    add: (v: ProductoColor) => dbInsert('producto_colores', v, (x: ProductoColor) => ({ producto_id: Number(x.productoId), color_id: Number(x.colorId), prop_s: x.propS, prop_m: x.propM, prop_l: x.propL, prop_xl: x.propXL })),
     update: (id: string, u: Partial<ProductoColor>, cur: ProductoColor) => dbUpdate('producto_colores', id, u, (x: ProductoColor) => ({ id: x.id, producto_id: x.productoId, color_id: x.colorId, prop_s: x.propS, prop_m: x.propM, prop_l: x.propL, prop_xl: x.propXL }), cur),
     delete: (id: string) => dbDelete('producto_colores', id),
   },
@@ -415,3 +440,148 @@ export const db = {
     },
   },
 };
+
+// ─── Recarga ligera de producto_colores ──────────────────────────────────────
+export async function loadProductoColores(): Promise<ProductoColor[]> {
+  const { data, error } = await supabase
+    .from('producto_colores')
+    .select('id,producto_id,color_id,prop_s,prop_m,prop_l,prop_xl');
+  if (error || !data) return [];
+  return (data as any[]).map(toProductoColor);
+}
+
+// ─── Importar proporciones desde CSV de Google Sheets ────────────────────────
+// Lee el CSV público, cruza producto+color por nombre normalizado y hace upsert
+// en producto_colores. Retorna un resumen: { ok, skipped, errors[] }
+export async function importarProporcioesCSV(csvUrl: string): Promise<{
+  ok: number; skipped: number; errors: string[];
+}> {
+  const normalizar = (s: string) =>
+    s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+
+  // 1. Descargar CSV
+  const res = await fetch(csvUrl);
+  if (!res.ok) throw new Error(`No se pudo descargar el CSV: ${res.status}`);
+  const text = await res.text();
+
+  // 2. Parsear filas (saltar primeras 4 filas de encabezado)
+  const lineas = text.split('\n').map(l => l.trim()).filter(Boolean);
+  // Fila 4 (índice 3) es el header real: N° CORTE,FECHA,CLIENTE,PRODUCTO,COLOR,...,S,M,L,XL,...
+  const headerIdx = lineas.findIndex(l => l.startsWith('N° CORTE') || l.startsWith('N° CORTE'));
+  if (headerIdx === -1) throw new Error('No se encontró el encabezado del CSV');
+
+  const parseCSVLine = (line: string): string[] => {
+    const result: string[] = [];
+    let cur = '', inQuote = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') { inQuote = !inQuote; }
+      else if (ch === ',' && !inQuote) { result.push(cur); cur = ''; }
+      else { cur += ch; }
+    }
+    result.push(cur);
+    return result;
+  };
+
+  const headers = parseCSVLine(lineas[headerIdx]).map(h => normalizar(h));
+  const iProducto = headers.indexOf(normalizar('PRODUCTO'));
+  const iColor    = headers.indexOf(normalizar('COLOR'));
+  const iPropS    = headers.indexOf(normalizar('S'));
+  const iPropM    = headers.indexOf(normalizar('M'));
+  const iPropL    = headers.indexOf(normalizar('L'));
+  const iPropXL   = headers.indexOf(normalizar('XL'));
+
+  if ([iProducto, iColor, iPropS, iPropM, iPropL, iPropXL].includes(-1)) {
+    throw new Error('El CSV no tiene las columnas esperadas (PRODUCTO, COLOR, S, M, L, XL)');
+  }
+
+  const filas = lineas.slice(headerIdx + 1)
+    .map(l => parseCSVLine(l))
+    .filter(cols => cols[iProducto]?.trim() && cols[iColor]?.trim());
+
+  // 3. Cargar productos y colores actuales de Supabase
+  const [{ data: prods }, { data: cols }] = await Promise.all([
+    supabase.from('productos').select('id, nombre'),
+    supabase.from('colores').select('id, nombre'),
+  ]);
+  if (!prods || !cols) throw new Error('No se pudieron cargar productos/colores de Supabase');
+
+  const prodMap = new Map(prods.map((p: { id: number; nombre: string }) => [normalizar(p.nombre), String(p.id)]));
+
+  // colorMap exacto: "negro 1" → id
+  const colorMap = new Map(cols.map((c: { id: number; nombre: string }) => [normalizar(c.nombre), String(c.id)]));
+  // colorBaseMap: agrupa por nombre base sin número: "negro" → [id1, id2, ...]
+  // Sirve cuando el CSV dice "Negro" pero en BD están "Negro 1", "Negro 2", etc.
+  const colorBaseMap = new Map<string, string[]>();
+  for (const c of cols as { id: number; nombre: string }[]) {
+    const norm = normalizar(c.nombre);
+    const m = norm.match(/^(.+?)\s+\d+$/);
+    const base = m ? m[1] : norm;
+    if (!colorBaseMap.has(base)) colorBaseMap.set(base, []);
+    colorBaseMap.get(base)!.push(String(c.id));
+  }
+
+  // 4. Construir registros únicos por producto+color (última fila gana si hay duplicados)
+  const parseNum = (s: string) => {
+    const cleaned = s.replace(',', '.').replace(/[^0-9.]/g, '');
+    return parseFloat(cleaned) || 0;
+  };
+  const registros = new Map<string, { productoId: string; colorId: string; propS: number; propM: number; propL: number; propXL: number }>();
+  const errors: string[] = [];
+
+  for (const cols_ of filas) {
+    const prodNombre = cols_[iProducto]?.trim() ?? '';
+    const colorNombre = cols_[iColor]?.trim() ?? '';
+    const prodId = prodMap.get(normalizar(prodNombre));
+    if (!prodId) { errors.push(`Producto no encontrado: "${prodNombre}"`); continue; }
+
+    const normColor = normalizar(colorNombre);
+    const propS  = parseNum(cols_[iPropS]  ?? '');
+    const propM  = parseNum(cols_[iPropM]  ?? '');
+    const propL  = parseNum(cols_[iPropL]  ?? '');
+    const propXL = parseNum(cols_[iPropXL] ?? '');
+
+    // Buscar coincidencia exacta primero
+    const exactId = colorMap.get(normColor);
+    if (exactId) {
+      registros.set(`${prodId}|${exactId}`, { productoId: prodId, colorId: exactId, propS, propM, propL, propXL });
+      continue;
+    }
+
+    // Fallback: el CSV dice "Negro" (sin número) → aplicar a todos los "Negro N" de la BD
+    const idsBase = colorBaseMap.get(normColor) ?? [];
+    if (idsBase.length > 0) {
+      for (const colorId of idsBase) {
+        // Solo escribir si no hay ya un registro más específico para ese colorId
+        const key = `${prodId}|${colorId}`;
+        if (!registros.has(key)) {
+          registros.set(key, { productoId: prodId, colorId, propS, propM, propL, propXL });
+        }
+      }
+      continue;
+    }
+
+    errors.push(`Color no encontrado: "${colorNombre}"`);
+  }
+
+  // 5. Upsert en lotes de 50
+  const rows = [...registros.values()].map(r => ({
+    producto_id: parseInt(r.productoId), color_id: parseInt(r.colorId),
+    prop_s: r.propS, prop_m: r.propM, prop_l: r.propL, prop_xl: r.propXL,
+  }));
+
+  let ok = 0, skipped = 0;
+  const BATCH = 50;
+  for (let i = 0; i < rows.length; i += BATCH) {
+    const batch = rows.slice(i, i + BATCH);
+    const { error } = await supabase
+      .from('producto_colores')
+      .upsert(batch, { onConflict: 'producto_id,color_id', ignoreDuplicates: false });
+    if (error) { errors.push(`Batch ${i / BATCH + 1}: ${error.message}`); skipped += batch.length; }
+    else ok += batch.length;
+  }
+
+  // Deduplicar errores de "no encontrado"
+  const erroresUnicos = [...new Set(errors)];
+  return { ok, skipped, errors: erroresUnicos };
+}

@@ -22,9 +22,10 @@ const PERIODOS = (() => {
 
 export function Destajo() {
   const {
-    boletaLineas, operarios, cortes, productos, tarifasOperaciones,
+    boletaLineas, operarios, cortes, productos, tarifasOperaciones, colores,
     addBoletaLinea, addBoletaLineas, updateBoletaLinea, deleteBoletaLinea,
     descuentosBoleta, addDescuentoBoleta, deleteDescuentoBoleta,
+    seguimientoFilas, updateSeguimientoFila,
   } = useAppContext();
   const { addToast } = useToast();
 
@@ -35,6 +36,8 @@ export function Destajo() {
   const [selectedPeriodo, setSelectedPeriodo] = useState(PERIODOS[0]);
   const [bDesde, setBDesde] = useState('');
   const [bHasta, setBHasta] = useState('');
+  const [bCorteId, setBCorteId] = useState('');
+  const [bEstado, setBEstado] = useState<'' | 'PENDIENTE' | 'PAGADO'>('');
   const [showForm, setShowForm] = useState(false);
   const [bulkCorteId, setBulkCorteId] = useState('');
   const [showBoleta, setShowBoleta] = useState(false);
@@ -54,6 +57,7 @@ export function Destajo() {
   const [gOperacion, setGOperacion] = useState('');
   const [gPeriodo, setGPeriodo] = useState('');
   const [gEstado, setGEstado] = useState<'' | 'PENDIENTE' | 'PAGADO'>('');
+  const [gCorteId, setGCorteId] = useState('');
 
   // Modal multi-operario: cada sección tiene su propio array de líneas draft
   type DraftLinea = { id: string; corteId: string; tarifaId: string; cantPrendas: string };
@@ -93,6 +97,7 @@ export function Destajo() {
   const operarioMap = useMemo(() => new Map(operarios.map(o => [o.id, o])), [operarios]);
   const productoMap = useMemo(() => new Map(productos.map(p => [p.id, p])), [productos]);
   const corteMap = useMemo(() => new Map(cortes.map(c => [c.id, c])), [cortes]);
+  const colorMap = useMemo(() => new Map(colores.map(c => [c.id, c.nombre])), [colores]);
 
   const tarifasPorCorte = useMemo(() => {
     const map = new Map<string, typeof tarifasOperaciones>();
@@ -106,6 +111,8 @@ export function Destajo() {
     boletaLineas
       .filter(b => {
         if (b.operarioId !== selectedOperario) return false;
+        if (bCorteId && b.corteId !== bCorteId) return false;
+        if (bEstado && b.estadoPago !== bEstado) return false;
         if (bDesde || bHasta) {
           const fecha = b.fechaRegistro ?? b.periodo + '-01';
           if (bDesde && fecha < bDesde) return false;
@@ -114,8 +121,8 @@ export function Destajo() {
         }
         return b.periodo === selectedPeriodo;
       })
-      .sort((a, b) => a.nCorte.localeCompare(b.nCorte) || a.orden - b.orden),
-    [boletaLineas, selectedOperario, selectedPeriodo, bDesde, bHasta]);
+      .sort((a, b) => String(a.nCorte).localeCompare(String(b.nCorte)) || a.orden - b.orden),
+    [boletaLineas, selectedOperario, selectedPeriodo, bDesde, bHasta, bCorteId, bEstado]);
 
   // Vista general: todas las líneas con filtros opcionales
   const todasOperaciones = useMemo(() => {
@@ -131,10 +138,11 @@ export function Destajo() {
         if (gOperacion && b.operacion !== gOperacion) return false;
         if (gPeriodo && b.periodo !== gPeriodo) return false;
         if (gEstado && b.estadoPago !== gEstado) return false;
+        if (gCorteId && b.corteId !== gCorteId) return false;
         return true;
       })
-      .sort((a, b) => b.periodo.localeCompare(a.periodo) || a.nCorte.localeCompare(b.nCorte) || a.orden - b.orden);
-  }, [boletaLineas, gOperarioId, gOperacion, gPeriodo, gEstado]);
+      .sort((a, b) => b.periodo.localeCompare(a.periodo) || String(a.nCorte).localeCompare(String(b.nCorte)) || a.orden - b.orden);
+  }, [boletaLineas, gOperarioId, gOperacion, gPeriodo, gEstado, gCorteId]);
 
   const totalGeneral = lineasGenerales.reduce((s, b) => s + b.importe, 0);
 
@@ -230,30 +238,116 @@ export function Destajo() {
     }
     const corte = corteMap.get(bulkCorteId);
     if (!corte) return;
-    const tarifas = tarifasOperaciones.filter(t => t.productoId === corte.productoId).sort((a, b) => a.orden - b.orden);
-    if (tarifas.length === 0) {
+
+    // Recolectar combinaciones (tarifaId, colorId) asignadas a este operario en las filas del corte
+    const filasCorte = seguimientoFilas.filter(f => f.corteId === bulkCorteId);
+    // Map: tarifaId → Set<colorId>
+    const asignaciones = new Map<string, Set<string>>();
+    for (const fila of filasCorte) {
+      for (const asig of fila.asignaciones) {
+        if (asig.operarioId === selectedOperario) {
+          if (!asignaciones.has(asig.tarifaId)) asignaciones.set(asig.tarifaId, new Set());
+          asignaciones.get(asig.tarifaId)!.add(fila.colorId);
+        }
+      }
+    }
+
+    const todasTarifas = tarifasOperaciones.filter(t => t.productoId === corte.productoId).sort((a, b) => a.orden - b.orden);
+
+    const lineas: BoletaLinea[] = [];
+    const hoy = new Date().toISOString().slice(0, 10);
+
+    if (asignaciones.size > 0) {
+      // Generar una línea por cada (tarifa, color) asignado
+      for (const t of todasTarifas) {
+        const coloresAsig = asignaciones.get(t.id);
+        if (!coloresAsig) continue;
+        for (const colorId of coloresAsig) {
+          lineas.push({
+            id: uid(),
+            operarioId: selectedOperario,
+            corteId: bulkCorteId,
+            nCorte: corte.nCorte,
+            productoId: corte.productoId,
+            colorId,
+            tarifaId: t.id,
+            operacion: t.operacion,
+            orden: t.orden,
+            tarifa: t.tarifa,
+            cantPrendas: 0,
+            importe: 0,
+            periodo: selectedPeriodo,
+            fechaRegistro: hoy,
+            estadoPago: 'PENDIENTE',
+          });
+        }
+      }
+    } else {
+      // Sin asignaciones registradas: cargar todas las tarifas sin color
+      for (const t of todasTarifas) {
+        lineas.push({
+          id: uid(),
+          operarioId: selectedOperario,
+          corteId: bulkCorteId,
+          nCorte: corte.nCorte,
+          productoId: corte.productoId,
+          tarifaId: t.id,
+          operacion: t.operacion,
+          orden: t.orden,
+          tarifa: t.tarifa,
+          cantPrendas: 0,
+          importe: 0,
+          periodo: selectedPeriodo,
+          fechaRegistro: hoy,
+          estadoPago: 'PENDIENTE',
+        });
+      }
+    }
+
+    if (lineas.length === 0) {
       addToast('No hay tarifas para ese producto', 'error');
       return;
     }
-    const lineas: BoletaLinea[] = tarifas.map(t => ({
-      id: uid(),
-      operarioId: selectedOperario,
-      corteId: bulkCorteId,
-      nCorte: corte.nCorte,
-      productoId: corte.productoId,
-      tarifaId: t.id,
-      operacion: t.operacion,
-      orden: t.orden,
-      tarifa: t.tarifa,
-      cantPrendas: 0,
-      importe: 0,
-      periodo: selectedPeriodo,
-      fechaRegistro: new Date().toISOString().slice(0, 10),
-      estadoPago: 'PENDIENTE',
-    }));
-    addBoletaLineas(lineas);
-    addToast(`${lineas.length} operaciones cargadas`, 'success');
+
+    // Filtrar las que ya existen para ese operario+corte+período (evita duplicados)
+    const nuevas = lineas.filter(l =>
+      !boletaLineas.some(
+        b => b.operarioId === l.operarioId &&
+             b.corteId === l.corteId &&
+             b.tarifaId === l.tarifaId &&
+             b.periodo === l.periodo &&
+             (l.colorId ? b.colorId === l.colorId : !b.colorId)
+      )
+    );
+
+    if (nuevas.length === 0) {
+      addToast('Esas operaciones ya están cargadas', 'info');
+      return;
+    }
+    addBoletaLineas(nuevas);
+    addToast(`${nuevas.length} operacion${nuevas.length !== 1 ? 'es' : ''} cargada${nuevas.length !== 1 ? 's' : ''}`, 'success');
     setBulkCorteId('');
+  };
+
+  const handleDeleteBoletaLinea = (b: BoletaLinea) => {
+    // Limpiar la asignación del operario en las filas de seguimiento que corresponden
+    const filasAfectadas = seguimientoFilas.filter(
+      f => f.corteId === b.corteId && (!b.colorId || f.colorId === b.colorId)
+    );
+    for (const fila of filasAfectadas) {
+      const nuevasAsignaciones = fila.asignaciones.map(a =>
+        a.tarifaId === b.tarifaId && a.operarioId === b.operarioId
+          ? { ...a, operarioId: '', pago: 0 }
+          : a
+      );
+      const totalPago = nuevasAsignaciones.reduce((s, a) => s + a.pago, 0);
+      const assignedCount = nuevasAsignaciones.filter(a => a.operarioId).length;
+      const pctAvance = nuevasAsignaciones.length > 0
+        ? Math.round((assignedCount / nuevasAsignaciones.length) * 100)
+        : 0;
+      updateSeguimientoFila(fila.id, { asignaciones: nuevasAsignaciones, totalPago, pctAvance });
+    }
+    deleteBoletaLinea(b.id);
   };
 
   const handleMarcarPagado = () => {
@@ -264,6 +358,7 @@ export function Destajo() {
 
   const buildDestajoRows = () => lineasFiltradas.map((b) => ({
     NCorte: b.nCorte,
+    Color: b.colorId ? (colorMap.get(b.colorId) ?? b.colorId) : '',
     Operacion: b.operacion,
     Tarifa: b.tarifa.toFixed(2),
     Prendas: b.cantPrendas,
@@ -286,6 +381,7 @@ export function Destajo() {
       fileName: `destajo_${operario?.codigo ?? selectedOperario}_${selectedPeriodo}`,
       columns: [
         { header: 'N° Corte', dataKey: 'NCorte' },
+        { header: 'Color', dataKey: 'Color' },
         { header: 'Operación', dataKey: 'Operacion' },
         { header: 'Tarifa', dataKey: 'Tarifa' },
         { header: 'Prendas', dataKey: 'Prendas' },
@@ -480,6 +576,15 @@ export function Destajo() {
               </select>
             </div>
             <div>
+              <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Corte</label>
+              <select value={gCorteId} onChange={e => setGCorteId(e.target.value)} className="input-base w-44">
+                <option value="">Todos</option>
+                {cortes.filter(c => c.estado !== 'ANULADO').map(c => (
+                  <option key={c.id} value={c.id}>{c.nCorte} — {productoMap.get(c.productoId)?.nombre}</option>
+                ))}
+              </select>
+            </div>
+            <div>
               <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Estado</label>
               <select value={gEstado} onChange={e => setGEstado(e.target.value as typeof gEstado)} className="input-base w-36">
                 <option value="">Todos</option>
@@ -487,10 +592,10 @@ export function Destajo() {
                 <option value="PAGADO">Pagado</option>
               </select>
             </div>
-            {(gOperarioId || gOperacion || gPeriodo || gEstado) && (
+            {(gOperarioId || gOperacion || gPeriodo || gEstado || gCorteId) && (
               <div className="flex items-end">
                 <button
-                  onClick={() => { setGOperarioId(''); setGOperacion(''); setGPeriodo(''); setGEstado(''); }}
+                  onClick={() => { setGOperarioId(''); setGOperacion(''); setGPeriodo(''); setGEstado(''); setGCorteId(''); }}
                   className="text-[10px] font-bold uppercase tracking-widest text-gray-400 hover:text-red-500 flex items-center gap-1"
                 >
                   <X className="h-3 w-3" /> Limpiar
@@ -516,13 +621,13 @@ export function Destajo() {
                 <table className="texajo-table">
                   <thead>
                     <tr>
-                      {['Período', 'Operario', 'N° Corte', 'Operación', 'Tarifa', 'Prendas', 'Importe', 'Estado', ''].map(h => (
+                      {['Período', 'Operario', 'N° Corte', 'Producto', 'Operación', 'Tarifa', 'Prendas', 'Importe', 'Estado', ''].map(h => (
                         <th key={h}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    <tr><td colSpan={9} className="texajo-empty-row">Sin resultados</td></tr>
+                    <tr><td colSpan={10} className="texajo-empty-row">Sin resultados</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -536,6 +641,8 @@ export function Destajo() {
                       <th>Período</th>
                       <th>Operario</th>
                       <th>N° Corte</th>
+                      <th>Producto</th>
+                      <th>Color</th>
                       <th>Operación</th>
                       <th className="text-right">Tarifa</th>
                       <th className="text-right">Prendas</th>
@@ -554,6 +661,8 @@ export function Destajo() {
                             <div className="text-[10px] text-gray-400 font-mono">{op?.codigo}</div>
                           </td>
                           <td className="font-mono">{b.nCorte}</td>
+                          <td className="text-[11px] text-gray-600">{productoMap.get(b.productoId)?.nombre ?? '—'}</td>
+                          <td className="text-[11px]">{b.colorId ? colorMap.get(b.colorId) ?? '—' : '—'}</td>
                           <td>{b.operacion}</td>
                           <td className="text-right font-mono">S/ {b.tarifa.toFixed(3)}</td>
                           <td className="text-right font-mono">{b.cantPrendas}</td>
@@ -570,7 +679,7 @@ export function Destajo() {
                           <td className="px-2">
                             {confirmDelete === b.id ? (
                               <span className="flex items-center gap-1 whitespace-nowrap">
-                                <button onClick={() => { deleteBoletaLinea(b.id); setConfirmDelete(null); addToast('Línea eliminada', 'success'); }} className="text-[10px] font-bold text-red-600 hover:text-red-800 uppercase">Sí</button>
+                                <button onClick={() => { handleDeleteBoletaLinea(b); setConfirmDelete(null); addToast('Línea eliminada', 'success'); }} className="text-[10px] font-bold text-red-600 hover:text-red-800 uppercase">Sí</button>
                                 <span className="text-gray-300">/</span>
                                 <button onClick={() => setConfirmDelete(null)} className="text-[10px] font-bold text-gray-400 hover:text-gray-600 uppercase">No</button>
                               </span>
@@ -586,7 +695,7 @@ export function Destajo() {
                   </tbody>
                   <tfoot>
                     <tr>
-                      <td colSpan={6} className="text-[10px] font-bold uppercase tracking-widest text-gray-500 px-4 py-3">
+                      <td colSpan={8} className="text-[10px] font-bold uppercase tracking-widest text-gray-500 px-4 py-3">
                         Total — {lineasGenerales.length} línea{lineasGenerales.length !== 1 ? 's' : ''}
                       </td>
                       <td className="text-right font-mono font-black px-4 py-3">S/ {totalGeneral.toFixed(2)}</td>
@@ -627,6 +736,23 @@ export function Destajo() {
         <div>
           <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Hasta</label>
           <input type="date" value={bHasta} onChange={e => setBHasta(e.target.value)} className="input-base w-36" />
+        </div>
+        <div>
+          <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Corte</label>
+          <select value={bCorteId} onChange={e => setBCorteId(e.target.value)} className="input-base w-44">
+            <option value="">Todos</option>
+            {cortes.filter(c => c.estado !== 'ANULADO').map(c => (
+              <option key={c.id} value={c.id}>{c.nCorte} — {productoMap.get(c.productoId)?.nombre}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Estado Pago</label>
+          <select value={bEstado} onChange={e => setBEstado(e.target.value as typeof bEstado)} className="input-base w-36">
+            <option value="">Todos</option>
+            <option value="PENDIENTE">Pendiente</option>
+            <option value="PAGADO">Pagado</option>
+          </select>
         </div>
         {(bDesde || bHasta) && (
           <div className="flex items-end">
@@ -698,7 +824,7 @@ export function Destajo() {
               <table className="min-w-full text-xs">
                 <thead>
                   <tr className="border-b border-gray-200 bg-gray-50">
-                    {['N° Corte', 'Operación', 'Tarifa', 'Prendas', 'Importe', 'Estado', ''].map(h => (
+                    {['N° Corte', 'Producto', 'Color', 'Operación', 'Tarifa', 'Prendas', 'Importe', 'Estado', ''].map(h => (
                       <th key={h} className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500 whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -707,6 +833,14 @@ export function Destajo() {
                   {lineasFiltradas.map(b => (
                     <tr key={b.id} className={`hover:bg-gray-50 ${b.estadoPago === 'PAGADO' ? 'opacity-60' : ''}`}>
                       <td className="px-3 py-2 font-mono">{b.nCorte}</td>
+                      <td className="px-3 py-2 text-[11px] text-gray-600">{productoMap.get(b.productoId)?.nombre ?? '—'}</td>
+                      <td className="px-3 py-2 text-[11px]">
+                        {b.colorId ? (
+                          <span className="font-medium text-gray-700">{colorMap.get(b.colorId) ?? b.colorId}</span>
+                        ) : (
+                          <span className="text-gray-300">—</span>
+                        )}
+                      </td>
                       <td className="px-3 py-2">{b.operacion}</td>
                       <td className="px-3 py-2 font-mono text-right">S/ {b.tarifa.toFixed(3)}</td>
                       <td className="px-3 py-2">
@@ -737,7 +871,7 @@ export function Destajo() {
                           )}
                           {confirmDelete === b.id ? (
                             <span className="flex items-center gap-1 whitespace-nowrap">
-                              <button onClick={() => { deleteBoletaLinea(b.id); setConfirmDelete(null); addToast('Línea eliminada', 'success'); }} className="text-[10px] font-bold text-red-600 hover:text-red-800 uppercase">Sí</button>
+                              <button onClick={() => { handleDeleteBoletaLinea(b); setConfirmDelete(null); addToast('Línea eliminada', 'success'); }} className="text-[10px] font-bold text-red-600 hover:text-red-800 uppercase">Sí</button>
                               <span className="text-gray-300">/</span>
                               <button onClick={() => setConfirmDelete(null)} className="text-[10px] font-bold text-gray-400 hover:text-gray-600 uppercase">No</button>
                             </span>
@@ -913,7 +1047,7 @@ export function Destajo() {
       {/* Boleta operario */}
       {showBoleta && selectedOperario && (() => {
         const operario = operarioMap.get(selectedOperario);
-        return operario ? <BoletaOperario operario={operario} periodo={selectedPeriodo} desde={bDesde || undefined} hasta={bHasta || undefined} onClose={() => setShowBoleta(false)} /> : null;
+        return operario ? <BoletaOperario operario={operario} periodo={selectedPeriodo} desde={bDesde || undefined} hasta={bHasta || undefined} estadoPago={bEstado || undefined} onClose={() => setShowBoleta(false)} /> : null;
       })()}
 
       {/* Modal agregar líneas — secciones por operario */}

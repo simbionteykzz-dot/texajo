@@ -84,6 +84,8 @@ export interface Producto {
   propM?: number;
   propL?: number;
   propXL?: number;
+  marca?: string;
+  recetaComplementos?: RecetaComplemento[];
   notas: string;
 }
 
@@ -155,17 +157,30 @@ export interface MovimientoTela {
 
 // ─── Cortes ────────────────────────────────────────────────────────────────
 
+export interface CorteColorDetalle {
+  colorId: string;
+  tonalidad?: string;
+  kgUsados: number;
+  rollosUsados: number;
+  tendidas: number;
+  propS: number; propM: number; propL: number; propXL: number;
+  cantS: number; cantM: number; cantL: number; cantXL: number;
+  totalPrendas: number;
+}
+
 export interface Corte {
   id: string;
   nCorte: string;
   fecha: string;
   clienteId: string;
   productoId: string;
-  colorId: string;
-  tonalidad?: string; // ej: "1", "2" — variante del color base (nullable)
+  colorId: string;           // color principal (primer color, o el único)
+  tonalidad?: string;        // tonalidad del color principal
+  coloresDetalle?: CorteColorDetalle[]; // todos los colores del corte (incluye el principal)
   telaId?: string; // referencia a Tela.id para descuento automático de inventario
   cortador: string; // nombre libre, no referencia Operario.id
   ayudante: string;
+  tendedor: string;
   kgUsados: number;
   rollosUsados: number;
   tendidas: number;
@@ -193,8 +208,10 @@ export interface SeguimientoAsignacion {
   tarifaId: string;
   operacion: string;
   orden: number;
-  operarioId: string;
-  pago: number; // cantidad × tarifa
+  operarioId: string;        // primer operario (retrocompatible)
+  operarioIds?: string[];    // todos los operarios; si hay >1 se divide en partes iguales
+  pago: number;              // pago total de la operación (suma de todos los operarios)
+  confirmado?: boolean;
 }
 
 export interface SeguimientoFila {
@@ -220,6 +237,7 @@ export interface BoletaLinea {
   corteId: string;
   nCorte: string;
   productoId: string;
+  colorId?: string;
   tarifaId: string;
   operacion: string;
   orden: number;

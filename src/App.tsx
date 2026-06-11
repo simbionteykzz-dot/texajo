@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { HashRouter as Router, Routes, Route } from 'react-router-dom';
 import { AppProvider } from './store/AppContext';
-import { ToastProvider } from './components/ToastProvider';
+import { ToastProvider, useToast } from './components/ToastProvider';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { Login } from './pages/Login';
@@ -25,12 +25,27 @@ import { useAuthUser } from './lib/useAuthUser';
 import { usePermisos, permisosParaRol } from './lib/usePermisos';
 import introAnim from './assets/login/logo-animado-texajo.gif';
 
+function DbErrorWatcher() {
+  const { addToast } = useToast();
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const msg = (e as CustomEvent<string>).detail;
+      addToast(`Error al guardar: ${msg}`, 'error');
+    };
+    window.addEventListener('supabase-error', handler);
+    return () => window.removeEventListener('supabase-error', handler);
+  }, [addToast]);
+  return null;
+}
+
 export default function App() {
   const [autenticado, setAutenticado] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const [mostrarIntro, setMostrarIntro] = useState(false);
   const [sidebarColapsado, setSidebarColapsado] = useState(false);
   const [sidebarMobileOpen, setSidebarMobileOpen] = useState(false);
+  // Key estable para AppProvider — se fija al autenticarse y no cambia hasta logout
+  const [providerKey, setProviderKey] = useState<string>('guest');
 
   const authUser = useAuthUser();
   const { permisosPorRol } = usePermisos();
@@ -41,11 +56,13 @@ export default function App() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setAutenticado(!!session);
+      if (session?.user?.id) setProviderKey(session.user.id);
       setAuthChecked(true);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setAutenticado(!!session);
+      if (session?.user?.id) setProviderKey(session.user.id);
     });
 
     return () => subscription.unsubscribe();
@@ -82,10 +99,11 @@ export default function App() {
     return (
       <Login
         onLogin={async () => {
+          // Registrar login — leer sesión antes de setAutenticado para tener el userId
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user?.id) setProviderKey(session.user.id);
           setAutenticado(true);
           setMostrarIntro(true);
-          // Registrar login — el authUser aún no está disponible, se lee directo de la sesión
-          const { data: { session } } = await supabase.auth.getSession();
           if (session) {
             const meta = session.user.user_metadata ?? {};
             await supabase.from('audit_logs').insert({
@@ -125,11 +143,13 @@ export default function App() {
     setAutenticado(false);
     setMostrarIntro(false);
     setSidebarMobileOpen(false);
+    setProviderKey('guest');
   };
 
   return (
-    <AppProvider key={authUser?.id ?? 'guest'} authUser={authUser}>
+    <AppProvider key={providerKey} authUser={authUser}>
       <ToastProvider>
+        <DbErrorWatcher />
         <Router>
           <div className="flex h-screen overflow-hidden bg-[#F4F2EE] font-sans text-[#1A1A1A]">
 

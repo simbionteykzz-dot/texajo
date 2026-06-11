@@ -5,6 +5,7 @@ import { useToast } from '../components/ToastProvider';
 import { Download, Plus, X, ChevronDown, ChevronRight, FileText, Trash2 } from 'lucide-react';
 import { ProgramaZurzam, ProgramaDetalle, CompraHilo, EstadoPrograma, EstadoPago, StockExtorno } from '../types';
 import { ModuleInfoBox } from '../components/ModuleInfoBox';
+import { ConfirmModal } from '../components/ConfirmModal';
 import { exportRowsToXlsx, exportTableToPdf } from '../lib/export';
 
 const uid = () => crypto.randomUUID();
@@ -26,7 +27,7 @@ export function ProgramasZurzam() {
 
   const [activeTab, setActiveTab] = useState<'programas' | 'resumen'>('programas');
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{ accion: () => void; mensaje: string; detalle?: string } | null>(null);
   const [showProgForm, setShowProgForm] = useState(false);
   const [showDetalleForm, setShowDetalleForm] = useState<string | null>(null);
   const [showHiloForm, setShowHiloForm] = useState<string | null>(null);
@@ -436,17 +437,9 @@ export function ProgramasZurzam() {
                         </span>
                       )}
                     </div>
-                    {confirmDelete === prog.id ? (
-                      <span className="flex items-center gap-1 whitespace-nowrap">
-                        <button onClick={() => { deletePrograma(prog.id); setConfirmDelete(null); addToast('Programa eliminado', 'success'); }} className="text-[10px] font-bold text-red-600 hover:text-red-800 uppercase">Sí</button>
-                        <span className="text-gray-300">/</span>
-                        <button onClick={e => { e.stopPropagation(); setConfirmDelete(null); }} className="text-[10px] font-bold text-gray-400 hover:text-gray-600 uppercase">No</button>
-                      </span>
-                    ) : (
-                      <button onClick={e => { e.stopPropagation(); setConfirmDelete(prog.id); }} className="text-gray-300 hover:text-red-500 transition-colors">
+                      <button onClick={e => { e.stopPropagation(); setConfirmDelete({ mensaje: `¿Eliminar programa "${prog.nombre}"?`, detalle: 'Se eliminarán todos sus detalles y compras de hilo.', accion: () => { deletePrograma(prog.id); addToast('Programa eliminado', 'success'); } }); }} className="text-gray-300 hover:text-red-500 transition-colors">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
-                    )}
                   </div>
                 </div>
 
@@ -539,17 +532,9 @@ export function ProgramasZurzam() {
                                       </select>
                                     </td>
                                     <td className="px-2 py-1.5">
-                                      {confirmDelete === d.id ? (
-                                        <span className="flex items-center gap-1 whitespace-nowrap">
-                                          <button onClick={() => { deleteProgramaDetalle(d.id); setConfirmDelete(null); addToast('Detalle eliminado', 'success'); }} className="text-[10px] font-bold text-red-600 hover:text-red-800 uppercase">Sí</button>
-                                          <span className="text-gray-300">/</span>
-                                          <button onClick={() => setConfirmDelete(null)} className="text-[10px] font-bold text-gray-400 hover:text-gray-600 uppercase">No</button>
-                                        </span>
-                                      ) : (
-                                        <button onClick={() => setConfirmDelete(d.id)} className="text-gray-300 hover:text-red-500 transition-colors">
+                                        <button onClick={() => setConfirmDelete({ mensaje: '¿Eliminar este detalle?', accion: () => { deleteProgramaDetalle(d.id); addToast('Detalle eliminado', 'success'); } })} className="text-gray-300 hover:text-red-500 transition-colors">
                                           <Trash2 className="h-3 w-3" />
                                         </button>
-                                      )}
                                     </td>
                                   </tr>
                                 );
@@ -595,17 +580,9 @@ export function ProgramasZurzam() {
                                 </td>
                                 <td className="px-2 py-1.5 font-mono text-right">S/ {h.saldo.toFixed(2)}</td>
                                 <td className="px-2 py-1.5">
-                                  {confirmDelete === h.id ? (
-                                    <span className="flex items-center gap-1 whitespace-nowrap">
-                                      <button onClick={() => { deleteCompraHilo(h.id); setConfirmDelete(null); addToast('Compra eliminada', 'success'); }} className="text-[10px] font-bold text-red-600 hover:text-red-800 uppercase">Sí</button>
-                                      <span className="text-gray-300">/</span>
-                                      <button onClick={() => setConfirmDelete(null)} className="text-[10px] font-bold text-gray-400 hover:text-gray-600 uppercase">No</button>
-                                    </span>
-                                  ) : (
-                                    <button onClick={() => setConfirmDelete(h.id)} className="text-gray-300 hover:text-red-500 transition-colors">
+                                    <button onClick={() => setConfirmDelete({ mensaje: '¿Eliminar esta compra de hilo?', accion: () => { deleteCompraHilo(h.id); addToast('Compra eliminada', 'success'); } })} className="text-gray-300 hover:text-red-500 transition-colors">
                                       <Trash2 className="h-3 w-3" />
                                     </button>
-                                  )}
                                 </td>
                               </tr>
                             ))}
@@ -649,17 +626,9 @@ export function ProgramasZurzam() {
                                   </td>
                                   <td className="px-2 py-1.5 text-gray-500">{s.notas}</td>
                                   <td className="px-2 py-1.5">
-                                    {confirmDelete === s.id ? (
-                                      <span className="flex items-center gap-1 whitespace-nowrap">
-                                        <button onClick={() => { deleteStockExtorno(s.id); setConfirmDelete(null); addToast('Extorno eliminado', 'success'); }} className="text-[10px] font-bold text-red-600 hover:text-red-800 uppercase">Sí</button>
-                                        <span className="text-gray-300">/</span>
-                                        <button onClick={() => setConfirmDelete(null)} className="text-[10px] font-bold text-gray-400 hover:text-gray-600 uppercase">No</button>
-                                      </span>
-                                    ) : (
-                                      <button onClick={() => setConfirmDelete(s.id)} className="text-gray-300 hover:text-red-500 transition-colors">
+                                      <button onClick={() => setConfirmDelete({ mensaje: '¿Eliminar este extorno?', accion: () => { deleteStockExtorno(s.id); addToast('Extorno eliminado', 'success'); } })} className="text-gray-300 hover:text-red-500 transition-colors">
                                         <Trash2 className="h-3 w-3" />
                                       </button>
-                                    )}
                                   </td>
                                 </tr>
                               ))}
@@ -949,6 +918,18 @@ export function ProgramasZurzam() {
             </div>
           </div>
         </div>
+      )}
+
+      {confirmDelete && (
+        <ConfirmModal
+          mensaje={confirmDelete.mensaje}
+          detalle={confirmDelete.detalle ?? 'Esta acción no se puede deshacer.'}
+          onConfirmar={() => {
+            confirmDelete.accion();
+            setConfirmDelete(null);
+          }}
+          onCancelar={() => setConfirmDelete(null)}
+        />
       )}
     </motion.div>
   );

@@ -12,7 +12,7 @@ import {
   mockPreciosComplementos, mockProductos, mockTarifasOperaciones, mockOperarios,
   initialConfig,
 } from '../data';
-import { db, loadAllFromDb, seedInitialData } from '../lib/supabaseDb';
+import { db, loadAllFromDb, seedInitialData, loadProductoColores } from '../lib/supabaseDb';
 import { supabase } from '../lib/supabase';
 import type { AuthUser } from '../lib/useAuthUser';
 
@@ -154,6 +154,7 @@ interface AppContextProps extends AppState {
   deletePrecioComplemento: (id: string) => void;
   addOperario: (o: Operario) => void;
   updateOperario: (id: string, updates: Partial<Operario>) => void;
+  deleteOperario: (id: string) => void;
   // Precios Tejeduría
   addPrecioTejeduria: (p: PrecioTejeduria) => void;
   updatePrecioTejeduria: (id: string, updates: Partial<PrecioTejeduria>) => void;
@@ -166,6 +167,8 @@ interface AppContextProps extends AppState {
   addProductoColor: (pc: ProductoColor) => void;
   updateProductoColor: (id: string, updates: Partial<ProductoColor>) => void;
   deleteProductoColor: (id: string) => void;
+  // Helper para crear color + producto_color en secuencia (espera ID real de Supabase)
+  addColorConProductoColor: (color: Color, pc: Omit<ProductoColor, 'colorId'> | null) => Promise<string>;
   // Config
   updateConfig: (updates: Partial<Config>) => void;
   // Import / Reset
@@ -316,6 +319,19 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ── Auto-refresh producto_colores cada 3 minutos ─────────────────────────
+  useEffect(() => {
+    if (!dbReady) return;
+    const INTERVAL = 3 * 60 * 1000;
+    const tick = () =>
+      loadProductoColores().then(fresh => {
+        if (fresh.length > 0)
+          setState(p => ({ ...p, productoColores: fresh }));
+      }).catch(() => { /* silencioso */ });
+    const id = setInterval(tick, INTERVAL);
+    return () => clearInterval(id);
+  }, [dbReady]);
+
   // ── Caché local (fallback offline) ───────────────────────────────────────
   useEffect(() => {
     if (!dbReady) return;
@@ -332,15 +348,28 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   const logDbError = (op: string, field: keyof AppState, err: unknown) => {
     const msg = err instanceof Error ? err.message : JSON.stringify(err);
     console.error(`[Supabase] ${op} en ${String(field)} falló:`, msg, err);
+    // Mostrar en pantalla para detectar pérdidas silenciosas de datos
+    const detail = (err as { details?: string; hint?: string })?.details ?? (err as { hint?: string })?.hint ?? '';
+    window.dispatchEvent(new CustomEvent('supabase-error', { detail: `${op} ${String(field)}: ${msg}${detail ? ' — ' + detail : ''}` }));
   };
 
   function makeAdd<T>(
     field: keyof AppState,
-    dbAdd: (v: T) => Promise<void>
+    dbAdd: (v: T) => Promise<void> | Promise<string | null>
   ) {
     return (v: T) => {
+      const tempId = (v as Record<string, unknown>)['id'] as string | undefined;
       set(p => ({ ...p, [field]: [...(p[field] as T[]), v] }));
-      dbAdd(v).catch(err => logDbError('INSERT', field, err));
+      dbAdd(v).then(realId => {
+        if (realId && tempId && realId !== tempId) {
+          set(p => ({
+            ...p,
+            [field]: (p[field] as { id: string }[]).map(x =>
+              x.id === tempId ? { ...x, id: realId } : x
+            ) as AppState[typeof field],
+          }));
+        }
+      }).catch(err => logDbError('INSERT', field, err));
       const entidad = FIELD_TO_TABLE[field] ?? String(field);
       const rec = v as Record<string, unknown>;
       auditLog('CREATE', entidad, String(rec['id'] ?? ''), describeRecord(entidad, rec), undefined, rec);
@@ -352,12 +381,10 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     dbUpdate: (id: string, updates: Partial<T>, cur: T) => Promise<void>
   ) {
     return (id: string, updates: Partial<T>) => {
-      let cur: T | undefined;
-      set(p => {
-        const arr = (p[field] as unknown) as T[];
-        cur = arr.find(x => x.id === id);
-        return { ...p, [field]: arr.map(x => x.id === id ? { ...x, ...updates } : x) };
-      });
+      // Leer cur del estado actual del cierre (snapshot síncrono antes del setState)
+      const arr = (state[field] as unknown) as T[];
+      const cur = arr.find(x => x.id === id);
+      set(p => ({ ...p, [field]: (p[field] as unknown as T[]).map(x => x.id === id ? { ...x, ...updates } : x) as AppState[typeof field] }));
       if (cur) {
         const entidad = FIELD_TO_TABLE[field] ?? String(field);
         dbUpdate(id, updates, cur).catch(err => logDbError('UPDATE', field, err));
@@ -394,7 +421,24 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   const deleteMovimientoTela = makeDelete('movimientosTela', db.movimientosTela.delete);
 
   // ─── Cortes ──────────────────────────────────────────────────────────────
-  const addCorte = makeAdd<Corte>('cortes', db.cortes.add);
+  const addCorte = (v: Corte) => {
+    set(p => ({ ...p, cortes: [...p.cortes, v] }));
+    db.cortes.add(v)
+      .then(realId => {
+        if (realId && realId !== v.id) {
+          // Actualizar el id local con el integer real de Supabase
+          set(p => ({
+            ...p,
+            cortes: p.cortes.map(c => c.id === v.id ? { ...c, id: realId } : c),
+            seguimientoFilas: p.seguimientoFilas.map(f => f.corteId === v.id ? { ...f, corteId: realId } : f),
+            boletaLineas: p.boletaLineas.map(b => b.corteId === v.id ? { ...b, corteId: realId } : b),
+          }));
+        }
+      })
+      .catch(err => logDbError('INSERT', 'cortes', err));
+    const rec = v as unknown as Record<string, unknown>;
+    auditLog('CREATE', 'cortes', String(v.id), describeRecord('cortes', rec), undefined, rec);
+  };
   const updateCorte = makeUpdate<Corte>('cortes', db.cortes.update);
   const deleteCorte = (id: string) => {
     set(p => ({
@@ -478,6 +522,33 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   const updateColor = makeUpdate<Color>('colores', db.colores.update);
   const deleteColor = makeDelete('colores', db.colores.delete);
 
+  // Inserta color en Supabase, espera el ID real, luego inserta producto_color con ese ID
+  const addColorConProductoColor = useCallback(async (color: Color, pc: Omit<ProductoColor, 'colorId'> | null): Promise<string> => {
+    const tempId = color.id;
+    set(p => ({ ...p, colores: [...p.colores, color] }));
+    let realId: string;
+    try {
+      realId = await db.colores.add(color) ?? tempId;
+    } catch (err) {
+      console.error('[addColorConPC] INSERT colores falló RAW:', JSON.stringify(err), err);
+      logDbError('INSERT', 'colores', err);
+      realId = tempId;
+    }
+    if (realId !== tempId) {
+      set(p => ({ ...p, colores: p.colores.map(c => c.id === tempId ? { ...c, id: realId } : c) }));
+    }
+    if (pc) {
+      const pcFull: ProductoColor = { ...pc, colorId: realId };
+      set(p => ({ ...p, productoColores: [...p.productoColores, pcFull] }));
+      db.productoColores.add(pcFull).then(realPcId => {
+        if (realPcId && realPcId !== pcFull.id) {
+          set(p => ({ ...p, productoColores: p.productoColores.map(x => x.id === pcFull.id ? { ...x, id: realPcId } : x) }));
+        }
+      }).catch(err => logDbError('INSERT', 'productoColores', err));
+    }
+    return realId;
+  }, [set]);
+
   const addPrecioTela = makeAdd<PrecioTela>('preciosTelas', db.preciosTelas.add);
   const updatePrecioTela = makeUpdate<PrecioTela>('preciosTelas', db.preciosTelas.update);
   const deletePrecioTela = makeDelete('preciosTelas', db.preciosTelas.delete);
@@ -518,6 +589,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
 
   const addOperario = makeAdd<Operario>('operarios', db.operarios.add);
   const updateOperario = makeUpdate<Operario>('operarios', db.operarios.update);
+  const deleteOperario = makeDelete('operarios', db.operarios.delete);
 
   const addPrecioTejeduria = makeAdd<PrecioTejeduria>('preciosTejeduria', db.preciosTejeduria.add);
   const updatePrecioTejeduria = makeUpdate<PrecioTejeduria>('preciosTejeduria', db.preciosTejeduria.update);
@@ -592,12 +664,12 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       addCliente, updateCliente,
       addProveedor, updateProveedor,
       addTela, updateTela, deleteTela,
-      addColor, updateColor, deleteColor,
+      addColor, updateColor, deleteColor, addColorConProductoColor,
       addPrecioTela, updatePrecioTela, deletePrecioTela,
       addProducto, updateProducto, deleteProducto,
       addTarifaOperacion, updateTarifaOperacion, deleteTarifaOperacion,
       addPrecioComplemento, updatePrecioComplemento, deletePrecioComplemento,
-      addOperario, updateOperario,
+      addOperario, updateOperario, deleteOperario,
       addPrecioTejeduria, updatePrecioTejeduria, deletePrecioTejeduria,
       addPrecioTintoreria, updatePrecioTintoreria, deletePrecioTintoreria,
       addProductoColor, updateProductoColor, deleteProductoColor,

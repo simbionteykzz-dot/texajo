@@ -3,16 +3,25 @@ import { motion } from 'motion/react';
 import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
 import { Download, Plus, X, CheckCircle, Clock, XCircle, FileText, Trash2 } from 'lucide-react';
-import { Corte, SeguimientoAsignacion, SeguimientoFila, MovimientoTela } from '../types';
+import { Corte, CorteColorDetalle, SeguimientoAsignacion, SeguimientoFila, MovimientoTela } from '../types';
 import { ModuleInfoBox } from '../components/ModuleInfoBox';
-import { exportRowsToXlsx, exportTableToPdf } from '../lib/export';
+import { ConfirmModal } from '../components/ConfirmModal';
+import { exportRowsToXlsx, exportReportesCorte } from '../lib/export';
 
 const uid = () => crypto.randomUUID();
 
+// Suma rollos sin contar duplicados del mismo colorBase (la celda está agrupada por rowSpan)
+const totalRollosSinDuplicar = (colores: { colorBase: string; rollosUsados: string }[]) =>
+  colores.reduce((sum, det, i) => {
+    const base = det.colorBase;
+    if (base && i > 0 && colores[i - 1].colorBase === base) return sum; // fila secundaria del grupo
+    return sum + (parseFloat(det.rollosUsados) || 0);
+  }, 0);
+
 interface ColorDetalle {
   colorId: string;
-  colorBase: string;
-  colorTonal: string;
+  colorBase: string; // nombre base para el primer dropdown (ej: "Negro")
+  tonalidad: string; // número de tonalidad seleccionado (ej: "2")
   kgUsados: string;
   rollosUsados: string;
   tendidas: string;
@@ -24,14 +33,14 @@ interface ColorDetalle {
 interface CorteForm {
   nCorte: string; fecha: string; clienteId: string; productoId: string;
   telaId: string;
-  cortador: string; ayudante: string;
+  cortador: string; ayudante: string; tendedor: string;
   mtsPorTendida: string; ancho: string;
   colores: ColorDetalle[];
   traslado: boolean; notas: string;
 }
 
 const emptyColorDetalle = (): ColorDetalle => ({
-  colorId: '', colorBase: '', colorTonal: '',
+  colorId: '', colorBase: '', tonalidad: '',
   kgUsados: '', rollosUsados: '',
   tendidas: '', propS: '', propM: '', propL: '', propXL: '',
   cantS: '0', cantM: '0', cantL: '0', cantXL: '0',
@@ -40,7 +49,7 @@ const emptyColorDetalle = (): ColorDetalle => ({
 const emptyForm = (): CorteForm => ({
   nCorte: '', fecha: new Date().toISOString().slice(0, 10),
   clienteId: '', productoId: '', telaId: '',
-  cortador: '', ayudante: '',
+  cortador: '', ayudante: '', tendedor: '',
   mtsPorTendida: '', ancho: '',
   colores: [emptyColorDetalle()],
   traslado: false, notas: '',
@@ -58,6 +67,7 @@ export function Cortes() {
     movimientosTela, seguimientoFilas, productoColores,
     addCorte, updateCorte, deleteCorte,
     addMovimientoTela, addSeguimientoFila,
+    updateProducto, addColorConProductoColor,
   } = useAppContext();
 
   const { addToast } = useToast();
@@ -67,6 +77,9 @@ export function Cortes() {
   const [form, setForm] = useState<CorteForm>(emptyForm());
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [mostrarTodosProductos, setMostrarTodosProductos] = useState(true);
+  // Mini-modal para agregar tonalidad desde el formulario de corte
+  const [tonModal, setTonModal] = useState<{ idx: number; colorBase: string } | null>(null);
+  const [tonProps, setTonProps] = useState({ propS: '', propM: '', propL: '', propXL: '' });
 
   const capWords = (s: string) =>
     s.replace(/(^|\s)(\S)/g, (_, sp, ch) => sp + ch.toUpperCase());
@@ -76,38 +89,30 @@ export function Cortes() {
   const colorMap = useMemo(() => new Map(colores.map(c => [c.id, c.nombre])), [colores]);
   const telaMap = useMemo(() => new Map(telas.map(t => [t.id, t])), [telas]);
 
-  const colorGroups = useMemo(() => {
-    type Group = { baseId: string; baseName: string; variants: { id: string; tonal: string }[] };
-    const byName = new Map<string, Group>();
-
+  // Agrupa colores por nombre base: "Negro 2" → base="Negro", tonalidad="2"
+  // Si el nombre no termina en número, tonalidad=null (color sin tonalidad)
+  const coloresAgrupados = useMemo(() => {
+    const grupos = new Map<string, { id: string; tonalidad: string | null; prioridad: number }[]>();
     for (const c of colores) {
-      const numSuffix = c.nombre.match(/\s+(\d+)$/);
-      const baseName = numSuffix ? c.nombre.slice(0, -numSuffix[0].length).trim() : c.nombre.trim();
-      const tonal = numSuffix ? numSuffix[1] : 'Base';
-
-      if (!byName.has(baseName)) {
-        byName.set(baseName, { baseId: c.id, baseName, variants: [] });
-      }
-      const grp = byName.get(baseName)!;
-
-      if (!numSuffix) {
-        // Sin sufijo numérico → es una "Base". Si ya hay otra Base en el grupo, no duplicar.
-        const alreadyHasBase = grp.variants.some(v => v.tonal === 'Base');
-        if (alreadyHasBase) continue;
-        grp.baseId = c.id;
-      }
-      grp.variants.push({ id: c.id, tonal });
+      const m = c.nombre.match(/^(.+?)\s+(\d+)$/);
+      const base = m ? m[1] : c.nombre;
+      const ton = m ? m[2] : null;
+      if (!grupos.has(base)) grupos.set(base, []);
+      grupos.get(base)!.push({ id: c.id, tonalidad: ton, prioridad: c.prioridad ?? 999 });
     }
-
-    for (const g of byName.values()) {
-      g.variants.sort((a, b) => {
-        if (a.tonal === 'Base') return -1;
-        if (b.tonal === 'Base') return 1;
-        return parseInt(a.tonal) - parseInt(b.tonal);
-      });
-    }
-    return Array.from(byName.values()).sort((a, b) => a.baseName.localeCompare(b.baseName));
+    // Ordenar tonalidades numéricamente dentro de cada grupo
+    for (const arr of grupos.values()) arr.sort((a, b) => parseInt(a.tonalidad ?? '0') - parseInt(b.tonalidad ?? '0'));
+    return grupos;
   }, [colores]);
+
+  // Nombres base ordenados por prioridad mínima del grupo
+  const nombresBase = useMemo(() => {
+    return [...coloresAgrupados.keys()].sort((a, b) => {
+      const minA = Math.min(...(coloresAgrupados.get(a)?.map(x => x.prioridad) ?? [999]));
+      const minB = Math.min(...(coloresAgrupados.get(b)?.map(x => x.prioridad) ?? [999]));
+      return minA - minB || a.localeCompare(b);
+    });
+  }, [coloresAgrupados]);
 
   // Stock actual de telas: suma/resta deltas de todos los movimientos (no depende de stockRollosDespues)
   const stockActualTelas = useMemo(() => {
@@ -154,6 +159,31 @@ export function Cortes() {
       .sort((a, b) => b.fecha.localeCompare(a.fecha)),
     [cortes, filterEstado, filterCliente]);
 
+  // Detecta si alguna fila tiene props distintas a las guardadas en el producto
+  const propsModificadas = useMemo(() => {
+    if (!form.productoId) return false;
+    const prod = productoMap.get(form.productoId);
+    if (!prod) return false;
+    return form.colores.some(det => {
+      const pS = parseInt(det.propS) || 0;
+      const pM = parseInt(det.propM) || 0;
+      const pL = parseInt(det.propL) || 0;
+      const pXL = parseInt(det.propXL) || 0;
+      return pS !== (prod.propS ?? 0) || pM !== (prod.propM ?? 0) || pL !== (prod.propL ?? 0) || pXL !== (prod.propXL ?? 0);
+    });
+  }, [form.colores, form.productoId, productoMap]);
+
+  const guardarPropsEnProducto = () => {
+    if (!form.productoId) return;
+    const det = form.colores[0];
+    const pS = parseInt(det.propS) || 0;
+    const pM = parseInt(det.propM) || 0;
+    const pL = parseInt(det.propL) || 0;
+    const pXL = parseInt(det.propXL) || 0;
+    updateProducto(form.productoId, { propS: pS, propM: pM, propL: pL, propXL: pXL });
+    addToast('Proporciones guardadas en el producto', 'success');
+  };
+
   const set = (field: keyof CorteForm) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
       setForm(f => ({ ...f, [field]: e.target.value }));
@@ -167,34 +197,40 @@ export function Cortes() {
   // Crea filas de seguimiento automáticamente para un corte completado
   const crearFilasSeguimiento = (corte: Corte) => {
     const tarifas = tarifasOperaciones.filter(t => t.productoId === corte.productoId).sort((a, b) => a.orden - b.orden);
-    const tallasMap: Array<{ talla: 'S' | 'M' | 'L' | 'XL'; cantidad: number }> = [
-      { talla: 'S', cantidad: corte.cantS },
-      { talla: 'M', cantidad: corte.cantM },
-      { talla: 'L', cantidad: corte.cantL },
-      { talla: 'XL', cantidad: corte.cantXL },
-    ];
-    for (const { talla, cantidad } of tallasMap) {
-      if (cantidad <= 0) continue;
-      const yaExiste = seguimientoFilas.some(f => f.corteId === corte.id && f.talla === talla);
-      if (yaExiste) continue;
-      const asignaciones: SeguimientoAsignacion[] = tarifas.map(t => ({
-        tarifaId: t.id, operacion: t.operacion, orden: t.orden, operarioId: '', pago: 0,
-      }));
-      const fila: SeguimientoFila = {
-        id: uid(),
-        corteId: corte.id,
-        nCorte: corte.nCorte,
-        productoId: corte.productoId,
-        fecha: corte.fecha,
-        colorId: corte.colorId,
-        talla,
-        cantidad,
-        asignaciones,
-        pctAvance: 0,
-        estado: 'PENDIENTE',
-        totalPago: 0,
-      };
-      addSeguimientoFila(fila);
+    const detalles = corte.coloresDetalle && corte.coloresDetalle.length > 0
+      ? corte.coloresDetalle
+      : [{ colorId: corte.colorId, cantS: corte.cantS, cantM: corte.cantM, cantL: corte.cantL, cantXL: corte.cantXL } as CorteColorDetalle];
+
+    for (const det of detalles) {
+      const tallasMap: Array<{ talla: 'S' | 'M' | 'L' | 'XL'; cantidad: number }> = [
+        { talla: 'S', cantidad: det.cantS },
+        { talla: 'M', cantidad: det.cantM },
+        { talla: 'L', cantidad: det.cantL },
+        { talla: 'XL', cantidad: det.cantXL },
+      ];
+      for (const { talla, cantidad } of tallasMap) {
+        if (cantidad <= 0) continue;
+        const yaExiste = seguimientoFilas.some(f => f.corteId === corte.id && f.talla === talla && f.colorId === det.colorId);
+        if (yaExiste) continue;
+        const asignaciones: SeguimientoAsignacion[] = tarifas.map(t => ({
+          tarifaId: t.id, operacion: t.operacion, orden: t.orden, operarioId: '', pago: 0,
+        }));
+        const fila: SeguimientoFila = {
+          id: uid(),
+          corteId: corte.id,
+          nCorte: corte.nCorte,
+          productoId: corte.productoId,
+          fecha: corte.fecha,
+          colorId: det.colorId,
+          talla,
+          cantidad,
+          asignaciones,
+          pctAvance: 0,
+          estado: 'PENDIENTE',
+          totalPago: 0,
+        };
+        addSeguimientoFila(fila);
+      }
     }
   };
 
@@ -238,45 +274,56 @@ export function Cortes() {
     return telas.find(t => t.nombre.toLowerCase() === raw.toLowerCase())?.id ?? raw;
   };
 
-  // Descuenta inventario automáticamente al completar un corte
+  // Descuenta inventario automáticamente al completar un corte (uno o varios colores)
   const descontarInventario = (corte: Corte): boolean => {
-    if (!corte.telaId || !corte.colorId) return true;
-    const colorId = normalizeColorId(corte.colorId);
+    if (!corte.telaId) return true;
     const telaId = normalizeTelaId(corte.telaId);
-    // Si se normalizaron, persistir los IDs correctos en el corte
-    if (colorId !== corte.colorId || telaId !== corte.telaId) {
-      updateCorte(corte.id, { colorId, telaId });
+    const detalles = corte.coloresDetalle && corte.coloresDetalle.length > 0
+      ? corte.coloresDetalle
+      : [{ colorId: corte.colorId, rollosUsados: corte.rollosUsados, kgUsados: corte.kgUsados } as CorteColorDetalle];
+
+    // Verificar stock para todos los colores antes de descontar
+    for (const det of detalles) {
+      if (!det.colorId || det.rollosUsados <= 0) continue;
+      const colorId = normalizeColorId(det.colorId);
+      const key = `${telaId}|${colorId}`;
+      const stockAntes = stockActualTelas.get(key) ?? 0;
+      if (stockAntes - det.rollosUsados < 0) {
+        const nombreColor = colorMap.get(colorId) ?? colorId;
+        addToast(`Stock insuficiente para ${nombreColor}: se necesitan ${det.rollosUsados} rollos pero hay ${stockAntes}`, 'error');
+        return false;
+      }
     }
-    const key = `${telaId}|${colorId}`;
-    const stockAntes = stockActualTelas.get(key) ?? 0;
-    const rollos = corte.rollosUsados || 0;
-    const stockDespues = stockAntes - rollos;
-    if (stockDespues < 0) {
-      addToast(`Stock insuficiente: se necesitan ${rollos} rollos pero hay ${stockAntes} disponibles`, 'error');
-      return false;
+
+    // Crear movimiento A_CORTE por cada color
+    for (const det of detalles) {
+      if (!det.colorId || det.rollosUsados <= 0) continue;
+      const colorId = normalizeColorId(det.colorId);
+      const key = `${telaId}|${colorId}`;
+      const stockAntes = stockActualTelas.get(key) ?? 0;
+      const stockDespues = stockAntes - det.rollosUsados;
+      const color = colores.find(c => c.id === colorId);
+      const mov: MovimientoTela = {
+        id: uid(),
+        fecha: corte.fecha,
+        tipo: 'A_CORTE',
+        clienteId: corte.clienteId,
+        telaId,
+        colorId,
+        rollos: det.rollosUsados,
+        kgTotal: det.kgUsados || 0,
+        categoriaColor: color?.categoria ?? 'OSCURO',
+        precioKg: 0,
+        totalSoles: 0,
+        stockRollosAntes: stockAntes,
+        stockRollosDespues: stockDespues,
+        responsable: corte.cortador,
+        corteId: corte.id,
+        nCorte: corte.nCorte,
+        notas: `Auto-descuento por corte ${corte.nCorte}${det.tonalidad ? ` Tn-${det.tonalidad}` : ''}`,
+      };
+      addMovimientoTela(mov);
     }
-    const kgTotal = corte.kgUsados || 0;
-    const color = colores.find(c => c.id === colorId);
-    const mov: MovimientoTela = {
-      id: uid(),
-      fecha: corte.fecha,
-      tipo: 'A_CORTE',
-      clienteId: corte.clienteId,
-      telaId,
-      colorId,
-      rollos,
-      kgTotal,
-      categoriaColor: color?.categoria ?? 'OSCURO',
-      precioKg: 0,
-      totalSoles: 0,
-      stockRollosAntes: stockAntes,
-      stockRollosDespues: stockDespues,
-      responsable: corte.cortador,
-      corteId: corte.id,
-      nCorte: corte.nCorte,
-      notas: `Auto-descuento por corte ${corte.nCorte}`,
-    };
-    addMovimientoTela(mov);
     return true;
   };
 
@@ -287,68 +334,108 @@ export function Cortes() {
       addToast('Completa nCorte, cliente, producto y al menos un color', 'error');
       return;
     }
+    if (isNaN(parseInt(form.nCorte)) || parseInt(form.nCorte) <= 0) {
+      addToast('N° Corte debe ser un número entero positivo', 'error');
+      return;
+    }
 
-
-    coloresValidos.forEach((det, idx) => {
-      const sufijo = coloresValidos.length > 1 ? `-${String.fromCharCode(65 + idx)}` : '';
+    // Construir detalle por color
+    const coloresDetalle: CorteColorDetalle[] = coloresValidos.map(det => {
       const cantS = parseInt(det.cantS) || 0;
       const cantM = parseInt(det.cantM) || 0;
       const cantL = parseInt(det.cantL) || 0;
       const cantXL = parseInt(det.cantXL) || 0;
-      const totalPrendas = cantS + cantM + cantL + cantXL;
-      const kgUsados = parseFloat(det.kgUsados) || 0;
-      const rollosUsados = parseFloat(det.rollosUsados) || 0;
-      const corte: Corte = {
-        id: uid(),
-        nCorte: form.nCorte + sufijo,
-        fecha: form.fecha,
-        clienteId: form.clienteId,
-        productoId: form.productoId,
+      return {
         colorId: det.colorId,
-        telaId: form.telaId || undefined,
-        cortador: form.cortador,
-        ayudante: form.ayudante,
-        kgUsados,
-        rollosUsados,
+        tonalidad: det.tonalidad || undefined,
+        kgUsados: parseFloat(det.kgUsados) || 0,
+        rollosUsados: parseFloat(det.rollosUsados) || 0,
         tendidas: parseInt(det.tendidas) || 0,
-        mtsPorTendida: parseFloat(form.mtsPorTendida) || 0,
-        ancho: parseFloat(form.ancho) || 0,
+        propS: parseInt(det.propS) || 0,
+        propM: parseInt(det.propM) || 0,
+        propL: parseInt(det.propL) || 0,
+        propXL: parseInt(det.propXL) || 0,
         cantS, cantM, cantL, cantXL,
-        totalPrendas,
-        consumo: totalPrendas > 0 ? kgUsados / totalPrendas : 0,
-        rendimiento: rollosUsados > 0 ? totalPrendas / rollosUsados : 0,
-        revision: 'PENDIENTE',
-        traslado: form.traslado,
-        estado: 'EN_PROCESO',
-        pagoCliente: 'PENDIENTE',
-        pagoPlanilla: 'PENDIENTE',
-        costoMoCorte: calcCostoMo(form.productoId, totalPrendas),
-        notas: form.notas,
+        totalPrendas: cantS + cantM + cantL + cantXL,
       };
-      addCorte(corte);
     });
 
-    const msg = coloresValidos.length > 1
-      ? `${coloresValidos.length} cortes registrados (${form.nCorte}-A … ${form.nCorte}-${String.fromCharCode(64 + coloresValidos.length)})`
+    // Totales agregados
+    const totalKg = coloresDetalle.reduce((s, d) => s + d.kgUsados, 0);
+    // Solo contar rollos de la primera fila de cada grupo colorBase para no duplicar
+    const coloresValidosForm = form.colores.filter(c => c.colorId !== '');
+    const totalRollos = totalRollosSinDuplicar(coloresValidosForm);
+    const totalS = coloresDetalle.reduce((s, d) => s + d.cantS, 0);
+    const totalM = coloresDetalle.reduce((s, d) => s + d.cantM, 0);
+    const totalL = coloresDetalle.reduce((s, d) => s + d.cantL, 0);
+    const totalXL = coloresDetalle.reduce((s, d) => s + d.cantXL, 0);
+    const totalPrendas = totalS + totalM + totalL + totalXL;
+    const primerColor = coloresDetalle[0];
+
+    const corte: Corte = {
+      id: uid(),
+      nCorte: form.nCorte,
+      fecha: form.fecha,
+      clienteId: form.clienteId,
+      productoId: form.productoId,
+      colorId: primerColor.colorId,
+      tonalidad: primerColor.tonalidad,
+      coloresDetalle,
+      telaId: form.telaId || undefined,
+      cortador: form.cortador,
+      ayudante: form.ayudante,
+      tendedor: form.tendedor,
+      kgUsados: totalKg,
+      rollosUsados: totalRollos,
+      tendidas: coloresDetalle.reduce((s, d) => s + d.tendidas, 0),
+      mtsPorTendida: parseFloat(form.mtsPorTendida) || 0,
+      ancho: parseFloat(form.ancho) || 0,
+      cantS: totalS, cantM: totalM, cantL: totalL, cantXL: totalXL,
+      totalPrendas,
+      consumo: totalPrendas > 0 ? totalKg / totalPrendas : 0,
+      rendimiento: totalRollos > 0 ? totalPrendas / totalRollos : 0,
+      revision: 'PENDIENTE',
+      traslado: form.traslado,
+      estado: 'EN_PROCESO',
+      pagoCliente: 'PENDIENTE',
+      pagoPlanilla: 'PENDIENTE',
+      costoMoCorte: calcCostoMo(form.productoId, totalPrendas),
+      notas: form.notas,
+    };
+    addCorte(corte);
+
+    const msg = coloresDetalle.length > 1
+      ? `Corte ${form.nCorte} registrado con ${coloresDetalle.length} colores`
       : `Corte ${form.nCorte} registrado`;
     addToast(msg, 'success');
     setShowForm(false);
     setForm(emptyForm());
   };
 
-  const buildRows = () => cortesFiltrados.map((c) => ({
-    NCorte: c.nCorte,
-    Fecha: c.fecha,
-    Cliente: clienteMap.get(c.clienteId) ?? c.clienteId,
-    Producto: productoMap.get(c.productoId)?.nombre ?? c.productoId,
-    Color: colorMap.get(c.colorId) ?? c.colorId,
-    Prendas: c.totalPrendas,
-    KgUsados: c.kgUsados,
-    CostoMO: c.costoMoCorte?.toFixed(2) ?? '0.00',
-    Estado: c.estado,
-    PagoCliente: c.pagoCliente,
-    PagoPlanilla: c.pagoPlanilla,
-  }));
+  const buildRows = () => cortesFiltrados.flatMap((c) => {
+    const detalles = c.coloresDetalle && c.coloresDetalle.length > 0
+      ? c.coloresDetalle
+      : [{ colorId: c.colorId, tonalidad: c.tonalidad, cantS: c.cantS, cantM: c.cantM, cantL: c.cantL, cantXL: c.cantXL } as CorteColorDetalle];
+    return detalles.map((det, i) => ({
+      NCorte: i === 0 ? c.nCorte : '',
+      Fecha: i === 0 ? c.fecha : '',
+      Cliente: i === 0 ? (clienteMap.get(c.clienteId) ?? c.clienteId) : '',
+      Producto: i === 0 ? (productoMap.get(c.productoId)?.nombre ?? c.productoId) : '',
+      Color: (colorMap.get(det.colorId) ?? det.colorId) + (det.tonalidad ? ` Tn-${det.tonalidad}` : ''),
+      S: det.cantS ?? 0,
+      M: det.cantM ?? 0,
+      L: det.cantL ?? 0,
+      XL: det.cantXL ?? 0,
+      Prendas: (det.cantS ?? 0) + (det.cantM ?? 0) + (det.cantL ?? 0) + (det.cantXL ?? 0),
+      KgUsados: i === 0 ? c.kgUsados : '',
+      CostoMO: i === 0 ? (c.costoMoCorte?.toFixed(2) ?? '0.00') : '',
+      Estado: i === 0 ? c.estado : '',
+      PagoCliente: i === 0 ? c.pagoCliente : '',
+      PagoPlanilla: i === 0 ? c.pagoPlanilla : '',
+    }));
+  });
+
+
 
   const exportarCortes = () => {
     exportRowsToXlsx(buildRows(), `cortes_${new Date().toISOString().slice(0, 10)}.xlsx`, 'Cortes');
@@ -356,29 +443,37 @@ export function Cortes() {
   };
 
   const exportarCortesPdf = () => {
-    const fecha = new Date().toISOString().slice(0, 10);
-    exportTableToPdf({
-      title: 'Cortes',
-      subtitle: `Registro de órdenes al ${fecha}`,
-      fileName: `cortes_${fecha}`,
-      columns: [
-        { header: 'N° Corte', dataKey: 'NCorte' },
-        { header: 'Fecha', dataKey: 'Fecha' },
-        { header: 'Cliente', dataKey: 'Cliente' },
-        { header: 'Producto', dataKey: 'Producto' },
-        { header: 'Color', dataKey: 'Color' },
-        { header: 'Prendas', dataKey: 'Prendas' },
-        { header: 'Kg', dataKey: 'KgUsados' },
-        { header: 'Costo MO', dataKey: 'CostoMO' },
-        { header: 'Estado', dataKey: 'Estado' },
-        { header: 'Pago Cliente', dataKey: 'PagoCliente' },
-        { header: 'Pago Planilla', dataKey: 'PagoPlanilla' },
-      ],
-      rows: buildRows(),
-      rightCols: ['KgUsados', 'CostoMO'],
-      centerCols: ['Prendas', 'Estado', 'PagoCliente', 'PagoPlanilla'],
+    const dataList = cortesFiltrados.map(c => {
+      const tela = telaMap.get(c.telaId ?? '')?.nombre ?? c.telaId ?? '';
+      const producto = productoMap.get(c.productoId)?.nombre ?? c.productoId;
+      const detalles = c.coloresDetalle && c.coloresDetalle.length > 0
+        ? c.coloresDetalle
+        : [{ colorId: c.colorId, kgUsados: c.kgUsados, rollosUsados: c.rollosUsados, tendidas: c.tendidas, cantS: c.cantS, cantM: c.cantM, cantL: c.cantL, cantXL: c.cantXL }];
+      return {
+        nCorte: c.nCorte,
+        fecha: c.fecha,
+        tela,
+        producto,
+        cortador: c.cortador,
+        ayudante: c.ayudante,
+        tendedor: c.tendedor,
+        ancho: c.ancho,
+        mtsPorTendida: c.mtsPorTendida,
+        colores: detalles.map((d, i) => ({
+          nombre: colorMap.get(d.colorId) ?? d.colorId,
+          kgUsados: d.kgUsados,
+          // Mostrar rollos solo en la primera fila de cada colorId (las tonalidades comparten el mismo rollo)
+          rollosUsados: i === 0 || d.colorId !== detalles[i - 1].colorId ? d.rollosUsados : 0,
+          tendidas: d.tendidas,
+          cantS: d.cantS,
+          cantM: d.cantM,
+          cantL: d.cantL,
+          cantXL: d.cantXL,
+        })),
+      };
     });
-    addToast('PDF exportado', 'success');
+    exportReportesCorte(dataList);
+    addToast(`PDF exportado (${dataList.length} cortes)`, 'success');
   };
 
   return (
@@ -435,110 +530,195 @@ export function Cortes() {
         <p className="text-sm text-gray-400 italic">Sin cortes registrados.</p>
       ) : (
         <div className="bg-white border border-gray-200 overflow-x-auto">
-          <table className="min-w-full text-xs">
+          <table className="min-w-full text-xs border-collapse">
             <thead>
-              <tr className="border-b border-gray-200 bg-gray-50">
-                {['N° Corte', 'Fecha', 'Cliente', 'Producto', 'Color', 'Prendas', 'Kg', 'Rollos', 'Costo MO', 'Estado', 'Pago Cli.', 'Planilla', 'Acciones'].map(h => (
-                  <th key={h} className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500 whitespace-nowrap">{h}</th>
-                ))}
+              <tr className="border-b-2 border-gray-300 bg-gray-50">
+                <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500 whitespace-nowrap">N° Corte</th>
+                <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500 whitespace-nowrap">Fecha</th>
+                <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500 whitespace-nowrap">Cliente</th>
+                <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500 whitespace-nowrap">Producto</th>
+                <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500 whitespace-nowrap">Color</th>
+                <th className="px-3 py-2 text-center text-[10px] font-bold uppercase tracking-widest text-gray-500">S</th>
+                <th className="px-3 py-2 text-center text-[10px] font-bold uppercase tracking-widest text-gray-500">M</th>
+                <th className="px-3 py-2 text-center text-[10px] font-bold uppercase tracking-widest text-gray-500">L</th>
+                <th className="px-3 py-2 text-center text-[10px] font-bold uppercase tracking-widest text-gray-500">XL</th>
+                <th className="px-3 py-2 text-right text-[10px] font-bold uppercase tracking-widest text-gray-500">Total</th>
+                <th className="px-3 py-2 text-right text-[10px] font-bold uppercase tracking-widest text-gray-500">Kg</th>
+                <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500 min-w-[120px]">Avance</th>
+                <th className="px-3 py-2 text-right text-[10px] font-bold uppercase tracking-widest text-gray-500">Costo MO</th>
+                <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500">Estado</th>
+                <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500">Pago Cli.</th>
+                <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500">Planilla</th>
+                <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500">Acciones</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
-              {cortesFiltrados.map(c => (
-                <tr key={c.id} className="hover:bg-gray-50">
-                  <td className="px-3 py-2 font-mono font-bold">{c.nCorte}</td>
-                  <td className="px-3 py-2 font-mono whitespace-nowrap">{c.fecha}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{clienteMap.get(c.clienteId) ?? c.clienteId}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{productoMap.get(c.productoId)?.nombre ?? c.productoId}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{colorMap.get(c.colorId) ?? c.colorId}</td>
-                  <td className="px-3 py-2 font-mono text-right">{c.totalPrendas}</td>
-                  <td className="px-3 py-2 font-mono text-right">{c.kgUsados.toFixed(1)}</td>
-                  <td className="px-3 py-2 font-mono text-right">
-                    {c.telaId && c.rollosUsados === 0
-                      ? <span className="text-orange-500 font-bold" title="Sin rollos — no descontará inventario">0 ⚠</span>
-                      : c.rollosUsados || '—'}
-                  </td>
-                  <td className="px-3 py-2 font-mono text-right text-xs">
-                    {c.costoMoCorte > 0 ? `S/ ${c.costoMoCorte.toFixed(2)}` : '—'}
-                  </td>
-                  <td className="px-3 py-2">
-                    <span className="flex items-center gap-1">
-                      {ESTADO_ICON[c.estado]}
-                      <span className="text-[10px] font-bold uppercase">{c.estado.replace('_', ' ')}</span>
-                    </span>
-                  </td>
-                  <td className="px-3 py-2">
-                    <select
-                      value={c.pagoCliente}
-                      onChange={e => updateCorte(c.id, { pagoCliente: e.target.value as 'PENDIENTE' | 'COBRADO' })}
-                      className={`text-[10px] font-bold uppercase border-0 bg-transparent cursor-pointer ${c.pagoCliente === 'COBRADO' ? 'text-green-700' : 'text-yellow-700'}`}
-                    >
-                      <option value="PENDIENTE">Pendiente</option>
-                      <option value="COBRADO">Cobrado</option>
-                    </select>
-                  </td>
-                  <td className="px-3 py-2">
-                    <select
-                      value={c.pagoPlanilla}
-                      onChange={e => updateCorte(c.id, { pagoPlanilla: e.target.value as 'PENDIENTE' | 'PAGADO' })}
-                      className={`text-[10px] font-bold uppercase border-0 bg-transparent cursor-pointer ${c.pagoPlanilla === 'PAGADO' ? 'text-green-700' : 'text-yellow-700'}`}
-                    >
-                      <option value="PENDIENTE">Pendiente</option>
-                      <option value="PAGADO">Pagado</option>
-                    </select>
-                  </td>
-                  <td className="px-3 py-2">
-                    <div className="flex items-center gap-2">
-                      {c.estado === 'EN_PROCESO' && (
-                        <button
-                          onClick={() => {
-                            const totalPrendas = (c.cantS ?? 0) + (c.cantM ?? 0) + (c.cantL ?? 0) + (c.cantXL ?? 0);
-                            if (totalPrendas === 0) {
-                              addToast('El corte no tiene prendas registradas', 'error');
-                              return;
+            <tbody>
+              {cortesFiltrados.map(c => {
+                // Construir filas: una por color×talla con cantidad > 0
+                const detalles = c.coloresDetalle && c.coloresDetalle.length > 0
+                  ? c.coloresDetalle
+                  : [{ colorId: c.colorId, tonalidad: c.tonalidad, cantS: c.cantS, cantM: c.cantM, cantL: c.cantL, cantXL: c.cantXL, kgUsados: c.kgUsados, rollosUsados: c.rollosUsados }];
+
+                // Filas: una por color (con S M L XL en columnas)
+                const filas = detalles.map(det => ({
+                  colorId: det.colorId,
+                  tonalidad: det.tonalidad,
+                  cantS: det.cantS,
+                  cantM: det.cantM,
+                  cantL: det.cantL,
+                  cantXL: det.cantXL,
+                  totalColor: det.cantS + det.cantM + det.cantL + det.cantXL,
+                  kgUsados: det.kgUsados,
+                }));
+
+                const rowSpan = filas.length;
+
+                return filas.map((fila, fi) => {
+                  const esFirstFila = fi === 0;
+                  const esLastFila = fi === filas.length - 1;
+                  const borderTop = esFirstFila ? 'border-t-2 border-gray-300' : 'border-t border-gray-100';
+                  const borderBottom = esLastFila ? '' : '';
+
+                  return (
+                    <tr key={`${c.id}-${fi}`} className={`${borderTop} ${borderBottom} hover:bg-gray-50`}>
+                      {esFirstFila && (
+                        <>
+                          <td rowSpan={rowSpan} className="px-3 py-2 font-mono font-black text-gray-800 align-top border-r border-gray-100">{c.nCorte}</td>
+                          <td rowSpan={rowSpan} className="px-3 py-2 font-mono whitespace-nowrap align-top border-r border-gray-100">{c.fecha}</td>
+                          <td rowSpan={rowSpan} className="px-3 py-2 whitespace-nowrap align-top border-r border-gray-100">{clienteMap.get(c.clienteId) ?? c.clienteId}</td>
+                          <td rowSpan={rowSpan} className="px-3 py-2 whitespace-nowrap align-top border-r border-gray-100">{productoMap.get(c.productoId)?.nombre ?? c.productoId}</td>
+                        </>
+                      )}
+                      {/* Color con separador visual entre grupos */}
+                      <td className="px-3 py-1.5 whitespace-nowrap font-medium text-gray-700 border-r border-gray-100">
+                        {colorMap.get(fila.colorId) ?? fila.colorId}
+                        {fila.tonalidad && <span className="ml-1 text-[10px] font-mono text-gray-400">Tn-{fila.tonalidad}</span>}
+                      </td>
+                      <td className="px-3 py-1.5 text-center font-mono">{fila.cantS > 0 ? fila.cantS : <span className="text-gray-300">—</span>}</td>
+                      <td className="px-3 py-1.5 text-center font-mono">{fila.cantM > 0 ? fila.cantM : <span className="text-gray-300">—</span>}</td>
+                      <td className="px-3 py-1.5 text-center font-mono">{fila.cantL > 0 ? fila.cantL : <span className="text-gray-300">—</span>}</td>
+                      <td className="px-3 py-1.5 text-center font-mono">{fila.cantXL > 0 ? fila.cantXL : <span className="text-gray-300">—</span>}</td>
+                      <td className="px-3 py-1.5 text-right font-mono font-bold">{fila.totalColor}</td>
+                      <td className="px-3 py-1.5 text-right font-mono text-gray-500">{fila.kgUsados > 0 ? fila.kgUsados.toFixed(1) : '—'}</td>
+                      {/* Avance de fases para este color */}
+                      <td className="px-3 py-1.5">
+                        {(() => {
+                          const filasSegs = seguimientoFilas.filter(sf => sf.corteId === c.id && sf.colorId === fila.colorId);
+                          if (filasSegs.length === 0) {
+                            return <span className="text-[10px] text-gray-300 italic">Sin seguimiento</span>;
+                          }
+                          const pctPromedio = Math.round(filasSegs.reduce((s, sf) => s + (sf.pctAvance ?? 0), 0) / filasSegs.length);
+                          const color = pctPromedio === 100 ? 'bg-green-500' : pctPromedio >= 50 ? 'bg-blue-400' : 'bg-yellow-400';
+                          // Agrupar por operación para mostrar fases
+                          const opMap = new Map<string, { orden: number; total: number; completadas: number }>();
+                          for (const sf of filasSegs) {
+                            for (const asig of (sf.asignaciones ?? [])) {
+                              const prev = opMap.get(asig.operacion) ?? { orden: asig.orden, total: 0, completadas: 0 };
+                              opMap.set(asig.operacion, {
+                                orden: asig.orden,
+                                total: prev.total + 1,
+                                completadas: prev.completadas + (sf.pctAvance >= 100 ? 1 : 0),
+                              });
                             }
-                            const ok = descontarInventario(c);
-                            if (!ok) return;
-                            updateCorte(c.id, { estado: 'COMPLETADO' });
-                            crearFilasSeguimiento(c);
-                            addToast(`Corte ${c.nCorte} completado — inventario descontado y seguimiento creado`, 'success');
-                          }}
-                          className="text-[10px] font-bold uppercase text-blue-600 hover:text-blue-800"
-                        >Completar</button>
+                          }
+                          const fases = [...opMap.entries()]
+                            .sort((a, b) => a[1].orden - b[1].orden)
+                            .map(([op, v]) => ({ op, pct: Math.round((v.completadas / v.total) * 100) }));
+                          return (
+                            <div className="flex flex-col gap-0.5 min-w-[110px]">
+                              <div className="flex items-center gap-1.5">
+                                <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                  <div className={`h-full ${color} transition-all`} style={{ width: `${pctPromedio}%` }} />
+                                </div>
+                                <span className={`text-[10px] font-bold font-mono tabular-nums ${pctPromedio === 100 ? 'text-green-600' : 'text-gray-600'}`}>{pctPromedio}%</span>
+                              </div>
+                              {fases.length > 0 && (
+                                <div className="flex flex-wrap gap-x-2 gap-y-0">
+                                  {fases.map(f => (
+                                    <span key={f.op} className={`text-[9px] font-mono ${f.pct === 100 ? 'text-green-600' : 'text-gray-400'}`}>
+                                      {f.op.length > 8 ? f.op.slice(0, 8) + '…' : f.op} {f.pct}%
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </td>
+                      {esFirstFila && (
+                        <>
+                          <td rowSpan={rowSpan} className="px-3 py-2 font-mono text-right align-top border-l border-gray-100">
+                            {c.costoMoCorte > 0 ? `S/ ${c.costoMoCorte.toFixed(2)}` : '—'}
+                          </td>
+                          <td rowSpan={rowSpan} className="px-3 py-2 align-top border-l border-gray-100">
+                            <span className="flex items-center gap-1">
+                              {ESTADO_ICON[c.estado]}
+                              <span className="text-[10px] font-bold uppercase">{c.estado.replace('_', ' ')}</span>
+                            </span>
+                          </td>
+                          <td rowSpan={rowSpan} className="px-3 py-2 align-top border-l border-gray-100">
+                            <select
+                              value={c.pagoCliente}
+                              onChange={e => updateCorte(c.id, { pagoCliente: e.target.value as 'PENDIENTE' | 'COBRADO' })}
+                              className={`text-[10px] font-bold uppercase border-0 bg-transparent cursor-pointer ${c.pagoCliente === 'COBRADO' ? 'text-green-700' : 'text-yellow-700'}`}
+                            >
+                              <option value="PENDIENTE">Pendiente</option>
+                              <option value="COBRADO">Cobrado</option>
+                            </select>
+                          </td>
+                          <td rowSpan={rowSpan} className="px-3 py-2 align-top border-l border-gray-100">
+                            <select
+                              value={c.pagoPlanilla}
+                              onChange={e => updateCorte(c.id, { pagoPlanilla: e.target.value as 'PENDIENTE' | 'PAGADO' })}
+                              className={`text-[10px] font-bold uppercase border-0 bg-transparent cursor-pointer ${c.pagoPlanilla === 'PAGADO' ? 'text-green-700' : 'text-yellow-700'}`}
+                            >
+                              <option value="PENDIENTE">Pendiente</option>
+                              <option value="PAGADO">Pagado</option>
+                            </select>
+                          </td>
+                          <td rowSpan={rowSpan} className="px-3 py-2 align-top border-l border-gray-100">
+                            <div className="flex flex-col gap-1">
+                              {c.estado === 'EN_PROCESO' && (
+                                <button
+                                  onClick={() => {
+                                    const totalPrendas = (c.cantS ?? 0) + (c.cantM ?? 0) + (c.cantL ?? 0) + (c.cantXL ?? 0);
+                                    if (totalPrendas === 0) {
+                                      addToast('El corte no tiene prendas registradas', 'error');
+                                      return;
+                                    }
+                                    const ok = descontarInventario(c);
+                                    if (!ok) return;
+                                    updateCorte(c.id, { estado: 'COMPLETADO' });
+                                    crearFilasSeguimiento(c);
+                                    addToast(`Corte ${c.nCorte} completado — inventario descontado y seguimiento creado`, 'success');
+                                  }}
+                                  className="text-[10px] font-bold uppercase text-blue-600 hover:text-blue-800 whitespace-nowrap"
+                                >Completar</button>
+                              )}
+                              {(c.estado === 'EN_PROCESO' || c.estado === 'COMPLETADO') && (
+                                <button
+                                  onClick={() => setConfirmDelete(`anular-${c.id}`)}
+                                  className="text-[10px] font-bold uppercase text-red-500 hover:text-red-700 whitespace-nowrap"
+                                >Anular</button>
+                              )}
+                              <button onClick={() => setConfirmDelete(c.id)} className="text-gray-300 hover:text-red-500 transition-colors">
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </>
                       )}
-                      {(c.estado === 'EN_PROCESO' || c.estado === 'COMPLETADO') && (
-                        <button
-                          onClick={() => {
-                            if (!window.confirm(`¿Anular corte ${c.nCorte}? ${c.estado === 'COMPLETADO' ? 'Se revertirá el descuento de inventario.' : ''}`)) return;
-                            anularCorte(c);
-                          }}
-                          className="text-[10px] font-bold uppercase text-red-500 hover:text-red-700"
-                        >Anular</button>
-                      )}
-                      {confirmDelete === c.id ? (
-                        <span className="flex items-center gap-1 whitespace-nowrap">
-                          <button onClick={() => {
-                            deleteCorte(c.id);
-                            setConfirmDelete(null);
-                            addToast('Corte eliminado', 'success');
-                          }} className="text-[10px] font-bold text-red-600 hover:text-red-800 uppercase">Sí</button>
-                          <span className="text-gray-300">/</span>
-                          <button onClick={() => setConfirmDelete(null)} className="text-[10px] font-bold text-gray-400 hover:text-gray-600 uppercase">No</button>
-                        </span>
-                      ) : (
-                        <button onClick={() => setConfirmDelete(c.id)} className="text-gray-300 hover:text-red-500 transition-colors">
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </tr>
+                  );
+                });
+              })}
             </tbody>
             <tfoot>
               <tr className="border-t-2 border-gray-300 bg-gray-50">
-                <td colSpan={8} className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">Total</td>
-                <td className="px-3 py-2 font-mono text-right text-xs font-bold">
+                <td colSpan={10} className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">Total</td>
+                <td className="px-3 py-2 font-mono text-right font-bold">{cortesFiltrados.reduce((s, c) => s + c.totalPrendas, 0)}</td>
+                <td className="px-3 py-2 font-mono text-right font-bold">{cortesFiltrados.reduce((s, c) => s + c.kgUsados, 0).toFixed(1)}</td>
+                <td className="px-3 py-2 font-mono text-right font-bold">
                   S/ {cortesFiltrados.reduce((s, c) => s + c.costoMoCorte, 0).toFixed(2)}
                 </td>
                 <td colSpan={4} />
@@ -558,7 +738,7 @@ export function Cortes() {
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div className="grid grid-cols-3 gap-4">
-                <F label="N° Corte"><input type="text" value={form.nCorte} onChange={set('nCorte')} className="input-base" required /></F>
+                <F label="N° Corte"><input type="number" min={1} step={1} value={form.nCorte} onChange={set('nCorte')} className="input-base" required /></F>
                 <F label="Fecha"><input type="date" value={form.fecha} onChange={set('fecha')} className="input-base" required /></F>
                 <F label="Cliente">
                   <select value={form.clienteId} onChange={set('clienteId')} className="input-base" required>
@@ -597,40 +777,50 @@ export function Cortes() {
                   </select>
                 </F>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
+                <F label="Tendedor">
+                  <select value={form.tendedor} onChange={set('tendedor')} className="input-base">
+                    <option value="">Seleccionar…</option>
+                    <option value="RIQUE">RIQUE</option>
+                  </select>
+                </F>
                 <F label="Cortador">
                   <select value={form.cortador} onChange={set('cortador')} className="input-base">
                     <option value="">Seleccionar…</option>
-                    {[...operarios]
-                      .filter(o => o.estado === 'ACTIVO')
-                      .sort((a, b) => a.nombre.localeCompare(b.nombre))
-                      .map(o => <option key={o.id} value={o.nombre}>{o.nombre}</option>)}
+                    <option value="YERSON">YERSON</option>
+                    <option value="JOSE">JOSE</option>
                   </select>
                 </F>
                 <F label="Ayudante">
                   <select value={form.ayudante} onChange={set('ayudante')} className="input-base">
                     <option value="">Seleccionar…</option>
-                    {[...operarios]
-                      .filter(o => o.estado === 'ACTIVO')
-                      .sort((a, b) => a.nombre.localeCompare(b.nombre))
-                      .map(o => <option key={o.id} value={o.nombre}>{o.nombre}</option>)}
+                    <option value="YERSON">YERSON</option>
+                    <option value="JOSE">JOSE</option>
                   </select>
                 </F>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <F label="Mts por Tendida"><input type="number" min={0} step={0.1} value={form.mtsPorTendida} onChange={set('mtsPorTendida')} className="input-base" /></F>
+                <F label="Mts por Tendida"><input type="number" min={0} step={0.01} value={form.mtsPorTendida} onChange={set('mtsPorTendida')} className="input-base" /></F>
                 <F label="Ancho (m)"><input type="number" min={0} step={0.01} value={form.ancho} onChange={set('ancho')} className="input-base" /></F>
               </div>
 
               {/* Tabla colores × cantidades */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                    Colores y Cantidades
-                    {form.colores.filter(c => c.colorId).length > 1 && (
-                      <span className="ml-2 text-[#C4612A]">— un corte por cada color</span>
+                  <div className="flex items-center gap-3">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                      Colores y Cantidades
+                    </label>
+                    {propsModificadas && (
+                      <button
+                        type="button"
+                        onClick={guardarPropsEnProducto}
+                        className="text-[10px] font-bold uppercase tracking-widest text-white flex items-center gap-1 px-2 py-0.5 rounded bg-green-600 hover:bg-green-700 animate-pulse"
+                      >
+                        ✓ Guardar props en producto
+                      </button>
                     )}
-                  </label>
+                  </div>
                   <div className="flex items-center gap-3">
                   <button
                     type="button"
@@ -665,8 +855,8 @@ export function Cortes() {
                     <thead>
                       <tr className="bg-gray-50 border-b border-gray-200">
                         {form.colores.length > 1 && <th className="px-2 py-1.5 text-[10px] font-bold uppercase text-gray-400 w-6">#</th>}
-                        <th className="px-2 py-1.5 text-[10px] font-bold uppercase text-gray-500 text-left min-w-[120px] w-32">Color</th>
-                        <th className="px-2 py-1.5 text-[10px] font-bold uppercase text-gray-500 text-left min-w-[90px] w-24">Tonalidad</th>
+                        <th className="px-2 py-1.5 text-[10px] font-bold uppercase text-gray-500 text-left min-w-[110px] w-28">Color</th>
+                        <th className="px-2 py-1.5 text-[10px] font-bold uppercase text-gray-500 text-center min-w-[60px] w-16">Ton.</th>
                         <th className="px-3 py-1.5 text-[10px] font-bold uppercase text-gray-500 text-right w-16">Kg</th>
                         <th className="px-3 py-1.5 text-[10px] font-bold uppercase text-gray-500 text-right w-16">Rollos</th>
                         <th className="px-3 py-1.5 text-[10px] font-bold uppercase text-gray-500 text-center w-16">Tendidas</th>
@@ -683,7 +873,19 @@ export function Cortes() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {form.colores.map((det, idx) => {
+                      {(() => {
+                        // Para cada idx: cuántas filas consecutivas comparten el mismo colorBase
+                        const rollosSpan: number[] = form.colores.map((_, i) => {
+                          const base = form.colores[i].colorBase;
+                          if (!base) return 1;
+                          // Solo es "primera del grupo" si la fila anterior tiene distinto base
+                          if (i > 0 && form.colores[i - 1].colorBase === base) return 0; // ocultar
+                          // Contar cuántas filas siguientes tienen el mismo base
+                          let span = 1;
+                          while (i + span < form.colores.length && form.colores[i + span].colorBase === base) span++;
+                          return span;
+                        });
+                        return form.colores.map((det, idx) => {
                         const total = (parseInt(det.cantS)||0)+(parseInt(det.cantM)||0)+(parseInt(det.cantL)||0)+(parseInt(det.cantXL)||0);
                         const setDet = (field: keyof ColorDetalle, recalc = false) =>
                           (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -715,128 +917,205 @@ export function Cortes() {
                                 {String.fromCharCode(65 + idx)}
                               </td>
                             )}
-                            <td className="px-2 py-1 min-w-[120px] w-32">
+                            {/* Dropdown 1: nombre base del color */}
+                            <td className="px-2 py-1 min-w-[110px] w-28">
                               <select
                                 value={det.colorBase}
-                                onChange={async e => {
+                                onChange={e => {
                                   const base = e.target.value;
-                                  const group = colorGroups.find(g => g.baseId === base);
-                                  const singleVariant = group?.variants.length === 1 ? group.variants[0] : null;
-                                  const colorId = singleVariant?.id ?? '';
+                                  // Al cambiar la base, resetear tonalidad y colorId
+                                  const opciones = coloresAgrupados.get(base) ?? [];
+                                  // Si solo hay una tonalidad (o el color no tiene número), seleccionar automáticamente
+                                  const unica = opciones.length === 1 ? opciones[0] : null;
+                                  const newColorId = unica ? unica.id : '';
+                                  const newTon = unica?.tonalidad ?? '';
                                   setForm(f => {
                                     const next = [...f.colores];
-                                    next[idx] = {
-                                      ...next[idx],
-                                      colorBase: base,
-                                      colorTonal: singleVariant ? singleVariant.tonal : '',
-                                      colorId,
-                                    };
+                                    next[idx] = { ...next[idx], colorBase: base, tonalidad: newTon, colorId: newColorId };
                                     return { ...f, colores: next };
                                   });
-                                  if (!colorId || !form.productoId) return;
-                                  const pcLocal = productoColores.find(x => x.productoId === form.productoId && x.colorId === colorId);
-                                  const prodProps = productoMap.get(form.productoId);
-                                  const src = {
-                                    propS:  pcLocal?.propS  ?? prodProps?.propS  ?? 0,
-                                    propM:  pcLocal?.propM  ?? prodProps?.propM  ?? 0,
-                                    propL:  pcLocal?.propL  ?? prodProps?.propL  ?? 0,
-                                    propXL: pcLocal?.propXL ?? prodProps?.propXL ?? 0,
-                                  };
-                                  if (src) {
-                                    setForm(f => {
-                                      const next = [...f.colores];
-                                      const t = parseInt(next[idx].tendidas) || 0;
-                                      next[idx] = {
-                                        ...next[idx],
-                                        propS: String(src.propS), propM: String(src.propM),
-                                        propL: String(src.propL), propXL: String(src.propXL),
-                                        ...(t > 0 ? {
-                                          cantS: String(src.propS * t), cantM: String(src.propM * t),
-                                          cantL: String(src.propL * t), cantXL: String(src.propXL * t),
-                                        } : {}),
-                                      };
-                                      return { ...f, colores: next };
-                                    });
-                                  }
                                 }}
                                 className="input-base text-xs py-1 w-full"
                                 required={idx === 0}
                               >
-                                <option value="">Seleccionar…</option>
-                                {(form.productoId && !det.todosColores && productoColores.some(pc => pc.productoId === form.productoId)
-                                  ? colorGroups.filter(g => g.variants.some(v => productoColores.some(pc => pc.productoId === form.productoId && pc.colorId === v.id)))
-                                  : colorGroups
-                                ).map(g => <option key={g.baseId} value={g.baseId}>{capWords(g.baseName)}</option>)}
+                                <option value="">Color…</option>
+                                {nombresBase.map(b => (
+                                  <option key={b} value={b}>{capWords(b)}</option>
+                                ))}
                               </select>
                             </td>
-                            <td className="px-2 py-1 min-w-[90px] w-24">
+                            {/* Dropdown 2: tonalidad + botón para agregar nueva */}
+                            <td className="px-2 py-1 min-w-[80px] w-20">
                               {(() => {
-                                const group = colorGroups.find(g => g.baseId === det.colorBase);
-                                const variants = group?.variants ?? [];
-                                if (!det.colorBase) return <span className="text-[10px] text-gray-300 italic">—</span>;
-                                if (variants.length === 1) return <span className="text-[10px] text-gray-500 font-mono">Base</span>;
+                                const opciones = coloresAgrupados.get(det.colorBase) ?? [];
+                                const conTonalidad = opciones.filter(o => o.tonalidad !== null);
                                 return (
-                                  <select
-                                    value={det.colorTonal}
-                                    onChange={async e => {
-                                      const tonal = e.target.value;
-                                      const variant = variants.find(v => v.tonal === tonal);
-                                      const colorId = variant?.id ?? '';
-                                      setForm(f => {
-                                        const next = [...f.colores];
-                                        next[idx] = { ...next[idx], colorTonal: tonal, colorId };
-                                        return { ...f, colores: next };
-                                      });
-                                      if (!form.productoId || !colorId) return;
-                                      const pcLocal = productoColores.find(x => x.productoId === form.productoId && x.colorId === colorId);
-                                      const prodProps = productoMap.get(form.productoId);
-                                      const src = {
-                                        propS:  pcLocal?.propS  ?? prodProps?.propS  ?? 0,
-                                        propM:  pcLocal?.propM  ?? prodProps?.propM  ?? 0,
-                                        propL:  pcLocal?.propL  ?? prodProps?.propL  ?? 0,
-                                        propXL: pcLocal?.propXL ?? prodProps?.propXL ?? 0,
-                                      };
-                                      if (src) {
-                                        setForm(f => {
-                                          const next = [...f.colores];
-                                          const t = parseInt(next[idx].tendidas) || 0;
-                                          next[idx] = {
-                                            ...next[idx],
-                                            propS: String(src.propS), propM: String(src.propM),
-                                            propL: String(src.propL), propXL: String(src.propXL),
-                                            ...(t > 0 ? {
-                                              cantS: String(src.propS * t), cantM: String(src.propM * t),
-                                              cantL: String(src.propL * t), cantXL: String(src.propXL * t),
-                                            } : {}),
-                                          };
-                                          return { ...f, colores: next };
-                                        });
-                                      }
-                                    }}
-                                    className="input-base text-xs py-1 w-full"
-                                    required={idx === 0}
-                                  >
-                                    <option value="">—</option>
-                                    {variants.map(v => (
-                                      <option key={v.id} value={v.tonal}>{v.tonal === 'Base' ? 'Base' : `Tn-${v.tonal}`}</option>
-                                    ))}
-                                  </select>
+                                  <div className="flex items-center gap-1">
+                                    {(!det.colorBase || conTonalidad.length === 0) ? (
+                                      <span className="text-xs text-gray-400 px-1 flex-1">—</span>
+                                    ) : (
+                                      <select
+                                        value={det.tonalidad}
+                                        onChange={e => {
+                                          const ton = e.target.value;
+                                          const opcion = conTonalidad.find(o => o.tonalidad === ton);
+                                          const colorId = opcion?.id ?? '';
+                                          // Resolver props usando el closure (form siempre fresco aquí)
+                                          const productoId = form.productoId;
+                                          let propsOverride: Partial<ColorDetalle> | null = null;
+                                          if (colorId) {
+                                            // Buscar props específicos por producto+color, o solo por color si no hay producto
+                                            const pcLocal = productoId
+                                              ? productoColores.find(x => x.productoId === productoId && x.colorId === colorId)
+                                              : productoColores.find(x => x.colorId === colorId);
+                                            const prodProps = productoId ? productoMap.get(productoId) : null;
+                                            const pS  = pcLocal?.propS  ?? prodProps?.propS  ?? 0;
+                                            const pM  = pcLocal?.propM  ?? prodProps?.propM  ?? 0;
+                                            const pL  = pcLocal?.propL  ?? prodProps?.propL  ?? 0;
+                                            const pXL = pcLocal?.propXL ?? prodProps?.propXL ?? 0;
+                                            if (pS > 0 || pM > 0 || pL > 0 || pXL > 0) {
+                                              propsOverride = { propS: String(pS), propM: String(pM), propL: String(pL), propXL: String(pXL) };
+                                            }
+                                          }
+                                          setForm(f => {
+                                            const next = [...f.colores];
+                                            const t = parseInt(next[idx].tendidas) || 0;
+                                            next[idx] = {
+                                              ...next[idx],
+                                              tonalidad: ton,
+                                              colorId,
+                                              ...(propsOverride ?? {}),
+                                              ...(propsOverride && t > 0 ? {
+                                                cantS: String(parseInt(propsOverride.propS!) * t),
+                                                cantM: String(parseInt(propsOverride.propM!) * t),
+                                                cantL: String(parseInt(propsOverride.propL!) * t),
+                                                cantXL: String(parseInt(propsOverride.propXL!) * t),
+                                              } : {}),
+                                            };
+                                            return { ...f, colores: next };
+                                          });
+                                        }}
+                                        className="input-base text-xs py-1 flex-1 min-w-0"
+                                        required={idx === 0}
+                                      >
+                                        <option value="">Ton…</option>
+                                        {conTonalidad.map(o => (
+                                          <option key={o.id} value={o.tonalidad!}>{o.tonalidad}</option>
+                                        ))}
+                                      </select>
+                                    )}
+                                    {det.colorBase && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setTonModal({ idx, colorBase: det.colorBase })}
+                                        className="text-[10px] font-bold text-blue-600 hover:text-white hover:bg-blue-500 border border-blue-300 hover:border-blue-500 w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
+                                        title={`Agregar nueva tonalidad de "${det.colorBase}"`}
+                                      >+</button>
+                                    )}
+                                  </div>
+                                );
+                              })()}
+                              {/* Mini-modal tonalidad */}
+                              {tonModal?.idx === idx && (() => {
+                                const variantes = colores.filter(c => {
+                                  const m = c.nombre.match(/^(.+?)\s+(\d+)$/);
+                                  return m && m[1].toLowerCase() === tonModal.colorBase.toLowerCase();
+                                });
+                                const maxTon = variantes.reduce((max, c) => {
+                                  const m = c.nombre.match(/(\d+)$/);
+                                  return m ? Math.max(max, parseInt(m[1])) : max;
+                                }, 0);
+                                const nuevaNum = maxTon + 1;
+                                const nuevoNombre = `${tonModal.colorBase} ${nuevaNum}`;
+                                const baseColor = colores.find(c => c.nombre.toLowerCase() === tonModal.colorBase.toLowerCase()) ?? variantes[0];
+                                const tieneProducto = !!form.productoId;
+                                return (
+                                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setTonModal(null)}>
+                                    <div className="bg-white shadow-2xl p-6 w-80 border border-gray-200" onClick={e => e.stopPropagation()}>
+                                      <p className="text-sm font-black uppercase tracking-widest text-gray-800 mb-1">
+                                        Nueva tonalidad
+                                      </p>
+                                      <p className="text-xs text-gray-500 mb-4">
+                                        Se creará <strong className="text-blue-600">"{capWords(nuevoNombre)}"</strong> con la misma categoría que la base.
+                                      </p>
+                                      {tieneProducto && (
+                                        <div className="mb-4">
+                                          <p className="text-[10px] font-bold uppercase tracking-widest text-blue-500 mb-2">Props para esta tonalidad</p>
+                                          <div className="grid grid-cols-4 gap-2">
+                                            {(['S','M','L','XL'] as const).map(t => (
+                                              <div key={t} className="flex flex-col items-center gap-1">
+                                                <label className="text-[10px] font-bold text-gray-400 uppercase">{t}</label>
+                                                <input
+                                                  type="number" min={0} step={1}
+                                                  value={tonProps[`prop${t}` as keyof typeof tonProps]}
+                                                  onChange={e => setTonProps(p => ({ ...p, [`prop${t}`]: e.target.value }))}
+                                                  className="input-base text-xs py-1 text-center w-full"
+                                                  placeholder="0"
+                                                />
+                                              </div>
+                                            ))}
+                                          </div>
+                                          <p className="text-[10px] text-gray-400 mt-1">Dejar en 0 para usar los props del producto</p>
+                                        </div>
+                                      )}
+                                      <div className="flex gap-2 justify-end">
+                                        <button type="button" onClick={() => { setTonModal(null); setTonProps({ propS: '', propM: '', propL: '', propXL: '' }); }} className="px-3 py-1.5 text-xs text-gray-600 border border-gray-300 hover:bg-gray-50">
+                                          Cancelar
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const newId = uid();
+                                            const pS  = parseInt(tonProps.propS)  || 0;
+                                            const pM  = parseInt(tonProps.propM)  || 0;
+                                            const pL  = parseInt(tonProps.propL)  || 0;
+                                            const pXL = parseInt(tonProps.propXL) || 0;
+                                            const pcData = (tieneProducto && (pS > 0 || pM > 0 || pL > 0 || pXL > 0))
+                                              ? { id: uid(), productoId: form.productoId, propS: pS, propM: pM, propL: pL, propXL: pXL }
+                                              : null;
+                                            addColorConProductoColor(
+                                              { id: newId, nombre: nuevoNombre, categoria: baseColor?.categoria ?? 'OSCURO', prioridad: baseColor?.prioridad ?? 99, notas: '' },
+                                              pcData
+                                            );
+                                            addToast(`Color "${capWords(nuevoNombre)}" creado — selecciónalo en el dropdown`, 'success');
+                                            setTonModal(null);
+                                            setTonProps({ propS: '', propM: '', propL: '', propXL: '' });
+                                          }}
+                                          className="px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700"
+                                        >
+                                          Crear Ton. {nuevaNum}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
                                 );
                               })()}
                             </td>
                             <td className="px-2 py-1">
                               <input type="number" min={0} step={0.1} value={det.kgUsados} onChange={setDet('kgUsados')} className="input-base text-xs py-1 text-right w-full min-w-[52px]" placeholder="0" />
                             </td>
-                            <td className="px-2 py-1">
-                              <input
-                                type="number" min={0} step={0.5}
-                                value={det.rollosUsados}
-                                onChange={setDet('rollosUsados')}
-                                className={`input-base text-xs py-1 text-right w-full min-w-[52px] ${form.telaId && !parseFloat(det.rollosUsados) ? 'border-orange-400 bg-orange-50' : ''}`}
-                                placeholder={form.telaId ? 'Requerido' : '0'}
-                                required={!!form.telaId}
-                              />
-                            </td>
+                            {rollosSpan[idx] > 0 && (
+                              <td className="px-2 py-1" rowSpan={rollosSpan[idx]}>
+                                <input
+                                  type="number" min={0} step={0.5}
+                                  value={det.rollosUsados}
+                                  onChange={e => {
+                                    const val = e.target.value;
+                                    setForm(f => {
+                                      const next = [...f.colores];
+                                      // Propagar el valor a todas las filas del mismo colorBase
+                                      for (let i = idx; i < idx + rollosSpan[idx]; i++) {
+                                        next[i] = { ...next[i], rollosUsados: val };
+                                      }
+                                      return { ...f, colores: next };
+                                    });
+                                  }}
+                                  className={`input-base text-xs py-1 text-right w-full min-w-[52px] ${form.telaId && !parseFloat(det.rollosUsados) ? 'border-orange-400 bg-orange-50' : ''}`}
+                                  placeholder={form.telaId ? 'Requerido' : '0'}
+                                  required={!!form.telaId}
+                                />
+                              </td>
+                            )}
                             <td className="px-2 py-1">
                               <input type="number" min={0} value={det.tendidas} onChange={setDet('tendidas')} className="input-base text-xs py-1 text-center w-full min-w-[52px]" placeholder="0" />
                             </td>
@@ -860,7 +1139,8 @@ export function Cortes() {
                             )}
                           </tr>
                         );
-                      })}
+                        });
+                      })()}
                     </tbody>
                     <tfoot className="border-t border-gray-200 bg-gray-50">
                       <tr>
@@ -870,10 +1150,11 @@ export function Cortes() {
                           {form.colores.reduce((s, d) => s + (parseFloat(d.kgUsados)||0), 0).toFixed(1)}
                         </td>
                         <td className="px-2 py-1 text-right font-mono font-black text-gray-800">
-                          {form.colores.reduce((s, d) => s + (parseFloat(d.rollosUsados)||0), 0).toFixed(1)}
+                          {totalRollosSinDuplicar(form.colores).toFixed(1)}
                         </td>
-                        {/* tendidas y proporciones: sin suma */}
-                        <td colSpan={5} />
+                        <td className="px-2 py-1 text-center font-mono font-black text-gray-800">
+                          {form.colores.reduce((s, d) => s + (parseInt(d.tendidas)||0), 0)}
+                        </td>
                         {(['cantS','cantM','cantL','cantXL'] as const).map(f => (
                           <td key={f} className="px-2 py-1 text-center font-mono font-black text-gray-800">
                             {form.colores.reduce((s, d) => s + (parseInt(d[f])||0), 0)}
@@ -943,7 +1224,12 @@ export function Cortes() {
                       const rollosU = parseFloat(det.rollosUsados) || 0;
                       const totalP = (parseInt(det.cantS)||0)+(parseInt(det.cantM)||0)+(parseInt(det.cantL)||0)+(parseInt(det.cantXL)||0);
                       const consumoActual = totalP > 0 ? kgU / totalP : 0;
-                      const rendimientoActual = rollosU > 0 ? totalP / rollosU : 0;
+                      // Para el rendimiento, sumar prendas de todo el grupo colorBase (rollos son compartidos)
+                      const base = det.colorBase;
+                      const prendasGrupo = base
+                        ? form.colores.filter(c => c.colorBase === base).reduce((s, c) => s + (parseInt(c.cantS)||0)+(parseInt(c.cantM)||0)+(parseInt(c.cantL)||0)+(parseInt(c.cantXL)||0), 0)
+                        : totalP;
+                      const rendimientoActual = rollosU > 0 ? prendasGrupo / rollosU : 0;
                       const label = form.colores.length > 1 ? ` (${String.fromCharCode(65+idx)})` : '';
                       return (
                         <React.Fragment key={idx}>
@@ -971,6 +1257,38 @@ export function Cortes() {
           </div>
         </div>
       )}
+
+      {/* Confirmar eliminar corte */}
+      {confirmDelete && !confirmDelete.startsWith('anular-') && (
+        <ConfirmModal
+          mensaje="¿Eliminar este corte?"
+          detalle="Se eliminará el corte y todo su seguimiento. Esta acción no se puede deshacer."
+          onConfirmar={() => {
+            deleteCorte(confirmDelete);
+            setConfirmDelete(null);
+            addToast('Corte eliminado', 'success');
+          }}
+          onCancelar={() => setConfirmDelete(null)}
+        />
+      )}
+
+      {/* Confirmar anular corte */}
+      {confirmDelete?.startsWith('anular-') && (() => {
+        const id = confirmDelete.replace('anular-', '');
+        const corte = cortes.find(x => x.id === id);
+        return (
+          <ConfirmModal
+            mensaje={`¿Anular corte ${corte?.nCorte ?? ''}?`}
+            detalle={corte?.estado === 'COMPLETADO' ? 'Se revertirá el descuento de inventario.' : 'El corte pasará a estado ANULADO.'}
+            labelConfirmar="Anular"
+            onConfirmar={() => {
+              if (corte) anularCorte(corte);
+              setConfirmDelete(null);
+            }}
+            onCancelar={() => setConfirmDelete(null)}
+          />
+        );
+      })()}
     </motion.div>
   );
 }

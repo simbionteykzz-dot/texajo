@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { DollarSign, Plus, Trash2, X, ChevronDown, ChevronRight } from 'lucide-react';
+import { DollarSign, Plus, Trash2, X, ChevronDown, ChevronRight, Save } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { ModuleInfoBox } from '../components/ModuleInfoBox';
+import { ConfirmModal } from '../components/ConfirmModal';
 import { useToast } from '../components/ToastProvider';
 import type { CategoriaColor, TipoServicioTint } from '../types';
 import { TIPOS_COMPLEMENTO_LIST } from '../types';
@@ -49,6 +50,44 @@ export function TablaTarifas() {
 
   const [seccion, setSeccion] = useState<Seccion>('operacion');
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
+  const [confirmDel, setConfirmDel] = useState<{ accion: () => void; mensaje: string } | null>(null);
+
+  // Edición local de tarifas — mapa id → { operacion, tarifa, notas } con cambios pendientes
+  const [tarifaEdits, setTarifaEdits] = useState<Map<string, { operacion: string; tarifa: number; notas: string }>>(new Map());
+  const [tarifasDirty, setTarifasDirty] = useState(false);
+
+  // Sincronizar edits locales cuando cambian las tarifas en el contexto (carga inicial)
+  useEffect(() => {
+    setTarifaEdits(new Map());
+    setTarifasDirty(false);
+  }, [tarifasOperaciones.length]);
+
+  const getTarifaEdit = (t: { id: string; operacion: string; tarifa: number; notas: string }) => {
+    const edit = tarifaEdits.get(t.id);
+    return edit ?? { operacion: t.operacion, tarifa: t.tarifa, notas: t.notas ?? '' };
+  };
+
+  const setTarifaField = (id: string, field: 'operacion' | 'tarifa' | 'notas', value: string | number) => {
+    const base = tarifasOperaciones.find(t => t.id === id);
+    if (!base) return;
+    const current = getTarifaEdit(base);
+    setTarifaEdits(prev => new Map(prev).set(id, { ...current, [field]: value }));
+    setTarifasDirty(true);
+  };
+
+  const handleGuardarTarifas = () => {
+    tarifaEdits.forEach((edit, id) => {
+      updateTarifaOperacion(id, { operacion: edit.operacion, tarifa: edit.tarifa, notas: edit.notas });
+    });
+    setTarifaEdits(new Map());
+    setTarifasDirty(false);
+    addToast('Tarifas guardadas', 'success');
+  };
+
+  const handleDescartarTarifas = () => {
+    setTarifaEdits(new Map());
+    setTarifasDirty(false);
+  };
 
   // ── Formularios ─────────────────────────────────────────────────────────────
   const [showTarifaForm, setShowTarifaForm]     = useState(false);
@@ -270,7 +309,30 @@ export function TablaTarifas() {
       ════════════════════════════════════════════════════════════════════════ */}
       {seccion === 'operacion' && (
         <div className="space-y-4">
-          <div className="flex justify-end">
+          <div className="flex items-center justify-between gap-3">
+            {tarifasDirty ? (
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono uppercase tracking-widest" style={{ color: '#C0977A' }}>
+                  Cambios sin guardar
+                </span>
+                <button
+                  onClick={handleDescartarTarifas}
+                  className="px-3 py-1.5 text-xs font-bold border transition-colors"
+                  style={{ borderColor: '#DDD8CF', color: '#6B6058' }}
+                >
+                  Descartar
+                </button>
+                <button
+                  onClick={handleGuardarTarifas}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold border transition-colors"
+                  style={{ background: '#173A25', color: '#fff', borderColor: '#173A25' }}
+                >
+                  <Save className="h-3 w-3" /> Guardar cambios
+                </button>
+              </div>
+            ) : (
+              <div />
+            )}
             <button
               onClick={() => setShowTarifaForm(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold border transition-colors"
@@ -288,7 +350,7 @@ export function TablaTarifas() {
             <div className="space-y-2">
               {tarifasPorProducto.map(({ prod, tarifas }) => {
                 const abierto = expandidos.has(prod.id);
-                const total   = tarifas.reduce((s, t) => s + t.tarifa, 0);
+                const total   = tarifas.reduce((s, t) => s + (getTarifaEdit(t).tarifa), 0);
                 return (
                   <div key={prod.id} className="border" style={{ borderColor: '#DDD8CF' }}>
                     {/* Cabecera del grupo */}
@@ -324,29 +386,32 @@ export function TablaTarifas() {
                             </tr>
                           </thead>
                           <tbody>
-                            {tarifas.map((t, i) => (
-                              <tr key={t.id} style={{ borderTop: i > 0 ? '1px solid #F0EDE8' : undefined }}>
+                            {tarifas.map((t, i) => {
+                              const edit = getTarifaEdit(t);
+                              const dirty = tarifaEdits.has(t.id);
+                              return (
+                              <tr key={t.id} style={{ borderTop: i > 0 ? '1px solid #F0EDE8' : undefined, background: dirty ? '#FFFBF5' : undefined }}>
                                 <td className="px-4 py-2 font-mono text-center w-8" style={{ color: '#9A8F87' }}>{t.orden}</td>
                                 <td className="px-4 py-2 font-bold" style={{ color: '#1A1A1A' }}>
                                   <input
-                                    type="text" value={t.operacion}
-                                    onChange={e => updateTarifaOperacion(t.id, { operacion: e.target.value })}
+                                    type="text" value={edit.operacion}
+                                    onChange={e => setTarifaField(t.id, 'operacion', e.target.value)}
                                     className="w-full border-0 bg-transparent outline-none focus:bg-white focus:border focus:px-1 rounded-sm"
                                     style={{ borderColor: '#DDD8CF' }}
                                   />
                                 </td>
                                 <td className="px-4 py-2 w-28">
                                   <input
-                                    type="number" min={0} step={0.001} value={t.tarifa}
-                                    onChange={e => updateTarifaOperacion(t.id, { tarifa: parseFloat(e.target.value) || 0 })}
+                                    type="number" min={0} step={0.001} value={edit.tarifa}
+                                    onChange={e => setTarifaField(t.id, 'tarifa', parseFloat(e.target.value) || 0)}
                                     className="w-full border px-2 py-0.5 text-right font-mono text-xs rounded-sm"
-                                    style={{ borderColor: '#DDD8CF' }}
+                                    style={{ borderColor: dirty ? '#C0977A' : '#DDD8CF' }}
                                   />
                                 </td>
                                 <td className="px-4 py-2">
                                   <input
-                                    type="text" value={t.notas}
-                                    onChange={e => updateTarifaOperacion(t.id, { notas: e.target.value })}
+                                    type="text" value={edit.notas}
+                                    onChange={e => setTarifaField(t.id, 'notas', e.target.value)}
                                     className="w-full border-0 bg-transparent outline-none focus:bg-white focus:border focus:px-1 rounded-sm text-xs"
                                     style={{ color: '#6B6058', borderColor: '#DDD8CF' }}
                                     placeholder="—"
@@ -354,7 +419,7 @@ export function TablaTarifas() {
                                 </td>
                                 <td className="px-4 py-2 w-8">
                                   <button
-                                    onClick={() => { if (confirm(`¿Eliminar "${t.operacion}"?`)) deleteTarifaOperacion(t.id); }}
+                                    onClick={() => setConfirmDel({ mensaje: `¿Eliminar tarifa "${edit.operacion}"?`, accion: () => { setTarifaEdits(prev => { const m = new Map(prev); m.delete(t.id); return m; }); deleteTarifaOperacion(t.id); } })}
                                     className="p-1 transition-colors"
                                     style={{ color: '#C0977A' }}
                                   >
@@ -362,7 +427,8 @@ export function TablaTarifas() {
                                   </button>
                                 </td>
                               </tr>
-                            ))}
+                              );
+                            })}
                           </tbody>
                           <tfoot>
                             <tr style={{ borderTop: '1px solid #DDD8CF' }}>
@@ -570,8 +636,7 @@ export function TablaTarifas() {
                         onClick={() => {
                           const ids = preciosTelas.filter(p => p.telaId === tela.id).map(p => p.id);
                           if (ids.length === 0) return;
-                          if (confirm(`¿Eliminar todos los precios de "${tela.nombre}"?`))
-                            ids.forEach(id => deletePrecioTela(id));
+                          setConfirmDel({ mensaje: `¿Eliminar todos los precios de "${tela.nombre}"?`, accion: () => ids.forEach(id => deletePrecioTela(id)) });
                         }}
                         className="p-1 transition-colors"
                         style={{ color: '#C0977A' }}
@@ -816,8 +881,7 @@ export function TablaTarifas() {
                                 const ids = preciosComplementos
                                   .filter(p => p.tipo === tipo && p.origen === origen)
                                   .map(p => p.id);
-                                if (confirm(`¿Eliminar "${tipo} / ${origen}" (${ids.length} registros)?`))
-                                  ids.forEach(id => deletePrecioComplemento(id));
+                                setConfirmDel({ mensaje: `¿Eliminar "${tipo} / ${origen}" (${ids.length} registros)?`, accion: () => ids.forEach(id => deletePrecioComplemento(id)) });
                               }}
                               className="p-1 transition-colors"
                               style={{ color: '#C0977A' }}
@@ -886,7 +950,7 @@ export function TablaTarifas() {
                     </td>
                     <td className="px-4 py-2.5">
                       <button
-                        onClick={() => { if (confirm(`¿Eliminar "${pt.tipoTejido}"?`)) deletePrecioTejeduria(pt.id); }}
+                        onClick={() => setConfirmDel({ mensaje: `¿Eliminar "${pt.tipoTejido}"?`, accion: () => deletePrecioTejeduria(pt.id) })}
                         className="p-1 transition-colors"
                         style={{ color: '#C0977A' }}
                       >
@@ -1019,7 +1083,7 @@ export function TablaTarifas() {
                           </td>
                           <td className="px-4 py-2.5">
                             <button
-                              onClick={() => { if (confirm(`¿Eliminar "${pt.tipoTela}" (${servicio})?`)) deletePrecioTintoreria(pt.id); }}
+                              onClick={() => setConfirmDel({ mensaje: `¿Eliminar "${pt.tipoTela}" (${servicio})?`, accion: () => deletePrecioTintoreria(pt.id) })}
                               className="p-1 transition-colors"
                               style={{ color: '#C0977A' }}
                             >
@@ -1091,6 +1155,17 @@ export function TablaTarifas() {
         </div>
       )}
 
+      {confirmDel && (
+        <ConfirmModal
+          mensaje={confirmDel.mensaje}
+          detalle="Esta acción no se puede deshacer."
+          onConfirmar={() => {
+            confirmDel.accion();
+            setConfirmDel(null);
+          }}
+          onCancelar={() => setConfirmDel(null)}
+        />
+      )}
     </div>
   );
 }

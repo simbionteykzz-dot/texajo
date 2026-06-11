@@ -239,6 +239,7 @@ export function PanelOperativo() {
       colorId: corte.colorId,
       cortador: operarios.find(o => o.id === corte.operarioId)?.nombre ?? corte.operarioId,
       ayudante: '',
+      tendedor: '',
       kgUsados: corte.kg,
       rollosUsados,
       tendidas: 0,

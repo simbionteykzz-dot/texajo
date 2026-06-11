@@ -19,14 +19,14 @@ const uid = () => crypto.randomUUID();
 
 interface MovForm {
   fecha: string; tipo: TipoMovimientoTela; clienteId: string; telaId: string;
-  colorId: string; colorBase: string; colorTonal: string;
+  colorId: string;
   rollos: string; kgTotal: string; precioKg: string;
   responsable: string; proveedorId: string; nFactura: string; notas: string;
 }
 
 const emptyForm = (): MovForm => ({
   fecha: new Date().toISOString().slice(0, 10), tipo: 'INGRESO', clienteId: '',
-  telaId: '', colorId: '', colorBase: '', colorTonal: '',
+  telaId: '', colorId: '',
   rollos: '', kgTotal: '', precioKg: '',
   responsable: '', proveedorId: '', nFactura: '', notas: '',
 });
@@ -55,7 +55,6 @@ export function InventarioTelas() {
     return (colorMap.get(form.colorId)?.categoria ?? 'OSCURO') as CategoriaColor;
   }, [form.colorId, colorMap]);
 
-  // Precio sugerido desde catálogo PrecioTela según telaId + categoriaColor del color
   const precioSugerido = useMemo(() => {
     if (!form.telaId || !form.colorId) return null;
     const cat = colorMap.get(form.colorId)?.categoria;
@@ -144,56 +143,6 @@ export function InventarioTelas() {
     }
     return [{ key: 'all', label: 'Historial de Movimientos', rows: movsFiltrados }];
   }, [segmentMode, movsFiltrados, telaMap]);
-
-  // Agrupa colores por base (COL-NEGRO, COL-BLANCO, etc.) y extrae tonalidades
-  const colorGroups = useMemo(() => {
-    type Group = { baseId: string; baseName: string; variants: { id: string; tonal: string }[] };
-    const byName = new Map<string, Group>();
-
-    for (const c of colores) {
-      const numSuffix = c.nombre.match(/\s+(\d+)$/);
-      const baseName = numSuffix ? c.nombre.slice(0, -numSuffix[0].length).trim() : c.nombre.trim();
-      const tonal = numSuffix ? numSuffix[1] : 'Base';
-
-      if (!byName.has(baseName)) {
-        byName.set(baseName, { baseId: c.id, baseName, variants: [] });
-      }
-      const grp = byName.get(baseName)!;
-
-      if (!numSuffix) {
-        const alreadyHasBase = grp.variants.some(v => v.tonal === 'Base');
-        if (alreadyHasBase) continue;
-        grp.baseId = c.id;
-      }
-      grp.variants.push({ id: c.id, tonal });
-    }
-
-    for (const g of byName.values()) {
-      g.variants.sort((a, b) => {
-        if (a.tonal === 'Base') return -1;
-        if (b.tonal === 'Base') return 1;
-        return parseInt(a.tonal) - parseInt(b.tonal);
-      });
-    }
-    return Array.from(byName.values()).sort((a, b) => a.baseName.localeCompare(b.baseName));
-  }, [colores]);
-
-  const setColorFromSelectors = (base: string, tonal: string) => {
-    if (!base) { setForm(f => ({ ...f, colorBase: base, colorTonal: '', colorId: '' })); return; }
-    const group = colorGroups.find(g => g.baseId === base) ?? colorGroups.find(g => g.variants.some(v => v.id === base));
-    if (!group) {
-      // Fallback: color ID directo (sin grupo)
-      setForm(f => ({ ...f, colorBase: base, colorTonal: 'Base', colorId: base }));
-      return;
-    }
-    if (tonal === '' && group.variants.length === 1) {
-      setForm(f => ({ ...f, colorBase: group.baseId, colorTonal: group.variants[0].tonal, colorId: group.variants[0].id }));
-      return;
-    }
-    const variant = group.variants.find(v => v.tonal === tonal);
-    const colorId = variant?.id ?? '';
-    setForm(f => ({ ...f, colorBase: group.baseId, colorTonal: tonal, colorId }));
-  };
 
   const set = (field: keyof MovForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, [field]: e.target.value }));
@@ -734,38 +683,13 @@ export function InventarioTelas() {
                   </select>
                 </F>
                 <F label="Color">
-                  <select value={form.colorBase} onChange={e => setColorFromSelectors(e.target.value, '')} className="input-base" required>
+                  <select value={form.colorId} onChange={set('colorId')} className="input-base" required>
                     <option value="">Seleccionar…</option>
-                    {colorGroups.map(g => <option key={g.baseId} value={g.baseId}>{g.baseName}</option>)}
+                    {[...colores].sort((a, b) => (a.prioridad ?? 999) - (b.prioridad ?? 999) || a.nombre.localeCompare(b.nombre)).map(c => (
+                      <option key={c.id} value={c.id}>{c.nombre}</option>
+                    ))}
                   </select>
                 </F>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <F label="Tonalidad">
-                  {(() => {
-                    const grp = colorGroups.find(g => g.baseId === form.colorBase);
-                    if (!form.colorBase) return <span className="text-xs text-gray-400 italic mt-1 block">—</span>;
-                    if (!grp || grp.variants.length === 1)
-                      return <span className="text-xs font-mono text-gray-500 mt-1 block">Base</span>;
-                    return (
-                      <select
-                        value={form.colorTonal}
-                        onChange={e => setColorFromSelectors(form.colorBase, e.target.value)}
-                        className="input-base"
-                        required
-                      >
-                        <option value="">Seleccionar…</option>
-                        {grp.variants.map(v => (
-                          <option key={v.id} value={v.tonal}>{v.tonal === 'Base' ? 'Base' : `Tn-${v.tonal}`}</option>
-                        ))}
-                      </select>
-                    );
-                  })()}
-                </F>
-                <F label="Color ID">{form.colorId
-                  ? <span className="text-xs font-mono text-gray-600 mt-1 block">{form.colorId} — {colorMap.get(form.colorId)?.categoria}</span>
-                  : <span className="text-xs text-gray-400 mt-1 block italic">—</span>
-                }</F>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <F label="Rollos">

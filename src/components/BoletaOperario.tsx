@@ -11,6 +11,7 @@ interface BoletaOperarioProps {
   periodo: string;
   desde?: string; // YYYY-MM-DD — filtro de rango opcional
   hasta?: string; // YYYY-MM-DD
+  estadoPago?: '' | 'PENDIENTE' | 'PAGADO';
   onClose: () => void;
 }
 
@@ -18,7 +19,7 @@ function soles(n: number) {
   return n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export function BoletaOperario({ operario, periodo, desde, hasta, onClose }: BoletaOperarioProps) {
+export function BoletaOperario({ operario, periodo, desde, hasta, estadoPago, onClose }: BoletaOperarioProps) {
   const { boletaLineas, productos, descuentosBoleta } = useAppContext();
 
   const usaRango = !!(desde || hasta);
@@ -27,6 +28,7 @@ export function BoletaOperario({ operario, periodo, desde, hasta, onClose }: Bol
     boletaLineas
       .filter(b => {
         if (b.operarioId !== operario.id) return false;
+        if (estadoPago && b.estadoPago !== estadoPago) return false;
         if (usaRango) {
           const fecha = b.fechaRegistro ?? b.periodo + '-01';
           if (desde && fecha < desde) return false;
@@ -35,8 +37,8 @@ export function BoletaOperario({ operario, periodo, desde, hasta, onClose }: Bol
         }
         return b.periodo === periodo;
       })
-      .sort((a, b) => a.nCorte.localeCompare(b.nCorte) || a.orden - b.orden),
-    [boletaLineas, operario.id, periodo, desde, hasta, usaRango]
+      .sort((a, b) => String(a.nCorte).localeCompare(String(b.nCorte)) || a.orden - b.orden),
+    [boletaLineas, operario.id, periodo, desde, hasta, usaRango, estadoPago]
   );
 
   const productoMap = useMemo(() => new Map(productos.map(p => [p.id, p])), [productos]);

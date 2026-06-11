@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
-import { Plus, X, Trash2, ChevronRight, ChevronDown } from 'lucide-react';
+import { Plus, X, Trash2, ChevronRight, ChevronDown, Upload } from 'lucide-react';
 import { CategoriaColor, Operario, TipoComplemento, RecetaComplemento, ProductoColor, TIPOS_COMPLEMENTO_LIST } from '../types';
 import { ModuleInfoBox } from '../components/ModuleInfoBox';
+import { ConfirmModal } from '../components/ConfirmModal';
+import { importarProporcioesCSV } from '../lib/supabaseDb';
 
 const TIPOS_COMPLEMENTO: string[] = [...TIPOS_COMPLEMENTO_LIST];
 
@@ -37,7 +39,7 @@ export function Catalogos() {
     productos, addProducto, updateProducto, deleteProducto,
     telas, addTela, updateTela, deleteTela,
     colores, addColor, updateColor, deleteColor,
-    operarios, addOperario, updateOperario,
+    operarios, addOperario, updateOperario, deleteOperario,
     tarifasOperaciones, addTarifaOperacion, updateTarifaOperacion, deleteTarifaOperacion,
     clientes, addCliente, updateCliente,
     proveedores, addProveedor, updateProveedor,
@@ -73,6 +75,28 @@ export function Catalogos() {
     setColorForm({ nombre: '', categoria: 'OSCURO', prioridad: '99', notas: '' });
   };
 
+  const handleAddTonalidad = (colorBase: string) => {
+    // Encontrar todos los colores que son variantes numeradas de esta base
+    const variantes = colores.filter(c => {
+      const m = c.nombre.match(/^(.+?)\s+(\d+)$/);
+      return m && m[1].toLowerCase() === colorBase.toLowerCase();
+    });
+    const maxTon = variantes.reduce((max, c) => {
+      const m = c.nombre.match(/(\d+)$/);
+      return m ? Math.max(max, parseInt(m[1])) : max;
+    }, 0);
+    const baseColor = colores.find(c => c.nombre.toLowerCase() === colorBase.toLowerCase())
+      ?? variantes[0];
+    const nuevoNombre = `${colorBase} ${maxTon + 1}`;
+    setColorForm({
+      nombre: nuevoNombre,
+      categoria: baseColor?.categoria ?? 'OSCURO',
+      prioridad: String(baseColor?.prioridad ?? 99),
+      notas: '',
+    });
+    setShowColorForm(true);
+  };
+
   // --- Productos ---
   const [showProdForm, setShowProdForm] = useState(false);
   const [prodForm, setProdForm] = useState({ nombre: '', marca: '', notas: '' });
@@ -91,6 +115,7 @@ export function Catalogos() {
   };
 
   // --- Tarifas ---
+  const [filtroTarifaProducto, setFiltroTarifaProducto] = useState('');
   const [showTarifaForm, setShowTarifaForm] = useState(false);
   const [tarifaForm, setTarifaForm] = useState({ productoId: '', orden: '1', operacion: '', tarifa: '0', notas: '' });
   const [showInlineProdForm, setShowInlineProdForm] = useState(false);
@@ -129,6 +154,10 @@ export function Catalogos() {
   // --- Operarios ---
   const [showOpForm, setShowOpForm] = useState(false);
   const [opForm, setOpForm] = useState({ codigo: '', nombre: '' });
+  const [editOp, setEditOp] = useState<Operario | null>(null);
+  const [editOpForm, setEditOpForm] = useState({ nombre: '', estado: 'ACTIVO' as Operario['estado'] });
+  const [confirmDeleteOp, setConfirmDeleteOp] = useState<string | null>(null);
+  const [confirmDel, setConfirmDel] = useState<{ accion: () => void; mensaje: string; detalle?: string } | null>(null);
 
   const handleAddOperario = (e: React.FormEvent) => {
     e.preventDefault();
@@ -182,6 +211,26 @@ export function Catalogos() {
   const [showPCForm, setShowPCForm] = useState(false);
   const [pcForm, setPCForm] = useState({ productoId: '', colorId: '', propS: '0', propM: '0', propL: '0', propXL: '0' });
   const [pcFiltroProducto, setPCFiltroProducto] = useState('');
+  const [importandoCSV, setImportandoCSV] = useState(false);
+
+  const CSV_PROPORCIONES_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQQlfrHtQJreAlZSHDEt2Ys_AVqesYo4bvDpfu4IR2gOIbDwM3g7EMBs1On4KI__pf3vHf0piBINtzF/pub?gid=462847763&single=true&output=csv';
+
+  const handleImportarCSV = async () => {
+    setImportandoCSV(true);
+    try {
+      const { ok, skipped, errors } = await importarProporcioesCSV(CSV_PROPORCIONES_URL);
+      if (errors.length > 0) {
+        addToast(`Importado con advertencias: ${ok} OK, ${skipped} omitidos. Ver consola.`, 'error');
+        console.warn('[ImportarCSV] Errores:', errors);
+      } else {
+        addToast(`Proporciones importadas: ${ok} combinaciones producto+color actualizadas`, 'success');
+      }
+    } catch (e) {
+      addToast(`Error al importar: ${e instanceof Error ? e.message : String(e)}`, 'error');
+    } finally {
+      setImportandoCSV(false);
+    }
+  };
 
   const handleAddPC = (e: React.FormEvent) => {
     e.preventDefault();
@@ -190,10 +239,8 @@ export function Catalogos() {
     if (exists) { addToast('Ya existe esa combinación producto+color', 'error'); return; }
     const prod = productos.find(p => p.id === pcForm.productoId);
     const col = colores.find(c => c.id === pcForm.colorId);
-    const rowNum = productoColores.filter(x => x.productoId === pcForm.productoId).length + 1;
-    const id = `${pcForm.productoId}--${pcForm.colorId}--${String(rowNum).padStart(3, '0')}`;
     addProductoColor({
-      id,
+      id: uid(),
       productoId: pcForm.productoId,
       colorId: pcForm.colorId,
       propS: parseInt(pcForm.propS) || 0,
@@ -256,8 +303,8 @@ export function Catalogos() {
               <table className="texajo-table">
                 <thead>
                   <tr>
-                    {['', 'Producto', 'Marca', 'Costo MO Total', 'Precio Servicio', 'Utilidad S/.', 'Tela Base', 'Lím. Consumo (kg/prenda)', 'Rend. mínimo (prendas/rollo)', 'PropS', 'PropM', 'PropL', 'PropXL', 'Notas', ''].map(h => (
-                      <th key={h}>{h}</th>
+                    {['', 'Producto', 'Marca', 'Costo MO Total', 'Precio Servicio', 'Utilidad S/.', 'Tela Base', 'Lím. Consumo (kg/prenda)', 'Rend. mínimo (prendas/rollo)', 'PropS', 'PropM', 'PropL', 'PropXL', 'Notas', ''].map((h, i) => (
+                      <th key={i}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -339,7 +386,7 @@ export function Catalogos() {
                               className="w-48 input-base text-xs py-0.5" />
                           </td>
                           <td>
-                            <button onClick={() => { if (confirm(`¿Eliminar producto "${p.nombre}"? Se eliminarán sus tarifas.`)) deleteProducto(p.id); }}
+                            <button onClick={() => setConfirmDel({ mensaje: `¿Eliminar producto "${p.nombre}"?`, detalle: 'Se eliminarán sus tarifas asociadas.', accion: () => deleteProducto(p.id) })}
                               className="text-red-400 hover:text-red-700 p-1"><Trash2 className="h-3 w-3" /></button>
                           </td>
                         </tr>
@@ -604,9 +651,11 @@ export function Catalogos() {
                   </tr>
                 </thead>
                 <tbody>
-                  {[...colores].sort((a, b) => a.prioridad - b.prioridad).map(c => (
+                  {[...colores].sort((a, b) => a.prioridad - b.prioridad).map(c => {
+                    const base = c.nombre.match(/^(.+?)\s+\d+$/) ? c.nombre.replace(/\s+\d+$/, '') : c.nombre;
+                    return (
                     <tr key={c.id}>
-                      <td className="font-bold">{c.nombre}</td>
+                      <td className="font-bold whitespace-nowrap">{c.nombre}</td>
                       <td>
                         <select value={c.categoria}
                           onChange={e => updateColor(c.id, { categoria: e.target.value as CategoriaColor })}
@@ -624,12 +673,17 @@ export function Catalogos() {
                           onChange={e => updateColor(c.id, { notas: e.target.value })}
                           className="w-48 input-base text-xs py-0.5" />
                       </td>
-                      <td>
-                        <button onClick={() => { if (confirm(`¿Eliminar color "${c.nombre}"?`)) deleteColor(c.id); }}
+                      <td className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleAddTonalidad(base)}
+                          className="text-[10px] font-bold text-blue-600 hover:text-blue-800 border border-blue-300 hover:border-blue-500 px-1.5 py-0.5 rounded whitespace-nowrap"
+                          title={`Agregar nueva tonalidad de "${base}"`}
+                        >+ Ton.</button>
+                        <button onClick={() => setConfirmDel({ mensaje: `¿Eliminar color "${c.nombre}"?`, accion: () => deleteColor(c.id) })}
                           className="text-red-400 hover:text-red-700 p-1"><Trash2 className="h-3 w-3" /></button>
                       </td>
                     </tr>
-                  ))}
+                  );})}
                 </tbody>
               </table>
             </div>
@@ -672,7 +726,7 @@ export function Catalogos() {
               <table className="texajo-table">
                 <thead>
                   <tr>
-                    {['Código', 'Nombre', 'Módulo', 'Máquina', 'Estado'].map(h => (
+                    {['Código', 'Nombre', 'Estado', 'Acciones'].map(h => (
                       <th key={h}>{h}</th>
                     ))}
                   </tr>
@@ -681,28 +735,27 @@ export function Catalogos() {
                   {[...operarios].sort((a, b) => a.codigo.localeCompare(b.codigo)).map(o => (
                     <tr key={o.id}>
                       <td className="font-mono font-bold">{o.codigo}</td>
+                      <td>{o.nombre}</td>
                       <td>
-                        <input type="text" value={o.nombre}
-                          onChange={e => updateOperario(o.id, { nombre: e.target.value })}
-                          className="w-52 input-base text-xs py-0.5" />
+                        <span className={`text-xs font-bold uppercase ${o.estado === 'ACTIVO' ? 'text-green-700' : 'text-gray-400'}`}>
+                          {o.estado}
+                        </span>
                       </td>
                       <td>
-                        <input type="text" value={o.modulo ?? ''}
-                          onChange={e => updateOperario(o.id, { modulo: e.target.value || undefined })}
-                          className="w-24 input-base text-xs py-0.5" placeholder="M1" />
-                      </td>
-                      <td>
-                        <input type="text" value={o.maquina ?? ''}
-                          onChange={e => updateOperario(o.id, { maquina: e.target.value || undefined })}
-                          className="w-24 input-base text-xs py-0.5" placeholder="MQ01" />
-                      </td>
-                      <td>
-                        <select value={o.estado}
-                          onChange={e => updateOperario(o.id, { estado: e.target.value as Operario['estado'] })}
-                          className={`input-base text-xs py-0.5 font-bold uppercase ${o.estado === 'ACTIVO' ? 'text-green-700' : 'text-gray-400'}`}>
-                          <option value="ACTIVO">ACTIVO</option>
-                          <option value="INACTIVO">INACTIVO</option>
-                        </select>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => { setEditOp(o); setEditOpForm({ nombre: o.nombre, estado: o.estado }); }}
+                            className="text-xs text-blue-600 hover:underline"
+                          >
+                            Editar
+                          </button>
+                          <button
+                            onClick={() => setConfirmDeleteOp(o.id)}
+                            className="text-gray-400 hover:text-red-600"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -711,6 +764,7 @@ export function Catalogos() {
             </div>
           </div>
 
+          {/* Modal nuevo operario */}
           {showOpForm && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
               <div className="bg-white border border-gray-300 w-full max-w-sm">
@@ -721,10 +775,62 @@ export function Catalogos() {
                 <form onSubmit={handleAddOperario} className="p-6 space-y-4">
                   <F label="Código"><input type="text" value={opForm.codigo} onChange={e => setOpForm(f => ({ ...f, codigo: e.target.value }))} className="input-base" placeholder="OP025" required /></F>
                   <F label="Nombre Completo"><input type="text" value={opForm.nombre} onChange={e => setOpForm(f => ({ ...f, nombre: e.target.value }))} className="input-base" required /></F>
-                  <div className="flex justify-end gap-3"><button type="button" onClick={() => setShowOpForm(false)} className="btn-secondary">Cancelar</button><button type="submit" className="btn-primary">Guardar</button></div>
+                  <div className="flex justify-end gap-3">
+                    <button type="button" onClick={() => setShowOpForm(false)} className="btn-secondary">Cancelar</button>
+                    <button type="submit" className="btn-primary">Guardar</button>
+                  </div>
                 </form>
               </div>
             </div>
+          )}
+
+          {/* Modal editar operario */}
+          {editOp && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+              <div className="bg-white border border-gray-300 w-full max-w-sm">
+                <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+                  <h3 className="text-sm font-black uppercase tracking-widest">Editar Operario — {editOp.codigo}</h3>
+                  <button onClick={() => setEditOp(null)}><X className="h-4 w-4" /></button>
+                </div>
+                <div className="p-6 space-y-4">
+                  <F label="Nombre Completo">
+                    <input type="text" value={editOpForm.nombre}
+                      onChange={e => setEditOpForm(f => ({ ...f, nombre: e.target.value }))}
+                      className="input-base" required />
+                  </F>
+                  <F label="Estado">
+                    <select value={editOpForm.estado}
+                      onChange={e => setEditOpForm(f => ({ ...f, estado: e.target.value as Operario['estado'] }))}
+                      className="input-base">
+                      <option value="ACTIVO">ACTIVO</option>
+                      <option value="INACTIVO">INACTIVO</option>
+                    </select>
+                  </F>
+                  <div className="flex justify-end gap-3">
+                    <button onClick={() => setEditOp(null)} className="btn-secondary">Cancelar</button>
+                    <button onClick={() => {
+                      if (!editOpForm.nombre.trim()) { addToast('Nombre requerido', 'error'); return; }
+                      updateOperario(editOp.id, { nombre: editOpForm.nombre.trim(), estado: editOpForm.estado });
+                      addToast('Operario actualizado', 'success');
+                      setEditOp(null);
+                    }} className="btn-primary">Guardar</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {confirmDeleteOp && (
+            <ConfirmModal
+              mensaje="¿Eliminar este operario?"
+              detalle="Esta acción no se puede deshacer."
+              onConfirmar={() => {
+                deleteOperario(confirmDeleteOp);
+                addToast('Operario eliminado', 'success');
+                setConfirmDeleteOp(null);
+              }}
+              onCancelar={() => setConfirmDeleteOp(null)}
+            />
           )}
         </div>
       )}
@@ -732,7 +838,17 @@ export function Catalogos() {
       {/* TARIFAS */}
       {tab === 'tarifas' && (
         <div className="space-y-3">
-          <div className="flex justify-end">
+          <div className="flex items-center justify-between gap-3">
+            <select
+              value={filtroTarifaProducto}
+              onChange={e => setFiltroTarifaProducto(e.target.value)}
+              className="input-base text-xs py-1 w-56"
+            >
+              <option value="">Todos los productos</option>
+              {[...productos].sort((a, b) => a.nombre.localeCompare(b.nombre)).map(p => (
+                <option key={p.id} value={p.id}>{p.nombre}</option>
+              ))}
+            </select>
             <button onClick={() => setShowTarifaForm(true)} className="btn-primary flex items-center gap-2 text-xs">
               <Plus className="h-3 w-3" /> Agregar Tarifa
             </button>
@@ -749,6 +865,7 @@ export function Catalogos() {
                 </thead>
                 <tbody>
                   {[...tarifasOperaciones]
+                    .filter(t => !filtroTarifaProducto || t.productoId === filtroTarifaProducto)
                     .sort((a, b) => (productoMap.get(a.productoId) ?? '').localeCompare(productoMap.get(b.productoId) ?? '') || a.orden - b.orden)
                     .map(t => (
                       <tr key={t.id}>
@@ -761,12 +878,12 @@ export function Catalogos() {
                             className="w-24 input-base text-right text-xs py-0.5" />
                         </td>
                         <td>
-                          <input type="text" value={t.notas}
+                          <input type="text" value={t.notas ?? ''}
                             onChange={e => updateTarifaOperacion(t.id, { notas: e.target.value })}
                             className="w-40 input-base text-xs py-0.5" />
                         </td>
                         <td>
-                          <button onClick={() => { if (confirm(`¿Eliminar tarifa "${t.operacion}"?`)) deleteTarifaOperacion(t.id); }}
+                          <button onClick={() => setConfirmDel({ mensaje: `¿Eliminar tarifa "${t.operacion}"?`, accion: () => deleteTarifaOperacion(t.id) })}
                             className="text-red-400 hover:text-red-700 p-1"><Trash2 className="h-3 w-3" /></button>
                         </td>
                       </tr>
@@ -1070,9 +1187,20 @@ export function Catalogos() {
                 ))}
               </select>
             </div>
-            <button onClick={() => setShowPCForm(true)} className="btn-primary flex items-center gap-2 text-xs">
-              <Plus className="h-3 w-3" /> Agregar Props
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleImportarCSV}
+                disabled={importandoCSV}
+                className="btn-secondary flex items-center gap-1.5 text-xs disabled:opacity-50"
+                title="Importar proporciones S/M/L/XL desde el CSV de Google Sheets"
+              >
+                <Upload className="h-3 w-3" />
+                {importandoCSV ? 'Importando…' : 'Importar CSV'}
+              </button>
+              <button onClick={() => setShowPCForm(true)} className="btn-primary flex items-center gap-2 text-xs">
+                <Plus className="h-3 w-3" /> Agregar Props
+              </button>
+            </div>
           </div>
 
           <div className="texajo-table-shell">
@@ -1119,7 +1247,7 @@ export function Catalogos() {
                           </td>
                           <td>
                             <button
-                              onClick={() => { if (confirm(`¿Eliminar props de "${prod} / ${col}"?`)) deleteProductoColor(pc.id); }}
+                              onClick={() => setConfirmDel({ mensaje: `¿Eliminar props de "${prod} / ${col}"?`, accion: () => deleteProductoColor(pc.id) })}
                               className="text-red-400 hover:text-red-700 p-1"
                             ><Trash2 className="h-3 w-3" /></button>
                           </td>
@@ -1170,6 +1298,18 @@ export function Catalogos() {
             </div>
           )}
         </div>
+      )}
+
+      {confirmDel && (
+        <ConfirmModal
+          mensaje={confirmDel.mensaje}
+          detalle={confirmDel.detalle ?? 'Esta acción no se puede deshacer.'}
+          onConfirmar={() => {
+            confirmDel.accion();
+            setConfirmDel(null);
+          }}
+          onCancelar={() => setConfirmDel(null)}
+        />
       )}
     </div>
   );
