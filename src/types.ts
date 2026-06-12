@@ -238,6 +238,7 @@ export interface BoletaLinea {
   nCorte: string;
   productoId: string;
   colorId?: string;
+  talla?: 'S' | 'M' | 'L' | 'XL';
   tarifaId: string;
   operacion: string;
   orden: number;

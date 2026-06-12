@@ -51,6 +51,8 @@ export function Destajo() {
   const [rPeriodo, setRPeriodo] = useState(PERIODOS[0]);
   const [rDesde, setRDesde] = useState('');
   const [rHasta, setRHasta] = useState('');
+  const [detalleOperarioId, setDetalleOperarioId] = useState<string | null>(null);
+  const [expandedLineaId, setExpandedLineaId] = useState<string | null>(null);
 
   // ── Tab: Vista General ──
   const [gOperarioId, setGOperarioId] = useState('');
@@ -172,6 +174,22 @@ export function Destajo() {
       .map(([operarioId, stats]) => ({ operarioId, ...stats }))
       .sort((a, b) => b.total - a.total);
   }, [boletaLineas, rPeriodo, rDesde, rHasta]);
+
+  const lineasDetalle = useMemo(() => {
+    if (!detalleOperarioId) return [];
+    const usaRango = rDesde || rHasta;
+    return boletaLineas
+      .filter(b => {
+        if (b.operarioId !== detalleOperarioId) return false;
+        if (usaRango) {
+          if (rDesde && b.periodo < rDesde.slice(0, 7)) return false;
+          if (rHasta && b.periodo > rHasta.slice(0, 7)) return false;
+          return true;
+        }
+        return b.periodo === rPeriodo;
+      })
+      .sort((a, b) => String(a.nCorte).localeCompare(String(b.nCorte)) || a.orden - b.orden);
+  }, [boletaLineas, detalleOperarioId, rPeriodo, rDesde, rHasta]);
 
   const totalBruto = lineasFiltradas.reduce((s, b) => s + b.importe, 0);
 
@@ -482,13 +500,14 @@ export function Destajo() {
                     {['Operario', 'Prendas', 'Líneas', 'Total Bruto', 'Pagado', 'Pendiente', 'Acción'].map(h => (
                       <th key={h} className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500 whitespace-nowrap">{h}</th>
                     ))}
+                    <th className="px-3 py-2 text-[10px] text-gray-400 font-normal normal-case tracking-normal">← clic fila para ver detalle</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {resumenPorOperario.map(r => {
                     const op = operarioMap.get(r.operarioId);
                     return (
-                      <tr key={r.operarioId} className="hover:bg-gray-50">
+                      <tr key={r.operarioId} className="hover:bg-gray-50 cursor-pointer" onClick={() => setDetalleOperarioId(r.operarioId)}>
                         <td className="px-3 py-2">
                           <div className="font-bold">{op?.nombre ?? r.operarioId}</div>
                           <div className="text-[10px] text-gray-400 font-mono">{op?.codigo}</div>
@@ -544,6 +563,205 @@ export function Destajo() {
           )}
         </div>
       )}
+
+      {/* Modal detalle operario desde Resumen */}
+      {detalleOperarioId && (() => {
+        const op = operarioMap.get(detalleOperarioId);
+        const pendientesDetalle = lineasDetalle.filter(b => b.estadoPago === 'PENDIENTE');
+        const totalDetalleNeto = lineasDetalle.reduce((s, b) => s + b.importe, 0);
+
+        const pagarTalla = (linea: (typeof lineasDetalle)[0], talla: 'S' | 'M' | 'L' | 'XL', cantTalla: number) => {
+          const hoy = new Date().toISOString().slice(0, 10);
+          // Buscar si ya existe sub-línea con esta talla para esta boleta
+          const yaExiste = boletaLineas.find(
+            b => b.operarioId === linea.operarioId &&
+                 b.corteId === linea.corteId &&
+                 b.tarifaId === linea.tarifaId &&
+                 b.colorId === linea.colorId &&
+                 b.talla === talla
+          );
+          if (yaExiste) {
+            // Solo marcar pagado
+            updateBoletaLinea(yaExiste.id, { estadoPago: 'PAGADO', fechaPago: hoy });
+          } else {
+            // Crear sub-línea con la talla y marcarla pagada
+            const subLinea = {
+              id: uid(),
+              operarioId: linea.operarioId,
+              corteId: linea.corteId,
+              nCorte: linea.nCorte,
+              productoId: linea.productoId,
+              colorId: linea.colorId,
+              talla,
+              tarifaId: linea.tarifaId,
+              operacion: linea.operacion,
+              orden: linea.orden,
+              tarifa: linea.tarifa,
+              cantPrendas: cantTalla,
+              importe: cantTalla * linea.tarifa,
+              periodo: linea.periodo,
+              fechaRegistro: linea.fechaRegistro,
+              estadoPago: 'PAGADO' as const,
+              fechaPago: hoy,
+            };
+            addBoletaLinea(subLinea);
+            // Reducir la línea original en las prendas pagadas por talla
+            const nuevaCant = linea.cantPrendas - cantTalla;
+            if (nuevaCant <= 0) {
+              updateBoletaLinea(linea.id, { cantPrendas: 0, importe: 0, estadoPago: 'PAGADO', fechaPago: hoy });
+            } else {
+              updateBoletaLinea(linea.id, { cantPrendas: nuevaCant, importe: nuevaCant * linea.tarifa });
+            }
+          }
+          addToast(`Talla ${talla} marcada como pagada`, 'success');
+        };
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => { setDetalleOperarioId(null); setExpandedLineaId(null); }}>
+            <div className="bg-white w-full max-w-4xl rounded shadow-xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                <div>
+                  <p className="font-black text-sm">{op?.nombre ?? detalleOperarioId}</p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">
+                    {op?.codigo} · Período {rDesde || rHasta ? `${rDesde || '…'} → ${rHasta || '…'}` : rPeriodo} · {lineasDetalle.length} líneas
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  {pendientesDetalle.length > 0 && (
+                    <button
+                      onClick={() => {
+                        const hoy = new Date().toISOString().slice(0, 10);
+                        pendientesDetalle.forEach(b => updateBoletaLinea(b.id, { estadoPago: 'PAGADO', fechaPago: hoy }));
+                        addToast(`${op?.nombre ?? detalleOperarioId} marcado como pagado`, 'success');
+                        setDetalleOperarioId(null);
+                        setExpandedLineaId(null);
+                      }}
+                      className="text-[11px] font-bold uppercase text-green-700 border border-green-300 px-3 py-1.5 hover:bg-green-50"
+                    >
+                      Marcar todo pagado · S/ {pendientesDetalle.reduce((s, b) => s + b.importe, 0).toFixed(2)}
+                    </button>
+                  )}
+                  <button onClick={() => { setDetalleOperarioId(null); setExpandedLineaId(null); }} className="text-gray-400 hover:text-gray-600">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+              {/* Tabla */}
+              <div className="overflow-y-auto flex-1">
+                {lineasDetalle.length === 0 ? (
+                  <p className="text-sm text-gray-400 italic p-6">Sin líneas para este período.</p>
+                ) : (
+                  <table className="w-full text-xs">
+                    <thead className="sticky top-0 bg-[#1C1915]">
+                      <tr>
+                        <th className="w-6" />
+                        {['N° Corte', 'Color', 'Talla', 'Operación', 'Tarifa', 'Prendas', 'Importe', 'Estado', 'F. Pago', ''].map(h => (
+                          <th key={h} className="text-left px-3 py-2.5 font-mono font-bold uppercase text-[9px] tracking-widest text-[#6B6058] whitespace-nowrap">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {lineasDetalle.map((b, i) => {
+                        const isExpanded = expandedLineaId === b.id;
+                        // Tallas disponibles de seguimientoFilas para este corte+color
+                        const tallasFilas = seguimientoFilas.filter(
+                          f => f.corteId === b.corteId && (!b.colorId || f.colorId === b.colorId)
+                        );
+                        const tieneTallas = tallasFilas.length >= 1 && !b.talla;
+
+                        return (
+                          <React.Fragment key={b.id}>
+                            <tr
+                              className={`${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'} ${b.estadoPago === 'PAGADO' ? 'opacity-60' : ''} ${tieneTallas && b.estadoPago === 'PENDIENTE' ? 'cursor-pointer hover:bg-blue-50' : ''}`}
+                              onClick={() => tieneTallas && b.estadoPago === 'PENDIENTE' && setExpandedLineaId(isExpanded ? null : b.id)}
+                            >
+                              <td className="px-2 py-2 text-center">
+                                {tieneTallas && b.estadoPago === 'PENDIENTE' && (
+                                  <span className="text-[10px] text-blue-400 font-bold">{isExpanded ? '▲' : '▼'}</span>
+                                )}
+                              </td>
+                              <td className="px-3 py-2 font-mono font-black text-[#1A1A1A]">{b.nCorte}</td>
+                              <td className="px-3 py-2 text-gray-600">{b.colorId ? (colorMap.get(b.colorId) ?? '—') : '—'}</td>
+                              <td className="px-3 py-2 font-mono text-gray-400 text-[10px]">{b.talla ?? (tieneTallas ? <span className="text-blue-400 italic">ver tallas ▼</span> : '—')}</td>
+                              <td className="px-3 py-2 text-gray-700">{b.operacion}</td>
+                              <td className="px-3 py-2 font-mono text-right">S/ {b.tarifa.toFixed(3)}</td>
+                              <td className="px-3 py-2 font-mono text-right">{b.cantPrendas.toLocaleString()}</td>
+                              <td className="px-3 py-2 font-mono text-right font-black text-[#1A1A1A]">S/ {b.importe.toFixed(2)}</td>
+                              <td className="px-3 py-2">
+                                <span className={`inline-block px-2 py-0.5 font-mono font-bold text-[9px] uppercase tracking-wide rounded ${
+                                  b.estadoPago === 'PAGADO' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                                }`}>
+                                  {b.estadoPago}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2 font-mono text-gray-400 text-[10px]">{b.fechaPago ?? '—'}</td>
+                              <td className="px-3 py-2">
+                                {b.estadoPago === 'PENDIENTE' && !tieneTallas && (
+                                  <button
+                                    onClick={e => { e.stopPropagation(); const hoy = new Date().toISOString().slice(0, 10); updateBoletaLinea(b.id, { estadoPago: 'PAGADO', fechaPago: hoy }); addToast('Línea marcada pagada', 'success'); }}
+                                    className="text-[9px] font-bold uppercase text-green-700 border border-green-300 px-2 py-0.5 hover:bg-green-50 whitespace-nowrap"
+                                  >Pagar</button>
+                                )}
+                              </td>
+                            </tr>
+                            {/* Sub-filas por talla */}
+                            {isExpanded && tallasFilas.map(fila => {
+                              const subLinea = boletaLineas.find(
+                                bl => bl.operarioId === b.operarioId &&
+                                      bl.corteId === b.corteId &&
+                                      bl.tarifaId === b.tarifaId &&
+                                      bl.colorId === b.colorId &&
+                                      bl.talla === fila.talla
+                              );
+                              const yaPagada = subLinea?.estadoPago === 'PAGADO';
+                              return (
+                                <tr key={`${b.id}-${fila.talla}`} className="bg-blue-50 border-l-4 border-blue-200">
+                                  <td />
+                                  <td className="px-3 py-1.5 font-mono text-gray-400 text-[10px]">↳</td>
+                                  <td className="px-3 py-1.5 text-gray-500 text-[10px]">{colorMap.get(fila.colorId) ?? '—'}</td>
+                                  <td className="px-3 py-1.5 font-mono font-black text-[11px] text-blue-700">{fila.talla}</td>
+                                  <td className="px-3 py-1.5 text-gray-500 text-[10px]">{b.operacion}</td>
+                                  <td className="px-3 py-1.5 font-mono text-right text-[10px]">S/ {b.tarifa.toFixed(3)}</td>
+                                  <td className="px-3 py-1.5 font-mono text-right font-bold text-[11px]">{fila.cantidad}</td>
+                                  <td className="px-3 py-1.5 font-mono text-right font-black text-[11px]">S/ {(fila.cantidad * b.tarifa).toFixed(2)}</td>
+                                  <td className="px-3 py-1.5">
+                                    {yaPagada ? (
+                                      <span className="inline-block px-2 py-0.5 font-mono font-bold text-[9px] uppercase tracking-wide rounded bg-green-100 text-green-700">Pagado</span>
+                                    ) : (
+                                      <span className="inline-block px-2 py-0.5 font-mono font-bold text-[9px] uppercase tracking-wide rounded bg-yellow-100 text-yellow-700">Pendiente</span>
+                                    )}
+                                  </td>
+                                  <td className="px-3 py-1.5 font-mono text-gray-400 text-[10px]">{subLinea?.fechaPago ?? '—'}</td>
+                                  <td className="px-3 py-1.5">
+                                    {!yaPagada && (
+                                      <button
+                                        onClick={e => { e.stopPropagation(); pagarTalla(b, fila.talla, fila.cantidad); }}
+                                        className="text-[9px] font-bold uppercase text-green-700 border border-green-300 px-2 py-0.5 hover:bg-green-50 whitespace-nowrap"
+                                      >Pagar talla</button>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </React.Fragment>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot className="border-t-2 border-gray-200 bg-gray-50">
+                      <tr>
+                        <td colSpan={6} className="px-3 py-2.5 font-mono font-bold text-xs text-gray-500 uppercase">Total — {lineasDetalle.length} líneas</td>
+                        <td className="px-3 py-2.5 font-mono font-black text-right text-[#1A1A1A]">S/ {totalDetalleNeto.toFixed(2)}</td>
+                        <td colSpan={3} />
+                      </tr>
+                    </tfoot>
+                  </table>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ══════════════ TAB: VISTA GENERAL ══════════════ */}
       {activeTab === 'general' && (
@@ -824,72 +1042,179 @@ export function Destajo() {
               <table className="min-w-full text-xs">
                 <thead>
                   <tr className="border-b border-gray-200 bg-gray-50">
-                    {['N° Corte', 'Producto', 'Color', 'Operación', 'Tarifa', 'Prendas', 'Importe', 'Estado', ''].map(h => (
+                    {['N° Corte', 'Producto', 'Color', 'Talla', 'Operación', 'Tarifa', 'Prendas', 'Importe', 'Estado', ''].map(h => (
                       <th key={h} className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500 whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {lineasFiltradas.map(b => (
-                    <tr key={b.id} className={`hover:bg-gray-50 ${b.estadoPago === 'PAGADO' ? 'opacity-60' : ''}`}>
-                      <td className="px-3 py-2 font-mono">{b.nCorte}</td>
-                      <td className="px-3 py-2 text-[11px] text-gray-600">{productoMap.get(b.productoId)?.nombre ?? '—'}</td>
-                      <td className="px-3 py-2 text-[11px]">
-                        {b.colorId ? (
-                          <span className="font-medium text-gray-700">{colorMap.get(b.colorId) ?? b.colorId}</span>
-                        ) : (
-                          <span className="text-gray-300">—</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2">{b.operacion}</td>
-                      <td className="px-3 py-2 font-mono text-right">S/ {b.tarifa.toFixed(3)}</td>
-                      <td className="px-3 py-2">
-                        <input
-                          type="number" min={0}
-                          value={b.cantPrendas}
-                          onChange={e => updateBoletaLinea(b.id, {
-                            cantPrendas: parseInt(e.target.value) || 0,
-                            importe: (parseInt(e.target.value) || 0) * b.tarifa,
-                          })}
-                          className="w-20 input-base text-right text-xs py-0.5"
-                          disabled={b.estadoPago === 'PAGADO'}
-                        />
-                      </td>
-                      <td className="px-3 py-2 font-mono text-right font-bold">S/ {b.importe.toFixed(2)}</td>
-                      <td className="px-3 py-2">
-                        <span className={`text-[10px] font-bold uppercase ${b.estadoPago === 'PAGADO' ? 'text-green-700' : 'text-yellow-700'}`}>
-                          {b.estadoPago}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2">
-                        <div className="flex items-center gap-2">
+                  {lineasFiltradas.map(b => {
+                    // Líneas que ya son sub-líneas por talla no se expanden
+                    if (b.talla) return (
+                      <tr key={b.id} className={`bg-blue-50/50 border-l-4 border-blue-200 ${b.estadoPago === 'PAGADO' ? 'opacity-60' : ''}`}>
+                        <td className="px-3 py-2 font-mono text-gray-400 text-[10px]">↳ {b.nCorte}</td>
+                        <td className="px-3 py-2 text-[11px] text-gray-500">{productoMap.get(b.productoId)?.nombre ?? '—'}</td>
+                        <td className="px-3 py-2 text-[11px] text-gray-600">{b.colorId ? colorMap.get(b.colorId) ?? '—' : '—'}</td>
+                        <td className="px-3 py-2 font-mono font-black text-blue-700">{b.talla}</td>
+                        <td className="px-3 py-2 text-gray-600">{b.operacion}</td>
+                        <td className="px-3 py-2 font-mono text-right">S/ {b.tarifa.toFixed(3)}</td>
+                        <td className="px-3 py-2 font-mono text-right font-bold">{b.cantPrendas}</td>
+                        <td className="px-3 py-2 font-mono text-right font-bold">S/ {b.importe.toFixed(2)}</td>
+                        <td className="px-3 py-2">
+                          <span className={`text-[10px] font-bold uppercase ${b.estadoPago === 'PAGADO' ? 'text-green-700' : 'text-yellow-700'}`}>{b.estadoPago}</span>
+                        </td>
+                        <td className="px-3 py-2">
                           {b.estadoPago === 'PENDIENTE' && (
-                            <button
-                              onClick={() => updateBoletaLinea(b.id, { estadoPago: 'PAGADO', fechaPago: new Date().toISOString().slice(0, 10) })}
-                              className="text-[10px] text-green-600 hover:text-green-800 font-bold uppercase"
-                            >Pagar</button>
+                            <button onClick={() => updateBoletaLinea(b.id, { estadoPago: 'PAGADO', fechaPago: new Date().toISOString().slice(0, 10) })} className="text-[10px] text-green-600 hover:text-green-800 font-bold uppercase">Pagar</button>
                           )}
-                          {confirmDelete === b.id ? (
-                            <span className="flex items-center gap-1 whitespace-nowrap">
-                              <button onClick={() => { handleDeleteBoletaLinea(b); setConfirmDelete(null); addToast('Línea eliminada', 'success'); }} className="text-[10px] font-bold text-red-600 hover:text-red-800 uppercase">Sí</button>
-                              <span className="text-gray-300">/</span>
-                              <button onClick={() => setConfirmDelete(null)} className="text-[10px] font-bold text-gray-400 hover:text-gray-600 uppercase">No</button>
+                        </td>
+                      </tr>
+                    );
+
+                    const isExp = expandedLineaId === b.id;
+                    // Tallas del corte+color desde seguimientoFilas (sin depender de asignaciones)
+                    const tallasDisp = seguimientoFilas.filter(
+                      f => f.corteId === b.corteId && (!b.colorId || f.colorId === b.colorId)
+                    );
+                    const tieneTallas = tallasDisp.length >= 1;
+
+                    return (
+                      <React.Fragment key={b.id}>
+                        <tr
+                          className={`${b.estadoPago === 'PAGADO' ? 'opacity-60' : ''} ${tieneTallas && b.estadoPago === 'PENDIENTE' ? 'cursor-pointer hover:bg-amber-50' : 'hover:bg-gray-50'}`}
+                          onClick={() => tieneTallas && b.estadoPago === 'PENDIENTE' && setExpandedLineaId(isExp ? null : b.id)}
+                        >
+                          <td className="px-3 py-2 font-mono">
+                            <span className="flex items-center gap-1.5">
+                              {tieneTallas && b.estadoPago === 'PENDIENTE' && (
+                                <span className="text-[11px] text-amber-500 font-black">{isExp ? '▲' : '▼'}</span>
+                              )}
+                              {b.nCorte}
                             </span>
-                          ) : (
-                            <button onClick={() => setConfirmDelete(b.id)} className="text-gray-300 hover:text-red-500 transition-colors">
-                              <X className="h-3.5 w-3.5" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                          </td>
+                          <td className="px-3 py-2 text-[11px] text-gray-600">{productoMap.get(b.productoId)?.nombre ?? '—'}</td>
+                          <td className="px-3 py-2 text-[11px]">
+                            {b.colorId ? <span className="font-medium text-gray-700">{colorMap.get(b.colorId) ?? b.colorId}</span> : <span className="text-gray-300">—</span>}
+                          </td>
+                          <td className="px-3 py-2 text-[10px] text-gray-400 italic">
+                            {tieneTallas && b.estadoPago === 'PENDIENTE' ? <span className="text-amber-500">ver tallas</span> : '—'}
+                          </td>
+                          <td className="px-3 py-2">{b.operacion}</td>
+                          <td className="px-3 py-2 font-mono text-right">S/ {b.tarifa.toFixed(3)}</td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="number" min={0}
+                              value={b.cantPrendas}
+                              onChange={e => updateBoletaLinea(b.id, { cantPrendas: parseInt(e.target.value) || 0, importe: (parseInt(e.target.value) || 0) * b.tarifa })}
+                              className="w-20 input-base text-right text-xs py-0.5"
+                              disabled={b.estadoPago === 'PAGADO'}
+                              onClick={e => e.stopPropagation()}
+                            />
+                          </td>
+                          <td className="px-3 py-2 font-mono text-right font-bold">S/ {b.importe.toFixed(2)}</td>
+                          <td className="px-3 py-2">
+                            <span className={`text-[10px] font-bold uppercase ${b.estadoPago === 'PAGADO' ? 'text-green-700' : 'text-yellow-700'}`}>{b.estadoPago}</span>
+                          </td>
+                          <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
+                            <div className="flex items-center gap-2">
+                              {b.estadoPago === 'PENDIENTE' && (
+                                <button
+                                  onClick={() => updateBoletaLinea(b.id, { estadoPago: 'PAGADO', fechaPago: new Date().toISOString().slice(0, 10) })}
+                                  className="text-[10px] text-green-600 hover:text-green-800 font-bold uppercase"
+                                >Pagar todo</button>
+                              )}
+                              {confirmDelete === b.id ? (
+                                <span className="flex items-center gap-1 whitespace-nowrap">
+                                  <button onClick={() => { handleDeleteBoletaLinea(b); setConfirmDelete(null); addToast('Línea eliminada', 'success'); }} className="text-[10px] font-bold text-red-600 hover:text-red-800 uppercase">Sí</button>
+                                  <span className="text-gray-300">/</span>
+                                  <button onClick={() => setConfirmDelete(null)} className="text-[10px] font-bold text-gray-400 hover:text-gray-600 uppercase">No</button>
+                                </span>
+                              ) : (
+                                <button onClick={() => setConfirmDelete(b.id)} className="text-gray-300 hover:text-red-500 transition-colors">
+                                  <X className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                        {/* Sub-filas por talla */}
+                        {isExp && tallasDisp.map(fila => {
+                          const subLinea = boletaLineas.find(
+                            bl => bl.operarioId === b.operarioId &&
+                                  bl.corteId === b.corteId &&
+                                  bl.tarifaId === b.tarifaId &&
+                                  bl.colorId === b.colorId &&
+                                  bl.talla === fila.talla
+                          );
+                          const yaPagada = subLinea?.estadoPago === 'PAGADO';
+                          return (
+                            <tr key={`${b.id}-${fila.talla}`} className="bg-amber-50 border-l-4 border-amber-300">
+                              <td className="px-3 py-1.5 font-mono text-gray-400 text-[10px]">↳ {b.nCorte}</td>
+                              <td className="px-3 py-1.5 text-[10px] text-gray-500">{productoMap.get(b.productoId)?.nombre ?? '—'}</td>
+                              <td className="px-3 py-1.5 text-[10px] text-gray-600">{colorMap.get(fila.colorId) ?? '—'}</td>
+                              <td className="px-3 py-1.5 font-mono font-black text-amber-700">{fila.talla}</td>
+                              <td className="px-3 py-1.5 text-[10px] text-gray-500">{b.operacion}</td>
+                              <td className="px-3 py-1.5 font-mono text-right text-[10px]">S/ {b.tarifa.toFixed(3)}</td>
+                              <td className="px-3 py-1.5 font-mono text-right font-bold">{fila.cantidad}</td>
+                              <td className="px-3 py-1.5 font-mono text-right font-black">S/ {(fila.cantidad * b.tarifa).toFixed(2)}</td>
+                              <td className="px-3 py-1.5">
+                                {yaPagada
+                                  ? <span className="text-[10px] font-bold uppercase text-green-700">Pagado</span>
+                                  : <span className="text-[10px] font-bold uppercase text-yellow-700">Pendiente</span>
+                                }
+                              </td>
+                              <td className="px-3 py-1.5">
+                                {!yaPagada && (
+                                  <button
+                                    onClick={() => {
+                                      const hoy = new Date().toISOString().slice(0, 10);
+                                      if (subLinea) {
+                                        updateBoletaLinea(subLinea.id, { estadoPago: 'PAGADO', fechaPago: hoy });
+                                      } else {
+                                        const nuevaCant = b.cantPrendas - fila.cantidad;
+                                        addBoletaLinea({
+                                          id: uid(),
+                                          operarioId: b.operarioId,
+                                          corteId: b.corteId,
+                                          nCorte: b.nCorte,
+                                          productoId: b.productoId,
+                                          colorId: b.colorId,
+                                          talla: fila.talla,
+                                          tarifaId: b.tarifaId,
+                                          operacion: b.operacion,
+                                          orden: b.orden,
+                                          tarifa: b.tarifa,
+                                          cantPrendas: fila.cantidad,
+                                          importe: fila.cantidad * b.tarifa,
+                                          periodo: b.periodo,
+                                          fechaRegistro: b.fechaRegistro,
+                                          estadoPago: 'PAGADO',
+                                          fechaPago: hoy,
+                                        });
+                                        if (nuevaCant > 0) {
+                                          updateBoletaLinea(b.id, { cantPrendas: nuevaCant, importe: nuevaCant * b.tarifa });
+                                        } else {
+                                          updateBoletaLinea(b.id, { cantPrendas: 0, importe: 0, estadoPago: 'PAGADO', fechaPago: hoy });
+                                        }
+                                      }
+                                      addToast(`Talla ${fila.talla} pagada`, 'success');
+                                    }}
+                                    className="text-[9px] font-bold uppercase text-green-700 border border-green-300 px-2 py-0.5 hover:bg-green-50 whitespace-nowrap"
+                                  >Pagar talla</button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </React.Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           )}
 
-          {lineasFiltradas.length > 0 && (
+          {(lineasFiltradas.length > 0 || descuentosFiltrados.length > 0) && selectedOperario && (
             <div className="mt-4 flex justify-end">
               <div className="bg-white border border-gray-200 p-4 w-72 space-y-2">
                 {/* Bruto */}
@@ -925,13 +1250,21 @@ export function Destajo() {
                     {pagadas.length} líneas pagadas de {lineasFiltradas.length}
                   </p>
                 )}
+                <div className="pt-1 border-t border-gray-100">
+                  <button
+                    onClick={() => { setShowDescForm(true); setDescForm({ tipo: 'ADELANTO', monto: '', notas: '' }); document.getElementById('desc-form-section')?.scrollIntoView({ behavior: 'smooth' }); }}
+                    className="w-full text-[10px] font-bold uppercase tracking-widest text-amber-700 border border-amber-300 py-1 hover:bg-amber-50 flex items-center justify-center gap-1"
+                  >
+                    <Plus className="h-3 w-3" /> Agregar adelanto / descuento
+                  </button>
+                </div>
               </div>
             </div>
           )}
 
           {/* ── Gestión de descuentos ── */}
-          {selectedOperario && lineasFiltradas.length > 0 && (
-            <div className="mt-4 bg-white border border-gray-200 p-4 space-y-3">
+          {selectedOperario && (
+            <div id="desc-form-section" className="mt-4 bg-white border border-gray-200 p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <h4 className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
                   Descuentos del período
