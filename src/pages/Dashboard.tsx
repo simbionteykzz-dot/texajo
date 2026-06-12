@@ -1,10 +1,10 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { useAppContext } from '../store/AppContext';
 import {
   AlertTriangle, TrendingUp, Scissors, Users, Package, DollarSign,
-  ClipboardList, CreditCard, Factory, Tag, Settings,
+  ClipboardList, CreditCard, Factory, Tag, Settings, X,
 } from 'lucide-react';
 import { ModuleInfoBox } from '../components/ModuleInfoBox';
 
@@ -74,6 +74,7 @@ export function Dashboard() {
   const navigate = useNavigate();
   const { movimientosTela, cortes, cobrosDiarios, operarios, telas, colores, config,
     seguimientoFilas, boletaLineas, programasZurzam, productos } = useAppContext();
+  const [showDesglosePH, setShowDesglosePH] = useState(false);
 
   const stockResumen = useMemo(() => {
     const byKey = new Map<string, { telaId: string; colorId: string; rollos: number }>();
@@ -104,6 +105,26 @@ export function Dashboard() {
       .filter(f => f.estado !== 'LISTO' && f.estado !== 'PAGADO' && f.estado !== 'ANULADO')
       .reduce((s, f) => s + f.cantidad, 0);
 
+    // Desglose por corte: agrupa filas pendientes por corteId
+    const porCorteMap = new Map<string, { nCorte: string; productoId: string; estadoCorte: string; prendas: number; filas: number }>();
+    for (const f of seguimientoFilas) {
+      if (f.estado === 'LISTO' || f.estado === 'PAGADO' || f.estado === 'ANULADO') continue;
+      const corte = cortes.find(c => c.id === f.corteId);
+      if (!porCorteMap.has(f.corteId)) {
+        porCorteMap.set(f.corteId, {
+          nCorte: f.nCorte,
+          productoId: f.productoId,
+          estadoCorte: corte?.estado ?? '—',
+          prendas: 0,
+          filas: 0,
+        });
+      }
+      const entry = porCorteMap.get(f.corteId)!;
+      entry.prendas += f.cantidad;
+      entry.filas += 1;
+    }
+    const desgloseCortes = Array.from(porCorteMap.values()).sort((a, b) => b.prendas - a.prendas);
+
     // Recaudación: cobrado vs facturado total
     const totalFacturado = cobrosDiarios
       .filter(c => c.estado !== 'ANULADO')
@@ -128,6 +149,7 @@ export function Dashboard() {
       prendasCortadas,
       prendasProducidas,
       prendasPorHacer,
+      desgloseCortes,
       totalFacturado,
       totalCobrado,
       pctRecaudado,
@@ -177,6 +199,7 @@ export function Dashboard() {
   });
 
   return (
+    <>
     <motion.div
       className="space-y-8"
       initial={{ opacity: 0 }}
@@ -315,13 +338,15 @@ export function Dashboard() {
             accent="#B89B5E"
           />
           {/* Por Hacer */}
-          <StatCard
-            title="Prendas por Hacer"
-            value={metricas.prendasPorHacer.toLocaleString()}
-            sub="en producción activa"
-            icon={ClipboardList}
-            accent="#4B7FA3"
-          />
+          <div className="cursor-pointer" onClick={() => setShowDesglosePH(true)}>
+            <StatCard
+              title="Prendas por Hacer ▸"
+              value={metricas.prendasPorHacer.toLocaleString()}
+              sub="clic para ver origen"
+              icon={ClipboardList}
+              accent="#4B7FA3"
+            />
+          </div>
           {/* Recaudación */}
           <StatCard
             title="Recaudación"
@@ -517,5 +542,65 @@ export function Dashboard() {
         )}
       </motion.div>
     </motion.div>
+
+    {/* Modal desglose prendas por hacer */}
+    {showDesglosePH && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowDesglosePH(false)}>
+        <div className="bg-white w-full max-w-lg rounded shadow-xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+            <div>
+              <p className="font-black text-sm">Origen: Prendas por Hacer</p>
+              <p className="text-[11px] text-gray-400 mt-0.5">
+                {metricas.prendasPorHacer.toLocaleString()} prendas · {metricas.desgloseCortes.length} cortes con filas pendientes
+              </p>
+            </div>
+            <button onClick={() => setShowDesglosePH(false)} className="text-gray-400 hover:text-gray-600">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="overflow-y-auto flex-1">
+            <table className="w-full text-xs">
+              <thead className="sticky top-0 bg-[#1C1915]">
+                <tr>
+                  {['Corte', 'Producto', 'Estado corte', 'Filas', 'Prendas'].map(h => (
+                    <th key={h} className="text-left px-4 py-2.5 font-mono font-bold uppercase text-[9px] tracking-widest text-[#6B6058]">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {metricas.desgloseCortes.map((d, i) => {
+                  const prod = productos.find(p => p.id === d.productoId);
+                  const estadoColor =
+                    d.estadoCorte === 'EN_PROCESO' ? 'text-blue-700 bg-blue-50' :
+                    d.estadoCorte === 'COMPLETADO' ? 'text-green-700 bg-green-50' :
+                    d.estadoCorte === 'ANULADO'    ? 'text-red-700 bg-red-50' :
+                    'text-gray-500 bg-gray-50';
+                  return (
+                    <tr key={d.nCorte + i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                      <td className="px-4 py-2.5 font-mono font-black text-[#1A1A1A]">{d.nCorte}</td>
+                      <td className="px-4 py-2.5 text-gray-700">{prod?.nombre ?? d.productoId}</td>
+                      <td className="px-4 py-2.5">
+                        <span className={`inline-block px-2 py-0.5 rounded font-mono font-bold text-[9px] uppercase tracking-wide ${estadoColor}`}>
+                          {d.estadoCorte}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5 font-mono text-gray-500 text-center">{d.filas}</td>
+                      <td className="px-4 py-2.5 font-mono font-black text-right text-amber-700">{d.prendas.toLocaleString()}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot className="border-t-2 border-gray-200 bg-gray-50">
+                <tr>
+                  <td colSpan={4} className="px-4 py-2.5 font-mono font-bold text-xs text-gray-500 uppercase">Total</td>
+                  <td className="px-4 py-2.5 font-mono font-black text-right text-amber-700">{metricas.prendasPorHacer.toLocaleString()}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
