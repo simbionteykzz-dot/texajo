@@ -88,8 +88,8 @@ export function ProduccionConfeccion() {
   // Modal asignación operarios: { corteId, colorId } abierto + ops temporales { [tarifaId]: operarioId }
   const [modalColor, setModalColor] = useState<{ corteId: string; colorId: string } | null>(null);
   const [modalOps, setModalOps] = useState<Record<string, string[]>>({});
-  // Modal confirmar avance: { corteId, colorId } + ops confirmadas { [tarifaId]: boolean }
-  const [modalAvance, setModalAvance] = useState<{ corteId: string; colorId: string } | null>(null);
+  // Modal confirmar avance: { corteId, colorId, talla } + ops confirmadas { [tarifaId]: boolean }
+  const [modalAvance, setModalAvance] = useState<{ corteId: string; colorId: string; talla: string } | null>(null);
   const [avanceOps, setAvanceOps] = useState<Record<string, boolean>>({});
   // Hex overrides por colorId — persiste durante la sesión para que el PDF use el color elegido
   const [colorHexOverrides, setColorHexOverrides] = useState<Record<string, string>>({});
@@ -192,47 +192,39 @@ export function ProduccionConfeccion() {
     addToast('Operarios guardados', 'success');
   };
 
-  const abrirModalAvance = (corteId: string, colorId: string) => {
-    const primerFila = seguimientoFilas.find(f => f.corteId === corteId && f.colorId === colorId);
+  const abrirModalAvance = (corteId: string, colorId: string, talla: string) => {
+    const fila = seguimientoFilas.find(f => f.corteId === corteId && f.colorId === colorId && f.talla === talla);
     const inicial: Record<string, boolean> = {};
-    primerFila?.asignaciones.forEach(a => { inicial[a.tarifaId] = a.confirmado ?? false; });
+    fila?.asignaciones.forEach(a => { inicial[a.tarifaId] = a.confirmado ?? false; });
     setAvanceOps(inicial);
-    setModalAvance({ corteId, colorId });
+    setModalAvance({ corteId, colorId, talla });
   };
 
   const guardarModalAvance = () => {
     if (!modalAvance) return;
-    const { corteId, colorId } = modalAvance;
-    const filas = seguimientoFilas.filter(f => f.corteId === corteId && f.colorId === colorId);
-    if (!filas.length) return;
+    const { corteId, colorId, talla } = modalAvance;
+    const fila = seguimientoFilas.find(f => f.corteId === corteId && f.colorId === colorId && f.talla === talla);
+    if (!fila) return;
     const tarifasCorte = tarifasDelCorte(corteId);
     const totalOps = tarifasCorte.length;
     const confirmadas = Object.values(avanceOps).filter(Boolean).length;
     const pctAvance = totalOps > 0 ? Math.round((confirmadas / totalOps) * 100) : 0;
     const estado = pctAvance === 100 ? 'LISTO' : pctAvance > 0 ? 'EN_PROCESO' : 'PENDIENTE';
 
-    // Construir filas actualizadas con confirmado persistido
-    const filasActualizadas: SeguimientoFila[] = seguimientoFilas.map(f => {
-      if (f.corteId !== corteId || f.colorId !== colorId) return f;
-      const asignaciones = f.asignaciones.map(a => ({ ...a, confirmado: avanceOps[a.tarifaId] ?? false }));
-      return { ...f, asignaciones, pctAvance, estado };
-    });
+    const asignaciones = fila.asignaciones.map(a => ({ ...a, confirmado: avanceOps[a.tarifaId] ?? false }));
+    updateSeguimientoFila(fila.id, { asignaciones, pctAvance, estado });
 
-    filas.forEach(f => {
-      const fAct = filasActualizadas.find(x => x.id === f.id)!;
-      updateSeguimientoFila(f.id, { asignaciones: fAct.asignaciones, pctAvance, estado });
-    });
-
-    const periodo = filas[0].fecha.slice(0, 7);
+    const periodo = fila.fecha.slice(0, 7);
+    const filasActualizadas: SeguimientoFila[] = seguimientoFilas.map(f =>
+      f.id === fila.id ? { ...f, asignaciones, pctAvance, estado } : f
+    );
 
     // Por cada tarifa: si confirmada → upsert boleta; si no → eliminar boleta existente
     for (const t of tarifasCorte) {
-      const primerFila = filas[0];
-      const opId = primerFila.asignaciones.find(a => a.tarifaId === t.id)?.operarioId ?? '';
+      const opId = fila.asignaciones.find(a => a.tarifaId === t.id)?.operarioId ?? '';
       if (avanceOps[t.id]) {
         if (opId) upsertBoletaLinea(opId, corteId, t.id, periodo, filasActualizadas);
       } else {
-        // No confirmada: eliminar boleta si existe (de cualquier operario asignado a esta tarifa+color)
         const linea = boletaLineas.find(
           b => b.corteId === corteId && b.tarifaId === t.id && b.periodo === periodo && b.colorId === colorId
         );
@@ -241,7 +233,7 @@ export function ProduccionConfeccion() {
     }
 
     setModalAvance(null);
-    addToast(estado === 'LISTO' ? 'Color marcado como LISTO' : `Avance confirmado: ${pctAvance}%`, 'success');
+    addToast(estado === 'LISTO' ? `Talla ${talla} marcada como LISTO` : `Talla ${talla}: avance ${pctAvance}%`, 'success');
   };
 
   // Cantidades por color agrupado: { [colorId]: { S, M, L, XL } }
@@ -826,40 +818,18 @@ export function ProduccionConfeccion() {
                                     )}
                                     {idx === 0 && (
                                       <td className="px-3 py-2 align-middle" rowSpan={grupo.filas.length}>
-                                        <div className="flex flex-col gap-1">
-                                          <button
-                                            onClick={() => abrirModalAsignarColor(corte.id, grupo.colorId)}
-                                            className={`flex items-center gap-1.5 text-[10px] border px-2 py-1 rounded hover:bg-gray-100 whitespace-nowrap ${
-                                              asignados === totalOps && totalOps > 0
-                                                ? 'border-green-300 text-green-700 bg-green-50'
-                                                : asignados > 0
-                                                  ? 'border-yellow-300 text-yellow-700 bg-yellow-50'
-                                                  : 'border-gray-200 text-gray-500'
-                                            }`}
-                                          >
-                                            <span>{asignados}/{totalOps} ops</span>
-                                          </button>
-                                          {primerFila.estado === 'LISTO' ? (
-                                            <button
-                                              onClick={() => abrirModalAvance(corte.id, grupo.colorId)}
-                                              className="flex items-center gap-1 text-[10px] border border-green-400 bg-green-100 text-green-800 px-2 py-1 rounded hover:bg-green-200 whitespace-nowrap"
-                                              title="Ver/editar avance confirmado"
-                                            >
-                                              <CheckCircle className="h-3 w-3" />
-                                              <span>Listo</span>
-                                              <RotateCcw className="h-2.5 w-2.5 opacity-60" />
-                                            </button>
-                                          ) : (
-                                            <button
-                                              onClick={() => abrirModalAvance(corte.id, grupo.colorId)}
-                                              className="flex items-center gap-1 text-[10px] border border-gray-300 text-gray-600 px-2 py-1 rounded hover:bg-gray-100 whitespace-nowrap"
-                                              title="Confirmar avance de operaciones"
-                                            >
-                                              <CheckCircle className="h-3 w-3" />
-                                              <span>Confirmar</span>
-                                            </button>
-                                          )}
-                                        </div>
+                                        <button
+                                          onClick={() => abrirModalAsignarColor(corte.id, grupo.colorId)}
+                                          className={`flex items-center gap-1.5 text-[10px] border px-2 py-1 rounded hover:bg-gray-100 whitespace-nowrap ${
+                                            asignados === totalOps && totalOps > 0
+                                              ? 'border-green-300 text-green-700 bg-green-50'
+                                              : asignados > 0
+                                                ? 'border-yellow-300 text-yellow-700 bg-yellow-50'
+                                                : 'border-gray-200 text-gray-500'
+                                          }`}
+                                        >
+                                          <span>{asignados}/{totalOps} ops</span>
+                                        </button>
                                       </td>
                                     )}
                                     <td className="px-3 py-2 font-bold text-center">{fila.talla}</td>
@@ -870,6 +840,25 @@ export function ProduccionConfeccion() {
                                           <div className="h-full bg-black" style={{ width: `${fila.pctAvance}%` }} />
                                         </div>
                                         <span className="text-[10px]">{fila.pctAvance}%</span>
+                                        {fila.estado === 'LISTO' ? (
+                                          <button
+                                            onClick={() => abrirModalAvance(corte.id, grupo.colorId, fila.talla)}
+                                            className="flex items-center gap-1 text-[10px] border border-green-400 bg-green-100 text-green-800 px-1.5 py-0.5 rounded hover:bg-green-200 whitespace-nowrap"
+                                            title="Ver/editar avance confirmado"
+                                          >
+                                            <CheckCircle className="h-2.5 w-2.5" />
+                                            <span>Listo</span>
+                                          </button>
+                                        ) : (
+                                          <button
+                                            onClick={() => abrirModalAvance(corte.id, grupo.colorId, fila.talla)}
+                                            className="flex items-center gap-1 text-[10px] border border-gray-300 text-gray-600 px-1.5 py-0.5 rounded hover:bg-gray-100 whitespace-nowrap"
+                                            title="Confirmar avance de operaciones para esta talla"
+                                          >
+                                            <CheckCircle className="h-2.5 w-2.5" />
+                                            <span>Confirmar</span>
+                                          </button>
+                                        )}
                                       </div>
                                     </td>
                                     <td className="px-3 py-2 font-mono text-right font-bold">S/ {fila.totalPago.toFixed(2)}</td>
@@ -999,11 +988,9 @@ export function ProduccionConfeccion() {
 
       {/* Modal confirmar avance de operaciones */}
       {modalAvance && (() => {
-        const { corteId, colorId } = modalAvance;
+        const { corteId, colorId, talla } = modalAvance;
         const tarifasModal = tarifasDelCorte(corteId);
-        const primerFila = seguimientoFilas.find(f => f.corteId === corteId && f.colorId === colorId);
-        const filasDelColor = seguimientoFilas.filter(f => f.corteId === corteId && f.colorId === colorId);
-        const totalPrendas = filasDelColor.reduce((s, f) => s + f.cantidad, 0);
+        const filaModal = seguimientoFilas.find(f => f.corteId === corteId && f.colorId === colorId && f.talla === talla);
         const confirmadas = Object.values(avanceOps).filter(Boolean).length;
         const pctPreview = tarifasModal.length > 0 ? Math.round((confirmadas / tarifasModal.length) * 100) : 0;
         return (
@@ -1013,7 +1000,7 @@ export function ProduccionConfeccion() {
                 <div>
                   <p className="font-black text-sm">Confirmar avance</p>
                   <p className="text-[11px] text-gray-500 mt-0.5">
-                    {colorMap.get(colorId)} — {totalPrendas} prendas ({filasDelColor.map(f => f.talla).join(', ')})
+                    {colorMap.get(colorId)} — Talla {talla} — {filaModal?.cantidad ?? 0} prendas
                   </p>
                 </div>
                 <button onClick={() => setModalAvance(null)} className="text-gray-400 hover:text-gray-600">
@@ -1023,7 +1010,7 @@ export function ProduccionConfeccion() {
               <div className="px-5 py-4 space-y-2">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-3">Marcar operaciones completadas</p>
                 {tarifasModal.map(t => {
-                  const asignacion = primerFila?.asignaciones.find(a => a.tarifaId === t.id);
+                  const asignacion = filaModal?.asignaciones.find(a => a.tarifaId === t.id);
                   const operario = asignacion?.operarioId ? operarioMap.get(asignacion.operarioId) : null;
                   const checked = avanceOps[t.id] ?? false;
                   return (
