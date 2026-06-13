@@ -164,16 +164,14 @@ export function ProduccionConfeccion() {
     const periodo = filasDelColor[0].fecha.slice(0, 7);
     const primerFilaPrevia = seguimientoFilas.find(f => f.corteId === corteId && f.colorId === colorId);
     const asignacionesPrevias = primerFilaPrevia?.asignaciones ?? [];
-    const totalPrendasColor = filasDelColor.reduce((s, f) => s + f.cantidad, 0);
 
     for (const t of tarifasCorte) {
       const idsNuevos = (modalOps[t.id] ?? []).filter(Boolean);
       const idsPrevios = asignacionesPrevias.find(a => a.tarifaId === t.id)?.operarioIds
         ?? (asignacionesPrevias.find(a => a.tarifaId === t.id)?.operarioId ? [asignacionesPrevias.find(a => a.tarifaId === t.id)!.operarioId] : []);
-      const estaConfirmada = filasActualizadas.find(f => f.corteId === corteId && f.colorId === colorId)
-        ?.asignaciones.find(a => a.tarifaId === t.id)?.confirmado ?? false;
 
-      // Eliminar boletas de operarios que ya no están en la lista
+      // El modal global solo actualiza asignaciones — no crea boletas.
+      // Solo limpia boletas de operarios que fueron removidos de la lista.
       for (const opPrevio of idsPrevios) {
         if (!idsNuevos.includes(opPrevio)) {
           const linea = boletaLineas.find(
@@ -182,26 +180,6 @@ export function ProduccionConfeccion() {
           );
           if (linea) deleteBoletaLinea(linea.id);
         }
-      }
-
-      if (!estaConfirmada) {
-        // No confirmada: eliminar todas las boletas de esta operación
-        for (const opId of idsNuevos) {
-          const linea = boletaLineas.find(
-            b => b.operarioId === opId && b.corteId === corteId &&
-                 b.tarifaId === t.id && b.periodo === periodo && b.colorId === colorId
-          );
-          if (linea) deleteBoletaLinea(linea.id);
-        }
-      } else if (idsNuevos.length > 0) {
-        // Confirmada: usar cantidades individuales del modal (o distribuir en partes iguales si no hay)
-        const qtys = modalOpsQty[t.id] ?? [];
-        const allIds = modalOps[t.id] ?? [];
-        idsNuevos.forEach((opId, idx) => {
-          const globalIdx = allIds.indexOf(opId);
-          const cant = qtys[globalIdx] ?? Math.floor(totalPrendasColor / idsNuevos.length) + (idx === 0 ? totalPrendasColor % idsNuevos.length : 0);
-          upsertBoletaLinea(opId, corteId, t.id, periodo, filasActualizadas, cant);
-        });
       }
     }
 
