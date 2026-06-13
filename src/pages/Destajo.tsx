@@ -421,11 +421,15 @@ export function Destajo() {
 
   const boletasHuerfanas = useMemo(() => {
     return boletaLineas.filter(b => {
-      // Una boleta tiene respaldo si existe alguna seguimientoFila del mismo corte
-      // con la misma tarifa confirmada (no exigimos colorId para evitar falsos positivos)
+      // Una boleta tiene respaldo si existe una seguimientoFila del mismo corte+tarifa
+      // confirmada Y en la que el operario de la boleta esté asignado
       const filaConfirmada = seguimientoFilas.some(f =>
         f.corteId === b.corteId &&
-        f.asignaciones.some(a => a.tarifaId === b.tarifaId && a.confirmado === true)
+        f.asignaciones.some(a =>
+          a.tarifaId === b.tarifaId &&
+          a.confirmado === true &&
+          (a.operarioId === b.operarioId || (a.operarioIds ?? []).includes(b.operarioId))
+        )
       );
       return !filaConfirmada;
     });
