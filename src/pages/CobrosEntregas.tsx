@@ -6,8 +6,7 @@ import { Download, Plus, X, FileText, Trash2, BarChart2 } from 'lucide-react';
 import { CobroDiario } from '../types';
 import { ModuleInfoBox } from '../components/ModuleInfoBox';
 import { exportRowsToXlsx, exportTableToPdf } from '../lib/export';
-
-const uid = () => crypto.randomUUID();
+import { newId } from '../lib/storage';
 
 interface CobroForm {
   fecha: string; nCorte: string; nFactura: string;
@@ -167,7 +166,7 @@ export function CobrosEntregas() {
     const detraccion = bruto * 0.10;
 
     const cobro: CobroDiario = {
-      id: uid(),
+      id: newId(),
       fecha: form.fecha,
       nCorte: form.nCorte,
       nFactura: form.nFactura,

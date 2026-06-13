@@ -6,10 +6,9 @@ import { CategoriaColor, Operario, TipoComplemento, RecetaComplemento, ProductoC
 import { ModuleInfoBox } from '../components/ModuleInfoBox';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { importarProporcioesCSV } from '../lib/supabaseDb';
+import { newId } from '../lib/storage';
 
 const TIPOS_COMPLEMENTO: string[] = [...TIPOS_COMPLEMENTO_LIST];
-
-const uid = () => crypto.randomUUID();
 
 type Tab = 'productos' | 'telas' | 'colores' | 'operarios' | 'tarifas' | 'clientes' | 'proveedores' | 'tejidos' | 'props_color';
 
@@ -56,7 +55,7 @@ export function Catalogos() {
   const handleAddTela = (e: React.FormEvent) => {
     e.preventDefault();
     if (!telaForm.nombre) { addToast('Nombre requerido', 'error'); return; }
-    addTela({ id: uid(), nombre: telaForm.nombre, composicion: telaForm.composicion, kgPorRollo: parseFloat(telaForm.kgPorRollo) || 20, notas: telaForm.notas });
+    addTela({ id: newId(), nombre: telaForm.nombre, composicion: telaForm.composicion, kgPorRollo: parseFloat(telaForm.kgPorRollo) || 20, notas: telaForm.notas });
     addToast('Tela agregada', 'success');
     setShowTelaForm(false);
     setTelaForm({ nombre: '', composicion: '', kgPorRollo: '20', notas: '' });
@@ -69,7 +68,7 @@ export function Catalogos() {
   const handleAddColor = (e: React.FormEvent) => {
     e.preventDefault();
     if (!colorForm.nombre) { addToast('Nombre requerido', 'error'); return; }
-    addColor({ id: uid(), nombre: colorForm.nombre, categoria: colorForm.categoria, prioridad: parseInt(colorForm.prioridad) || 99, notas: colorForm.notas });
+    addColor({ id: newId(), nombre: colorForm.nombre, categoria: colorForm.categoria, prioridad: parseInt(colorForm.prioridad) || 99, notas: colorForm.notas });
     addToast('Color agregado', 'success');
     setShowColorForm(false);
     setColorForm({ nombre: '', categoria: 'OSCURO', prioridad: '99', notas: '' });
@@ -108,7 +107,7 @@ export function Catalogos() {
   const handleAddProducto = (e: React.FormEvent) => {
     e.preventDefault();
     if (!prodForm.nombre) { addToast('Nombre requerido', 'error'); return; }
-    addProducto({ id: uid(), nombre: prodForm.nombre, marca: prodForm.marca || undefined, costoMoTotal: 0, precioServicio: 0, notas: prodForm.notas });
+    addProducto({ id: newId(), nombre: prodForm.nombre, marca: prodForm.marca || undefined, costoMoTotal: 0, precioServicio: 0, notas: prodForm.notas });
     addToast('Producto agregado', 'success');
     setShowProdForm(false);
     setProdForm({ nombre: '', marca: '', notas: '' });
@@ -127,7 +126,7 @@ export function Catalogos() {
     const prod = productos.find(p => p.id === tarifaForm.productoId);
     const orden = parseInt(tarifaForm.orden) || 1;
     addTarifaOperacion({
-      id: uid(),
+      id: newId(),
       productoId: tarifaForm.productoId,
       orden,
       operacion: tarifaForm.operacion,
@@ -143,9 +142,9 @@ export function Catalogos() {
   const handleAddInlineProd = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inlineProdForm.nombre) { addToast('Nombre requerido', 'error'); return; }
-    const newId = uid();
-    addProducto({ id: newId, nombre: inlineProdForm.nombre, marca: inlineProdForm.marca || undefined, costoMoTotal: 0, precioServicio: 0, notas: inlineProdForm.notas });
-    setTarifaForm(f => ({ ...f, productoId: newId }));
+    const generatedId = newId();
+    addProducto({ id: generatedId, nombre: inlineProdForm.nombre, marca: inlineProdForm.marca || undefined, costoMoTotal: 0, precioServicio: 0, notas: inlineProdForm.notas });
+    setTarifaForm(f => ({ ...f, productoId: generatedId }));
     addToast('Producto agregado', 'success');
     setShowInlineProdForm(false);
     setInlineProdForm({ nombre: '', marca: '', notas: '' });
@@ -162,7 +161,7 @@ export function Catalogos() {
   const handleAddOperario = (e: React.FormEvent) => {
     e.preventDefault();
     if (!opForm.codigo || !opForm.nombre) { addToast('Código y nombre requeridos', 'error'); return; }
-    addOperario({ id: uid(), codigo: opForm.codigo, nombre: opForm.nombre, estado: 'ACTIVO' });
+    addOperario({ id: newId(), codigo: opForm.codigo, nombre: opForm.nombre, estado: 'ACTIVO' });
     addToast('Operario agregado', 'success');
     setShowOpForm(false);
     setOpForm({ codigo: '', nombre: '' });
@@ -175,7 +174,7 @@ export function Catalogos() {
   const handleAddCliente = (e: React.FormEvent) => {
     e.preventDefault();
     if (!cliForm.nombre) { addToast('Nombre requerido', 'error'); return; }
-    addCliente({ id: uid(), nombre: cliForm.nombre, contacto: cliForm.contacto, notas: cliForm.notas });
+    addCliente({ id: newId(), nombre: cliForm.nombre, contacto: cliForm.contacto, notas: cliForm.notas });
     addToast('Cliente agregado', 'success');
     setShowCliForm(false);
     setCliForm({ nombre: '', contacto: '', notas: '' });
@@ -188,7 +187,7 @@ export function Catalogos() {
   const handleAddProveedor = (e: React.FormEvent) => {
     e.preventDefault();
     if (!provForm.nombre) { addToast('Nombre requerido', 'error'); return; }
-    addProveedor({ id: uid(), nombre: provForm.nombre, ruc: provForm.ruc, contacto: provForm.contacto, tipo: provForm.tipo });
+    addProveedor({ id: newId(), nombre: provForm.nombre, ruc: provForm.ruc, contacto: provForm.contacto, tipo: provForm.tipo });
     addToast('Proveedor agregado', 'success');
     setShowProvForm(false);
     setProvForm({ nombre: '', ruc: '', contacto: '', tipo: 'TELA' });
@@ -201,7 +200,7 @@ export function Catalogos() {
   const handleAddTejido = (e: React.FormEvent) => {
     e.preventDefault();
     if (!tejForm.tipoTejido) { addToast('Tipo de tejido requerido', 'error'); return; }
-    addPrecioTejeduria({ id: uid(), tipoTejido: tejForm.tipoTejido, precioKg: parseFloat(tejForm.precioKg) || 0 });
+    addPrecioTejeduria({ id: newId(), tipoTejido: tejForm.tipoTejido, precioKg: parseFloat(tejForm.precioKg) || 0 });
     addToast('Precio de tejido agregado', 'success');
     setShowTejForm(false);
     setTejForm({ tipoTejido: '', precioKg: '' });
@@ -240,7 +239,7 @@ export function Catalogos() {
     const prod = productos.find(p => p.id === pcForm.productoId);
     const col = colores.find(c => c.id === pcForm.colorId);
     addProductoColor({
-      id: uid(),
+      id: newId(),
       productoId: pcForm.productoId,
       colorId: pcForm.colorId,
       propS: parseInt(pcForm.propS) || 0,
@@ -941,9 +940,9 @@ export function Catalogos() {
                             type="button"
                             onClick={() => {
                               if (!inlineProdForm.nombre) { addToast('Nombre requerido', 'error'); return; }
-                              const newId = uid();
-                              addProducto({ id: newId, nombre: inlineProdForm.nombre, marca: inlineProdForm.marca || undefined, costoMoTotal: 0, precioServicio: 0, notas: '' });
-                              setTarifaForm(f => ({ ...f, productoId: newId }));
+                              const generatedId = newId();
+                              addProducto({ id: generatedId, nombre: inlineProdForm.nombre, marca: inlineProdForm.marca || undefined, costoMoTotal: 0, precioServicio: 0, notas: '' });
+                              setTarifaForm(f => ({ ...f, productoId: generatedId }));
                               addToast('Producto agregado', 'success');
                               setShowInlineProdForm(false);
                               setInlineProdForm({ nombre: '', marca: '', notas: '' });

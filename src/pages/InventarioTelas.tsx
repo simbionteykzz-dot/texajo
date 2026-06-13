@@ -7,6 +7,7 @@ import { Download, Plus, X, FileText, Trash2 } from 'lucide-react';
 import { TipoMovimientoTela, CategoriaColor } from '../types';
 import { ModuleInfoBox } from '../components/ModuleInfoBox';
 import { exportRowsToXlsx, exportTableToPdf } from '../lib/export';
+import { newId } from '../lib/storage';
 type InvTab = 'movimientos' | 'matriz' | 'criticos' | 'historico';
 
 const TIPOS: TipoMovimientoTela[] = ['INGRESO', 'A_CORTE', 'A_REPROCESO', 'DE_REPROCESO', 'MUESTRA', 'AJUSTE_POS', 'AJUSTE_NEG'];
@@ -14,8 +15,6 @@ const TIPO_LABEL: Record<string, string> = {
   INGRESO: 'Ingreso', A_CORTE: 'A Corte', A_REPROCESO: 'A Reproceso',
   DE_REPROCESO: 'De Reproceso', MUESTRA: 'Muestra', AJUSTE_POS: 'Ajuste +', AJUSTE_NEG: 'Ajuste −',
 };
-
-const uid = () => crypto.randomUUID();
 
 interface MovForm {
   fecha: string; tipo: TipoMovimientoTela; clienteId: string; telaId: string;
@@ -169,7 +168,7 @@ export function InventarioTelas() {
     }
 
     addMovimientoTela({
-      id: uid(),
+      id: newId(),
       fecha: form.fecha,
       tipo: form.tipo,
       clienteId: form.clienteId,

@@ -7,8 +7,8 @@ import { Corte, CorteColorDetalle, SeguimientoAsignacion, SeguimientoFila, Movim
 import { ModuleInfoBox } from '../components/ModuleInfoBox';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { exportRowsToXlsx, exportReportesCorte } from '../lib/export';
-
-const uid = () => crypto.randomUUID();
+import { newId } from '../lib/storage';
+import { useStockActualTelas, useColoresAgrupados } from '../hooks/useCorteOperaciones';
 
 // Suma rollos sin contar duplicados del mismo colorBase (la celda está agrupada por rowSpan)
 const totalRollosSinDuplicar = (colores: { colorBase: string; rollosUsados: string }[]) =>
@@ -76,6 +76,7 @@ export function Cortes() {
   const [filterCliente, setFilterCliente] = useState('');
   const [form, setForm] = useState<CorteForm>(emptyForm());
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [completandoId, setCompletandoId] = useState<string | null>(null);
   const [mostrarTodosProductos, setMostrarTodosProductos] = useState(true);
   const [expandedCortes, setExpandedCortes] = useState<Set<string>>(new Set());
   const toggleExpand = (id: string) =>
@@ -92,21 +93,7 @@ export function Cortes() {
   const colorMap = useMemo(() => new Map(colores.map(c => [c.id, c.nombre])), [colores]);
   const telaMap = useMemo(() => new Map(telas.map(t => [t.id, t])), [telas]);
 
-  // Agrupa colores por nombre base: "Negro 2" → base="Negro", tonalidad="2"
-  // Si el nombre no termina en número, tonalidad=null (color sin tonalidad)
-  const coloresAgrupados = useMemo(() => {
-    const grupos = new Map<string, { id: string; tonalidad: string | null; prioridad: number }[]>();
-    for (const c of colores) {
-      const m = c.nombre.match(/^(.+?)\s+(\d+)$/);
-      const base = m ? m[1] : c.nombre;
-      const ton = m ? m[2] : null;
-      if (!grupos.has(base)) grupos.set(base, []);
-      grupos.get(base)!.push({ id: c.id, tonalidad: ton, prioridad: c.prioridad ?? 999 });
-    }
-    // Ordenar tonalidades numéricamente dentro de cada grupo
-    for (const arr of grupos.values()) arr.sort((a, b) => parseInt(a.tonalidad ?? '0') - parseInt(b.tonalidad ?? '0'));
-    return grupos;
-  }, [colores]);
+  const coloresAgrupados = useColoresAgrupados(colores);
 
   // Nombres base ordenados por prioridad mínima del grupo
   const nombresBase = useMemo(() => {
@@ -117,19 +104,7 @@ export function Cortes() {
     });
   }, [coloresAgrupados]);
 
-  // Stock actual de telas: suma/resta deltas de todos los movimientos (no depende de stockRollosDespues)
-  const stockActualTelas = useMemo(() => {
-    const POSITIVOS = ['INGRESO', 'DE_REPROCESO', 'AJUSTE_POS'];
-    const NEGATIVOS = ['A_CORTE', 'A_REPROCESO', 'MUESTRA', 'AJUSTE_NEG'];
-    const map = new Map<string, number>();
-    for (const m of movimientosTela) {
-      const key = `${m.telaId}|${m.colorId}`;
-      const prev = map.get(key) ?? 0;
-      const delta = POSITIVOS.includes(m.tipo) ? m.rollos : NEGATIVOS.includes(m.tipo) ? -m.rollos : 0;
-      map.set(key, prev + delta);
-    }
-    return map;
-  }, [movimientosTela]);
+  const stockActualTelas = useStockActualTelas(movimientosTela);
 
   useEffect(() => {
     if (!form.productoId) return;
@@ -219,7 +194,7 @@ export function Cortes() {
           tarifaId: t.id, operacion: t.operacion, orden: t.orden, operarioId: '', pago: 0,
         }));
         const fila: SeguimientoFila = {
-          id: uid(),
+          id: newId(),
           corteId: corte.id,
           nCorte: corte.nCorte,
           productoId: corte.productoId,
@@ -245,7 +220,7 @@ export function Cortes() {
       const stockDespues = stockAntes + corte.rollosUsados;
       const color = colores.find(c => c.id === corte.colorId);
       const mov: MovimientoTela = {
-        id: uid(),
+        id: newId(),
         fecha: new Date().toISOString().slice(0, 10),
         tipo: 'AJUSTE_POS',
         clienteId: corte.clienteId,
@@ -280,6 +255,12 @@ export function Cortes() {
   // Descuenta inventario automáticamente al completar un corte (uno o varios colores)
   const descontarInventario = (corte: Corte): boolean => {
     if (!corte.telaId) return true;
+    // Guard: si ya existe un movimiento A_CORTE para este corteId, no duplicar
+    const yaDescontado = movimientosTela.some(m => m.corteId === corte.id && m.tipo === 'A_CORTE');
+    if (yaDescontado) {
+      addToast(`El corte ${corte.nCorte} ya fue descontado del inventario`, 'error');
+      return false;
+    }
     const telaId = normalizeTelaId(corte.telaId);
     const detalles = corte.coloresDetalle && corte.coloresDetalle.length > 0
       ? corte.coloresDetalle
@@ -307,7 +288,7 @@ export function Cortes() {
       const stockDespues = stockAntes - det.rollosUsados;
       const color = colores.find(c => c.id === colorId);
       const mov: MovimientoTela = {
-        id: uid(),
+        id: newId(),
         fecha: corte.fecha,
         tipo: 'A_CORTE',
         clienteId: corte.clienteId,
@@ -337,8 +318,8 @@ export function Cortes() {
       addToast('Completa nCorte, cliente, producto y al menos un color', 'error');
       return;
     }
-    if (isNaN(parseInt(form.nCorte)) || parseInt(form.nCorte) <= 0) {
-      addToast('N° Corte debe ser un número entero positivo', 'error');
+    if (!/^\d+[A-Za-z]?$/.test(form.nCorte.trim()) || parseInt(form.nCorte) <= 0) {
+      addToast('N° Corte debe ser un número, con letra opcional al final (ej: 100 ó 100A)', 'error');
       return;
     }
 
@@ -376,7 +357,7 @@ export function Cortes() {
     const primerColor = coloresDetalle[0];
 
     const corte: Corte = {
-      id: uid(),
+      id: newId(),
       nCorte: form.nCorte,
       fecha: form.fecha,
       clienteId: form.clienteId,
@@ -676,17 +657,21 @@ export function Cortes() {
                         <div className="flex flex-col gap-1">
                           {c.estado === 'EN_PROCESO' && (
                             <button
+                              disabled={completandoId === c.id}
                               onClick={() => {
+                                if (completandoId === c.id) return;
                                 const totalPrendas = (c.cantS ?? 0) + (c.cantM ?? 0) + (c.cantL ?? 0) + (c.cantXL ?? 0);
                                 if (totalPrendas === 0) { addToast('El corte no tiene prendas registradas', 'error'); return; }
+                                setCompletandoId(c.id);
                                 const ok = descontarInventario(c);
-                                if (!ok) return;
+                                if (!ok) { setCompletandoId(null); return; }
                                 updateCorte(c.id, { estado: 'COMPLETADO' });
                                 crearFilasSeguimiento(c);
                                 addToast(`Corte ${c.nCorte} completado — inventario descontado y seguimiento creado`, 'success');
+                                setTimeout(() => setCompletandoId(null), 2000);
                               }}
-                              className="text-[10px] font-bold uppercase text-blue-600 hover:text-blue-800 whitespace-nowrap"
-                            >Completar</button>
+                              className="text-[10px] font-bold uppercase text-blue-600 hover:text-blue-800 whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
+                            >{completandoId === c.id ? 'Guardando…' : 'Completar'}</button>
                           )}
                           {(c.estado === 'EN_PROCESO' || c.estado === 'COMPLETADO') && (
                             <button
@@ -787,7 +772,7 @@ export function Cortes() {
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div className="grid grid-cols-3 gap-4">
-                <F label="N° Corte"><input type="number" min={1} step={1} value={form.nCorte} onChange={set('nCorte')} className="input-base" required /></F>
+                <F label="N° Corte"><input type="text" placeholder="Ej: 100 ó 100A" value={form.nCorte} onChange={set('nCorte')} className="input-base" required /></F>
                 <F label="Fecha"><input type="date" value={form.fecha} onChange={set('fecha')} className="input-base" required /></F>
                 <F label="Cliente">
                   <select value={form.clienteId} onChange={set('clienteId')} className="input-base" required>
@@ -1114,16 +1099,16 @@ export function Cortes() {
                                         <button
                                           type="button"
                                           onClick={() => {
-                                            const newId = uid();
+                                            const colorId = newId();
                                             const pS  = parseInt(tonProps.propS)  || 0;
                                             const pM  = parseInt(tonProps.propM)  || 0;
                                             const pL  = parseInt(tonProps.propL)  || 0;
                                             const pXL = parseInt(tonProps.propXL) || 0;
                                             const pcData = (tieneProducto && (pS > 0 || pM > 0 || pL > 0 || pXL > 0))
-                                              ? { id: uid(), productoId: form.productoId, propS: pS, propM: pM, propL: pL, propXL: pXL }
+                                              ? { id: newId(), productoId: form.productoId, propS: pS, propM: pM, propL: pL, propXL: pXL }
                                               : null;
                                             addColorConProductoColor(
-                                              { id: newId, nombre: nuevoNombre, categoria: baseColor?.categoria ?? 'OSCURO', prioridad: baseColor?.prioridad ?? 99, notas: '' },
+                                              { id: colorId, nombre: nuevoNombre, categoria: baseColor?.categoria ?? 'OSCURO', prioridad: baseColor?.prioridad ?? 99, notas: '' },
                                               pcData
                                             );
                                             addToast(`Color "${capWords(nuevoNombre)}" creado — selecciónalo en el dropdown`, 'success');

@@ -7,8 +7,7 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import { useToast } from '../components/ToastProvider';
 import type { CategoriaColor, TipoServicioTint } from '../types';
 import { TIPOS_COMPLEMENTO_LIST } from '../types';
-
-const uid = () => crypto.randomUUID();
+import { newId } from '../lib/storage';
 
 type Seccion = 'operacion' | 'telas' | 'complementos' | 'tejeduria' | 'tintoreria';
 
@@ -142,9 +141,9 @@ export function TablaTarifas() {
   // ── Handlers ─────────────────────────────────────────────────────────────────
   const handleAddInlineProd = () => {
     if (!inlineProd.nombre.trim()) { addToast('Nombre requerido', 'error'); return; }
-    const newId = uid();
-    addProducto({ id: newId, nombre: inlineProd.nombre.trim(), marca: inlineProd.marca || undefined, costoMoTotal: 0, precioServicio: 0, notas: '' });
-    setTarifaForm(f => ({ ...f, productoId: newId }));
+    const generatedId = newId();
+    addProducto({ id: generatedId, nombre: inlineProd.nombre.trim(), marca: inlineProd.marca || undefined, costoMoTotal: 0, precioServicio: 0, notas: '' });
+    setTarifaForm(f => ({ ...f, productoId: generatedId }));
     addToast('Producto creado', 'success');
     setShowInlineProd(false);
     setInlineProd({ nombre: '', marca: '' });
@@ -152,9 +151,9 @@ export function TablaTarifas() {
 
   const handleAddInlineTela = () => {
     if (!inlineTela.nombre.trim()) { addToast('Nombre requerido', 'error'); return; }
-    const newId = uid();
-    addTela({ id: newId, nombre: inlineTela.nombre.trim(), composicion: inlineTela.composicion, kgPorRollo: parseFloat(inlineTela.kgPorRollo) || 20, notas: '' });
-    setPrecioTelaForm(f => ({ ...f, telaId: newId }));
+    const generatedId = newId();
+    addTela({ id: generatedId, nombre: inlineTela.nombre.trim(), composicion: inlineTela.composicion, kgPorRollo: parseFloat(inlineTela.kgPorRollo) || 20, notas: '' });
+    setPrecioTelaForm(f => ({ ...f, telaId: generatedId }));
     addToast('Tela creada', 'success');
     setShowInlineTela(false);
     setInlineTela({ nombre: '', composicion: '', kgPorRollo: '20' });
@@ -166,7 +165,7 @@ export function TablaTarifas() {
     const prod  = productos.find(p => p.id === tarifaForm.productoId);
     const orden = parseInt(tarifaForm.orden) || 1;
     addTarifaOperacion({
-      id: uid(), productoId: tarifaForm.productoId, orden,
+      id: newId(), productoId: tarifaForm.productoId, orden,
       operacion: tarifaForm.operacion,
       tarifa:    parseFloat(tarifaForm.tarifa) || 0,
       notas:     tarifaForm.notas,
@@ -184,7 +183,7 @@ export function TablaTarifas() {
     if (!precioTelaForm.telaId) { addToast('Tela requerida', 'error'); return; }
     const existe = preciosTelas.find(p => p.telaId === precioTelaForm.telaId && p.categoriaColor === precioTelaForm.categoriaColor);
     if (existe) { addToast('Ya existe ese precio, edítalo en la tabla', 'error'); return; }
-    addPrecioTela({ id: uid(), telaId: precioTelaForm.telaId, categoriaColor: precioTelaForm.categoriaColor, precioKg: parseFloat(precioTelaForm.precioKg) || 0 });
+    addPrecioTela({ id: newId(), telaId: precioTelaForm.telaId, categoriaColor: precioTelaForm.categoriaColor, precioKg: parseFloat(precioTelaForm.precioKg) || 0 });
     addToast('Precio de tela agregado', 'success');
     setShowPrecioTelaForm(false);
     setPrecioTelaForm({ telaId: '', categoriaColor: 'OSCURO', precioKg: '' });
@@ -196,7 +195,7 @@ export function TablaTarifas() {
     const existe = preciosTintoreria.find(p => p.tipoServicio === tintForm.tipoServicio && p.tipoTela.toLowerCase() === tintForm.tipoTela.toLowerCase());
     if (existe) { addToast('Ya existe ese precio, edítalo en la tabla', 'error'); return; }
     addPrecioTintoreria({
-      id: uid(),
+      id: newId(),
       tipoServicio: tintForm.tipoServicio,
       tipoTela: tintForm.tipoTela.trim(),
       precioKg: parseFloat(tintForm.precioKg) || 0,
@@ -211,7 +210,7 @@ export function TablaTarifas() {
   const handleAddTejido = (e: React.FormEvent) => {
     e.preventDefault();
     if (!tejForm.tipoTejido) { addToast('Tipo de tejido requerido', 'error'); return; }
-    addPrecioTejeduria({ id: uid(), tipoTejido: tejForm.tipoTejido, precioKg: parseFloat(tejForm.precioKg) || 0 });
+    addPrecioTejeduria({ id: newId(), tipoTejido: tejForm.tipoTejido, precioKg: parseFloat(tejForm.precioKg) || 0 });
     addToast('Precio de tejeduría agregado', 'success');
     setShowTejForm(false);
     setTejForm({ tipoTejido: '', precioKg: '' });
@@ -231,7 +230,7 @@ export function TablaTarifas() {
     ];
     precios.forEach(({ talla, valor }) => {
       if (!getPrecioComp(tipo, origen, talla)) {
-        addPrecioComplemento({ id: uid(), clave: `${tipo}_${origen}`, tipo, origen, talla, precio: valor });
+        addPrecioComplemento({ id: newId(), clave: `${tipo}_${origen}`, tipo, origen, talla, precio: valor });
       }
     });
     addToast(`Complemento ${tipo} / ${origen} agregado`, 'success');
@@ -438,7 +437,7 @@ export function TablaTarifas() {
                                   onClick={() => {
                                     const nextOrden = tarifas.length + 1;
                                     addTarifaOperacion({
-                                      id: uid(), productoId: prod.id, orden: nextOrden,
+                                      id: newId(), productoId: prod.id, orden: nextOrden,
                                       operacion: 'NUEVA OPERACIÓN', tarifa: 0, notas: '',
                                       clave: `${prod.nombre}|${nextOrden}`,
                                     });

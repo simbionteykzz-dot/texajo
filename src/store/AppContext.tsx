@@ -336,8 +336,33 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   useEffect(() => {
     if (!dbReady) return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch { /* ignorar */ }
+      const serialized = JSON.stringify(state);
+      // localStorage tiene límite ~5MB; ~4MB es el umbral seguro
+      if (serialized.length > 4 * 1024 * 1024) {
+        // Guardar solo datos operacionales (catálogos se recargan desde Supabase)
+        const slim = {
+          movimientosTela:        state.movimientosTela,
+          cortes:                 state.cortes,
+          seguimientoFilas:       state.seguimientoFilas,
+          boletaLineas:           state.boletaLineas,
+          descuentosBoleta:       state.descuentosBoleta,
+          movimientosComplemento: state.movimientosComplemento,
+          programasZurzam:        state.programasZurzam,
+          programaDetalles:       state.programaDetalles,
+          comprasHilo:            state.comprasHilo,
+          stockExtornos:          state.stockExtornos,
+          cobrosDiarios:          state.cobrosDiarios,
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(slim));
+      } else {
+        localStorage.setItem(STORAGE_KEY, serialized);
+      }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'QuotaExceededError') {
+        console.warn('[localStorage] Quota excedida — limpiando caché local');
+        localStorage.removeItem(STORAGE_KEY);
+      }
+    }
   }, [state, dbReady]);
 
   // ── Helper de mutación: actualiza estado local + persiste en Supabase ────
@@ -381,17 +406,24 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     dbUpdate: (id: string, updates: Partial<T>, cur: T) => Promise<void>
   ) {
     return (id: string, updates: Partial<T>) => {
-      // Leer cur del estado actual del cierre (snapshot síncrono antes del setState)
-      const arr = (state[field] as unknown) as T[];
-      const cur = arr.find(x => x.id === id);
-      set(p => ({ ...p, [field]: (p[field] as unknown as T[]).map(x => x.id === id ? { ...x, ...updates } : x) as AppState[typeof field] }));
+      let cur: T | undefined;
+      // Leer cur dentro del setter para evitar stale closure snapshot
+      set(p => {
+        cur = (p[field] as unknown as T[]).find(x => x.id === id);
+        return { ...p, [field]: (p[field] as unknown as T[]).map(x => x.id === id ? { ...x, ...updates } : x) as AppState[typeof field] };
+      });
+      // cur se asigna de forma síncrona dentro del setter antes de que el state flush
       if (cur) {
         const entidad = FIELD_TO_TABLE[field] ?? String(field);
-        dbUpdate(id, updates, cur).catch(err => logDbError('UPDATE', field, err));
-        auditLog('UPDATE', entidad, id, describeRecord(entidad, cur as Record<string, unknown>),
-          cur as Record<string, unknown>,
-          { ...cur, ...updates } as Record<string, unknown>
+        const curSnap = cur;
+        dbUpdate(id, updates, curSnap).catch(err => logDbError('UPDATE', field, err));
+        auditLog('UPDATE', entidad, id, describeRecord(entidad, curSnap as Record<string, unknown>),
+          curSnap as Record<string, unknown>,
+          { ...curSnap, ...updates } as Record<string, unknown>
         );
+      } else {
+        // ID no existe en el array — el update local ya se ejecutó sin cambios, pero Supabase no fue llamado
+        logDbError('UPDATE', field, new Error(`ID "${id}" no encontrado en ${String(field)} — Supabase no fue actualizado`));
       }
     };
   }
@@ -468,7 +500,11 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   const addBoletaLinea = makeAdd<BoletaLinea>('boletaLineas', db.boletaLineas.add);
   const addBoletaLineas = (bs: BoletaLinea[]) => {
     set(p => ({ ...p, boletaLineas: [...p.boletaLineas, ...bs] }));
-    bs.forEach(b => db.boletaLineas.add(b).catch(console.error));
+    bs.forEach(b => {
+      db.boletaLineas.add(b).catch(err => logDbError('INSERT', 'boletaLineas', err));
+      const rec = b as unknown as Record<string, unknown>;
+      auditLog('CREATE', 'boleta_lineas', String(b.id), describeRecord('boleta_lineas', rec), undefined, rec);
+    });
   };
   const updateBoletaLinea = makeUpdate<BoletaLinea>('boletaLineas', db.boletaLineas.update);
   const deleteBoletaLinea = makeDelete('boletaLineas', db.boletaLineas.delete);
@@ -486,13 +522,28 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   const addPrograma = makeAdd<ProgramaZurzam>('programasZurzam', db.programasZurzam.add);
   const updatePrograma = makeUpdate<ProgramaZurzam>('programasZurzam', db.programasZurzam.update);
   const deletePrograma = (id: string) => {
-    set(p => ({
-      ...p,
-      programasZurzam: p.programasZurzam.filter(x => x.id !== id),
-      programaDetalles: p.programaDetalles.filter(x => x.programaId !== id),
-      comprasHilo: p.comprasHilo.filter(x => x.programaId !== id),
-    }));
-    db.programasZurzam.delete(id).catch(console.error);
+    let cur: { id: string } | undefined;
+    set(p => {
+      cur = p.programasZurzam.find(x => x.id === id);
+      return {
+        ...p,
+        programasZurzam:  p.programasZurzam.filter(x => x.id !== id),
+        programaDetalles: p.programaDetalles.filter(x => x.programaId !== id),
+        comprasHilo:      p.comprasHilo.filter(x => x.programaId !== id),
+        stockExtornos:    p.stockExtornos.filter(x => x.programaId !== id),
+      };
+    });
+    // Eliminar dependientes en Supabase antes del padre para evitar FK violations
+    Promise.all([
+      supabase.from('programa_detalles').delete().eq('programa_id', id),
+      supabase.from('compras_hilo').delete().eq('programa_id', id),
+      supabase.from('stock_extornos').delete().eq('programa_id', id),
+    ])
+      .then(() => db.programasZurzam.delete(id))
+      .catch(err => logDbError('DELETE cascade', 'programasZurzam', err));
+    if (cur) {
+      auditLog('DELETE', 'programas_zurzam', id, describeRecord('programas_zurzam', cur as Record<string, unknown>), cur as Record<string, unknown>, undefined);
+    }
   };
 
   const addProgramaDetalle = makeAdd<ProgramaDetalle>('programaDetalles', db.programaDetalles.add);
@@ -556,12 +607,22 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   const addProducto = makeAdd<Producto>('productos', db.productos.add);
   const updateProducto = makeUpdate<Producto>('productos', db.productos.update);
   const deleteProducto = (id: string) => {
-    set(p => ({
-      ...p,
-      productos: p.productos.filter(x => x.id !== id),
-      tarifasOperaciones: p.tarifasOperaciones.filter(x => x.productoId !== id),
-    }));
-    db.productos.delete(id).catch(console.error);
+    let cur: { id: string } | undefined;
+    set(p => {
+      cur = p.productos.find(x => x.id === id);
+      return {
+        ...p,
+        productos:          p.productos.filter(x => x.id !== id),
+        tarifasOperaciones: p.tarifasOperaciones.filter(x => x.productoId !== id),
+      };
+    });
+    // Eliminar tarifas antes del producto para evitar FK violations
+    Promise.resolve(supabase.from('tarifas_operaciones').delete().eq('producto_id', id))
+      .then(() => db.productos.delete(id))
+      .catch(err => logDbError('DELETE cascade', 'productos', err));
+    if (cur) {
+      auditLog('DELETE', 'productos', id, describeRecord('productos', cur as Record<string, unknown>), cur as Record<string, unknown>, undefined);
+    }
   };
 
   const addTarifaOperacion = makeAdd<TarifaOperacion>('tarifasOperaciones', db.tarifasOperaciones.add);

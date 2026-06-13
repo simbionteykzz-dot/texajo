@@ -7,8 +7,7 @@ import { SeguimientoFila, SeguimientoAsignacion } from '../types';
 import { ModuleInfoBox } from '../components/ModuleInfoBox';
 import { exportRowsToXlsx, exportTableToPdf, exportHojaSeguimientoPdf, exportHojaSeguimientoXlsx } from '../lib/export';
 import type { PdfFont } from '../lib/fonts';
-
-const uid = () => crypto.randomUUID();
+import { newId } from '../lib/storage';
 
 // Paleta exacta por nombre (coincidencia exacta primero, luego parcial)
 const COLOR_PALETTE: Record<string, string> = {
@@ -236,32 +235,123 @@ export function ProduccionConfeccion() {
       f.id === fila.id ? { ...f, asignaciones, pctAvance, estado } : f
     );
 
-    // Por cada tarifa: si confirmada → upsert boleta por cada operario con su cantidad; si no → eliminar
+    // Por cada tarifa: recalcular la boleta sumando SOLO las tallas confirmadas para esa tarifa en este color
     for (const t of tarifasCorte) {
-      if (avanceOps[t.id]) {
-        const ops = (avanceOpsIds[t.id] ?? []).filter(o => o.operarioId && o.cantidad > 0);
-        if (ops.length === 0) {
-          // Sin operario asignado en modal, usar el global
-          const opId = fila.asignaciones.find(a => a.tarifaId === t.id)?.operarioId ?? '';
-          if (opId) upsertBoletaLinea(opId, corteId, t.id, periodo, filasActualizadas, fila.cantidad);
+      // Eliminar siempre las boletas previas de esta tarifa+color para reconstruir desde cero
+      boletaLineas
+        .filter(b => b.corteId === corteId && b.tarifaId === t.id && b.periodo === periodo && b.colorId === colorId)
+        .forEach(b => deleteBoletaLinea(b.id));
+
+      // Recolectar todas las tallas confirmadas para esta tarifa en este color (incluyendo la talla recién guardada)
+      const filasColorConfirmadas = filasActualizadas.filter(f =>
+        f.corteId === corteId &&
+        f.colorId === colorId &&
+        f.asignaciones.some(a => a.tarifaId === t.id && a.confirmado === true)
+      );
+
+      if (filasColorConfirmadas.length === 0) continue;
+
+      // Agrupar cantidades por operario (sumando sus tallas confirmadas)
+      const cantPorOperario = new Map<string, number>();
+      for (const filaConf of filasColorConfirmadas) {
+        const asig = filaConf.asignaciones.find(a => a.tarifaId === t.id);
+        if (!asig) continue;
+        const idsOps = asig.operarioIds?.length ? asig.operarioIds : (asig.operarioId ? [asig.operarioId] : []);
+        if (idsOps.length === 0) continue;
+        if (idsOps.length === 1) {
+          // Un solo operario: toda la cantidad de esta talla
+          const opId = idsOps[0];
+          cantPorOperario.set(opId, (cantPorOperario.get(opId) ?? 0) + filaConf.cantidad);
         } else {
-          // Eliminar boletas previas de esta tarifa+talla y recrear con cantidades individuales
-          boletaLineas
-            .filter(b => b.corteId === corteId && b.tarifaId === t.id && b.periodo === periodo && b.colorId === colorId)
-            .forEach(b => deleteBoletaLinea(b.id));
-          for (const op of ops) {
-            upsertBoletaLinea(op.operarioId, corteId, t.id, periodo, filasActualizadas, op.cantidad);
+          // Múltiples operarios: distribuir proporcionalmente según avanceOpsIds si es la talla actual,
+          // o equitativamente para tallas ya confirmadas previamente
+          const esTallaActual = filaConf.id === fila.id;
+          if (esTallaActual) {
+            for (const op of (avanceOpsIds[t.id] ?? []).filter(o => o.operarioId && o.cantidad > 0)) {
+              cantPorOperario.set(op.operarioId, (cantPorOperario.get(op.operarioId) ?? 0) + op.cantidad);
+            }
+          } else {
+            const base = Math.floor(filaConf.cantidad / idsOps.length);
+            const resto = filaConf.cantidad - base * idsOps.length;
+            idsOps.forEach((opId, i) => {
+              cantPorOperario.set(opId, (cantPorOperario.get(opId) ?? 0) + base + (i === 0 ? resto : 0));
+            });
           }
         }
-      } else {
-        boletaLineas
-          .filter(b => b.corteId === corteId && b.tarifaId === t.id && b.periodo === periodo && b.colorId === colorId)
-          .forEach(b => deleteBoletaLinea(b.id));
+      }
+
+      // Crear una boleta por operario con la suma acumulada de sus tallas confirmadas
+      for (const [opId, cantTotal] of cantPorOperario) {
+        if (cantTotal === 0) continue;
+        const tarifa = tarifasOperaciones.find(tt => tt.id === t.id);
+        if (!tarifa) continue;
+        const referenciaFila = filasActualizadas.find(f => f.corteId === corteId && f.colorId === colorId);
+        if (!referenciaFila) continue;
+        addBoletaLinea({
+          id: newId(), operarioId: opId, corteId, nCorte: referenciaFila.nCorte,
+          productoId: referenciaFila.productoId, colorId, tarifaId: t.id,
+          operacion: tarifa.operacion, orden: tarifa.orden, tarifa: tarifa.tarifa,
+          cantPrendas: cantTotal, importe: cantTotal * tarifa.tarifa,
+          periodo, estadoPago: 'PENDIENTE',
+        });
       }
     }
 
     setModalAvance(null);
     addToast(estado === 'LISTO' ? `Talla ${talla} marcada como LISTO` : `Talla ${talla}: avance ${pctAvance}%`, 'success');
+  };
+
+  // Reconstruye desde cero todas las boletas de un corte+color basándose en el estado confirmado actual
+  const reconstruirBoletasColor = (corteId: string, colorId: string) => {
+    const tarifasCorte = tarifasDelCorte(corteId);
+    const filasColor = seguimientoFilas.filter(f => f.corteId === corteId && f.colorId === colorId);
+    if (filasColor.length === 0) return;
+    const periodo = filasColor[0].fecha.slice(0, 7);
+
+    for (const t of tarifasCorte) {
+      // Eliminar todas las boletas existentes de esta tarifa+color
+      boletaLineas
+        .filter(b => b.corteId === corteId && b.tarifaId === t.id && b.periodo === periodo && b.colorId === colorId)
+        .forEach(b => deleteBoletaLinea(b.id));
+
+      // Solo incluir tallas que tienen esa operación confirmada
+      const filasConfirmadas = filasColor.filter(f =>
+        f.asignaciones.some(a => a.tarifaId === t.id && a.confirmado === true)
+      );
+      if (filasConfirmadas.length === 0) continue;
+
+      const cantPorOperario = new Map<string, number>();
+      for (const filaConf of filasConfirmadas) {
+        const asig = filaConf.asignaciones.find(a => a.tarifaId === t.id);
+        if (!asig) continue;
+        const idsOps = asig.operarioIds?.length ? asig.operarioIds : (asig.operarioId ? [asig.operarioId] : []);
+        if (idsOps.length === 0) continue;
+        if (idsOps.length === 1) {
+          cantPorOperario.set(idsOps[0], (cantPorOperario.get(idsOps[0]) ?? 0) + filaConf.cantidad);
+        } else {
+          const base = Math.floor(filaConf.cantidad / idsOps.length);
+          const resto = filaConf.cantidad - base * idsOps.length;
+          idsOps.forEach((opId, i) => {
+            cantPorOperario.set(opId, (cantPorOperario.get(opId) ?? 0) + base + (i === 0 ? resto : 0));
+          });
+        }
+      }
+
+      for (const [opId, cantTotal] of cantPorOperario) {
+        if (cantTotal === 0) continue;
+        const tarifa = tarifasOperaciones.find(tt => tt.id === t.id);
+        if (!tarifa) continue;
+        const referenciaFila = filasColor[0];
+        addBoletaLinea({
+          id: newId(), operarioId: opId, corteId, nCorte: referenciaFila.nCorte,
+          productoId: referenciaFila.productoId, colorId, tarifaId: t.id,
+          operacion: tarifa.operacion, orden: tarifa.orden, tarifa: tarifa.tarifa,
+          cantPrendas: cantTotal, importe: cantTotal * tarifa.tarifa,
+          periodo, estadoPago: 'PENDIENTE',
+        });
+      }
+    }
+    addToast('Boletas recalculadas', 'success');
   };
 
   // Cantidades por color agrupado: { [colorId]: { S, M, L, XL } }
@@ -316,6 +406,7 @@ export function ProduccionConfeccion() {
   };
 
   // Upserta una BoletaLinea para un operario. cantOverride fuerza una cantidad específica (para división entre operarios).
+  // colorIdOverride es obligatorio cuando se usa cantOverride para apuntar al color correcto de la talla confirmada.
   const upsertBoletaLinea = (
     operarioId: string,
     corteId: string,
@@ -323,17 +414,20 @@ export function ProduccionConfeccion() {
     periodo: string,
     filasActualizadas: SeguimientoFila[],
     cantOverride?: number,
+    colorIdOverride?: string,
   ) => {
     const tarifa = tarifasOperaciones.find(t => t.id === tarifaId);
     if (!tarifa) return;
 
     if (cantOverride !== undefined) {
-      // Cantidad explícita: operar directamente sobre el colorId del color activo
-      const primeraFila = filasActualizadas.find(f => f.corteId === corteId && f.fecha.slice(0, 7) === periodo);
-      if (!primeraFila) return;
-      const colorId = primeraFila.colorId;
+      // Cantidad explícita: usar el colorId del modal, no el de la primera fila del periodo
+      const colorId = colorIdOverride
+        ?? filasActualizadas.find(f => f.corteId === corteId && f.fecha.slice(0, 7) === periodo)?.colorId;
+      if (!colorId) return;
       const cantTotal = cantOverride;
       if (cantTotal === 0) return;
+      const referenciaFila = filasActualizadas.find(f => f.corteId === corteId && f.colorId === colorId);
+      if (!referenciaFila) return;
       const existente = boletaLineas.find(
         b => b.operarioId === operarioId && b.corteId === corteId &&
              b.tarifaId === tarifaId && b.periodo === periodo && b.colorId === colorId
@@ -342,8 +436,8 @@ export function ProduccionConfeccion() {
         updateBoletaLinea(existente.id, { cantPrendas: cantTotal, importe: cantTotal * tarifa.tarifa });
       } else {
         addBoletaLinea({
-          id: uid(), operarioId, corteId, nCorte: primeraFila.nCorte,
-          productoId: primeraFila.productoId, colorId, tarifaId,
+          id: newId(), operarioId, corteId, nCorte: referenciaFila.nCorte,
+          productoId: referenciaFila.productoId, colorId, tarifaId,
           operacion: tarifa.operacion, orden: tarifa.orden, tarifa: tarifa.tarifa,
           cantPrendas: cantTotal, importe: cantTotal * tarifa.tarifa,
           periodo, estadoPago: 'PENDIENTE',
@@ -356,7 +450,10 @@ export function ProduccionConfeccion() {
     const cantPorColor = new Map<string, number>();
     for (const f of filasActualizadas) {
       if (f.corteId !== corteId || f.fecha.slice(0, 7) !== periodo) continue;
-      const asig = f.asignaciones.find(a => a.tarifaId === tarifaId && a.operarioId === operarioId);
+      const asig = f.asignaciones.find(a =>
+        a.tarifaId === tarifaId &&
+        (a.operarioId === operarioId || (a.operarioIds ?? []).includes(operarioId))
+      );
       if (asig) cantPorColor.set(f.colorId, (cantPorColor.get(f.colorId) ?? 0) + f.cantidad);
     }
 
@@ -372,7 +469,7 @@ export function ProduccionConfeccion() {
         const primeraFila = filasActualizadas.find(f => f.corteId === corteId && f.colorId === colorId);
         if (!primeraFila) continue;
         addBoletaLinea({
-          id: uid(), operarioId, corteId, nCorte: primeraFila.nCorte,
+          id: newId(), operarioId, corteId, nCorte: primeraFila.nCorte,
           productoId: primeraFila.productoId, colorId, tarifaId,
           operacion: tarifa.operacion, orden: tarifa.orden, tarifa: tarifa.tarifa,
           cantPrendas: cantTotal, importe: cantTotal * tarifa.tarifa,
@@ -440,7 +537,7 @@ export function ProduccionConfeccion() {
         const pctAvance = asignaciones.length > 0 ? Math.round((assignedCount / asignaciones.length) * 100) : 0;
         const totalPago = asignaciones.reduce((s, a) => s + a.pago, 0);
         addSeguimientoFila({
-          id: uid(),
+          id: newId(),
           corteId: form.corteId,
           nCorte: corte.nCorte,
           productoId: corte.productoId,
@@ -834,14 +931,30 @@ export function ProduccionConfeccion() {
                                 const primerFila = grupo.filas[0];
                                 const asignados = primerFila.asignaciones.filter(a => a.operarioId).length;
                                 const totalOps = primerFila.asignaciones.length;
-                                return grupo.filas.map((fila, idx) => (
-                                  <tr key={fila.id} className={`hover:bg-gray-50 ${idx < grupo.filas.length - 1 ? 'border-b border-dashed border-gray-100' : 'border-b border-gray-200'}`}>
+                                return grupo.filas.map((fila, idx) => {
+                                  const rowBg = fila.estado === 'LISTO'
+                                    ? 'bg-green-50 hover:bg-green-100'
+                                    : fila.pctAvance > 0
+                                      ? 'bg-amber-50 hover:bg-amber-100'
+                                      : 'bg-red-50 hover:bg-red-100';
+                                  return (
+                                  <tr key={fila.id} className={`${rowBg} ${idx < grupo.filas.length - 1 ? 'border-b border-dashed border-gray-100' : 'border-b border-gray-200'}`}>
                                     {idx === 0 && (
                                       <td
                                         className="px-3 py-2 font-black whitespace-nowrap align-middle"
                                         rowSpan={grupo.filas.length}
                                       >
-                                        {colorMap.get(grupo.colorId) ?? grupo.colorId}
+                                        <div className="flex flex-col gap-1 items-start">
+                                          <span>{colorMap.get(grupo.colorId) ?? grupo.colorId}</span>
+                                          <button
+                                            onClick={() => reconstruirBoletasColor(corte.id, grupo.colorId)}
+                                            className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest text-blue-600 border border-blue-200 bg-blue-50 px-1.5 py-0.5 rounded hover:bg-blue-100 whitespace-nowrap"
+                                            title="Recalcular boletas de destajo para este color, solo tallas confirmadas"
+                                          >
+                                            <RotateCcw className="h-2.5 w-2.5" />
+                                            Recalcular
+                                          </button>
+                                        </div>
                                       </td>
                                     )}
                                     {idx === 0 && (
@@ -910,8 +1023,9 @@ export function ProduccionConfeccion() {
                                       )}
                                     </td>
                                   </tr>
-                                ));
-                              })}
+                                  );
+                                })}
+                              )}
                             </tbody>
                           </table>
                           </div>

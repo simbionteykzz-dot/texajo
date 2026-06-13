@@ -12,53 +12,70 @@ import type {
   MovimientoComplemento, PrecioTintoreria, ProductoColor,
 } from '../types';
 
+// ─── Tipos fila DB (snake_case) ──────────────────────────────────────────────
+// Permiten que TypeScript detecte en compilación si una columna se renombra.
+
+type TallaDB         = 'S' | 'M' | 'L' | 'XL';
+type CategoriaDB     = 'OSCURO' | 'CLARO' | 'MELANGE' | 'PPT';
+type TipoProvDB      = 'TELA' | 'COMPLEMENTO' | 'HILO' | 'SERVICIO' | 'ZURZAM';
+type TipoMovTelaDB   = 'INGRESO' | 'A_CORTE' | 'A_REPROCESO' | 'DE_REPROCESO' | 'MUESTRA' | 'AJUSTE_POS' | 'AJUSTE_NEG';
+type TipoServTintDB  = 'REACTIVO' | 'DIRECTO' | 'PPT' | 'LAVADO' | 'TERMOFIJADO' | 'COMPACTADO_EN_RAMA';
+type MonedaDB        = 'PEN' | 'USD';
+type EstadoPagoGenDB = 'PENDIENTE' | 'PAGADO';
+type EstadoProgramaDB = 'NUEVO' | 'EN_COMPRA' | 'EN_TEJEDURIA' | 'EN_TINTORERIA' | 'EN_PLANTA' | 'CERRADO';
+type TipoDescDB      = 'ADELANTO' | 'DESCUENTO' | 'MULTA' | 'OTRO';
+type TipoMovComplDB  = 'INGRESO' | 'A_CORTE' | 'DE_CORTE' | 'MUESTRA' | 'AJUSTE_POS' | 'AJUSTE_NEG';
+
+interface DbCliente        { id: number; nombre: string; contacto: string | null; notas: string | null }
+interface DbProveedor      { id: number; nombre: string; ruc: string | null; contacto: string | null; tipo: TipoProvDB }
+interface DbTela           { id: number; nombre: string; composicion: string | null; kg_por_rollo: number; notas: string | null }
+interface DbColor          { id: number; nombre: string; categoria: CategoriaDB; prioridad: number; notas: string | null }
+interface DbPrecioTela     { id: number; tela_id: number; categoria: CategoriaDB | null; categoria_color: CategoriaDB | null; precio_kg: number }
+interface DbPrecioCompl    { id: number; clave: string; tipo: string; origen: string; talla: TallaDB; precio: number }
+interface DbPrecioTej      { id: number; tipo_tejido: string; precio_kg: number }
+interface DbPrecioTint     { id: number; tipo_servicio: TipoServTintDB; tipo_tela: string; precio_kg: number; moneda: MonedaDB; notas: string | null }
+interface DbProducto       { id: number; nombre: string; marca: string | null; costo_mo: number | null; precio_venta: number | null; tela_id: number | null; limite_consumo: number | null; limite_rendimiento: number | null; prop_s: number | null; prop_m: number | null; prop_l: number | null; prop_xl: number | null; notas: string | null }
+interface DbTarifa         { id: number; producto_id: number; orden: number; operacion: string; tarifa: number; notas: string | null; clave: string | null }
+interface DbOperario       { id: number; codigo: string; nombre_completo: string; estado: 'ACTIVO' | 'INACTIVO' | null; activo: boolean | null; dni: string | null; telefono: string | null; modulo: string | null; maquina: string | null; fecha_ingreso: string | null }
+interface DbMovTela        { id: number; fecha: string; tipo: TipoMovTelaDB; cliente_id: number | null; tela_id: number; color_id: number; rollos: number; kg_total: number; categoria_color: CategoriaDB; precio_kg: number; total_soles: number; stock_rollos_antes: number; stock_rollos_despues: number; responsable: string; proveedor_id: number | null; n_factura: string | null; costo_real_fact: number | null; corte_id: number | null; n_corte: number | null; notas: string }
+interface DbCorte          { id: number; n_corte: number; fecha: string; cliente_id: number; producto_id: number; color_id: number; tonalidad: string | null; colores_detalle: unknown | null; tela_id: number | null; cortador: string; ayudante: string; tendedor: string | null; kg_usados: number; rollos_usados: number; tendidas: number; mts_por_tendida: number; ancho_cm: number | null; ancho: number | null; cant_s: number; cant_m: number; cant_l: number; cant_xl: number; total_prendas: number; consumo: number; rendimiento: number; revision: boolean | string | null; traslado: boolean | null; estado: 'EN_PROCESO' | 'COMPLETADO' | 'ANULADO' | null; pago_cliente: number | string | null; pago_planilla: number | string | null; costo_mo_corte: number | null; notas: string | null }
+interface DbSeguimiento    { id: number; corte_id: number; n_corte: string; producto_id: number; fecha: string; color_id: number; talla: TallaDB; cantidad: number; asignaciones: unknown | null; pct_avance: number | null; porcentaje_avance: number | null; estado: string; total_pago: number }
+interface DbBoletaLinea    { id: number; operario_id: number; corte_id: number | null; n_corte: number | string | null; producto_id: number | null; color_id: number | null; tarifa_id: number | null; operacion: string | null; orden: number | null; tarifa: number | null; cant_prendas: number | null; importe: number | null; periodo: string | null; fecha_registro: string | null; estado_pago: EstadoPagoGenDB | null; fecha_pago: string | null }
+interface DbDescuento      { id: number; operario_id: number; periodo: string; tipo: string; monto: number; notas: string }
+interface DbPrograma       { id: number; nombre: string; fecha: string; cliente_id: number; rollos_objetivo: number; kg_objetivo: number; estado: EstadoProgramaDB; comision_jose: number; estado_pago_comision: EstadoPagoGenDB | null; dias_entrega: number; notas: string | null }
+interface DbDetalle        { id: number; programa_id: number; color_id: number; categoria_color: CategoriaDB | null; tipo_servicio: TipoServTintDB | null; prioridad: 'MEDIA' | 'URGENTE' | 'ALTA' | 'OPCIONAL'; kg_tej_enviado: number; kg_tej_retornado: number; precio_kg_tej: number; moneda_tej: MonedaDB | null; tc_tej: number | null; costo_tejido: number; estado_pago_tej: EstadoPagoGenDB | null; kg_tint_enviado: number; kg_tint_retornado: number; rollos_final: number; precio_kg_tint: number; moneda_tint: MonedaDB | null; tc_tint: number | null; costo_tint: number; estado_pago_tint: EstadoPagoGenDB | null; costo_hilo_prorrateado: number; costo_total_color: number; notas: string | null }
+interface DbCompraHilo     { id: number; fecha: string; programa_id: number; tipo_hilo: string; kg_asignados: number; precio_kg: number; moneda: MonedaDB; tipo_cambio: number; total_soles: number; proveedor_id: number; n_factura: string | null; costo_real_fact: number; diferencia: number; estado_pago: EstadoPagoGenDB; fecha_pago: string | null; monto_pagado: number; saldo: number; notas: string | null }
+interface DbExtorno        { id: number; programa_id: number; programa_detalle_id: number | null; fecha: string; kg_conos: number; precio_kg_hilo: number; total_soles: number; usado: boolean; notas: string | null }
+interface DbCobro          { id: number; fecha: string; n_corte: number | null; n_factura: string | null; cliente_id: number; producto_id: number; color_id: number; cant_s: number; cant_m: number; cant_l: number; cant_xl: number; total_prendas: number | null; precio_unitario: number; bruto: number | null; detraccion_10pct: number | null; disponible_90pct: number | null; estado: 'ANULADO' | 'PENDIENTE' | 'COBRADO'; notas: string | null; fecha_cobro: string | null }
+interface DbMovComplemento { id: number; fecha: string; tipo: string; tipo_complemento: string; color_id: number; talla: TallaDB; cantidad: number; precio_unit: number; total_soles: number; stock_antes: number; stock_despues: number; corte_id: number | null; n_corte: string | null; producto_destino_id: number | null; proveedor_id: number | null; n_factura: string | null; responsable: string; notas: string | null }
+interface DbProductoColor  { id: number; producto_id: number; color_id: number; prop_s: number; prop_m: number; prop_l: number; prop_xl: number }
+interface DbConfig         { clave: string; valor: string }
+
 // ─── Mappers DB → App ────────────────────────────────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const toCliente = (r: any): Cliente => ({ id: String(r.id), nombre: r.nombre, contacto: r.contacto ?? '', notas: r.notas ?? '' });
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const toProveedor = (r: any): Proveedor => ({ id: String(r.id), nombre: r.nombre, ruc: r.ruc ?? '', contacto: r.contacto ?? '', tipo: r.tipo });
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const toTela = (r: any): Tela => ({ id: String(r.id), nombre: r.nombre, composicion: r.composicion ?? '', kgPorRollo: r.kg_por_rollo, notas: r.notas ?? '' });
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const toColor = (r: any): Color => ({ id: String(r.id), nombre: r.nombre, categoria: r.categoria, prioridad: r.prioridad, notas: r.notas ?? '' });
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const toPrecioTela = (r: any): PrecioTela => ({ id: String(r.id), telaId: String(r.tela_id), categoriaColor: r.categoria ?? r.categoria_color, precioKg: r.precio_kg });
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const toPrecioComplemento = (r: any): PrecioComplemento => ({ id: String(r.id), clave: r.clave, tipo: r.tipo, origen: r.origen, talla: r.talla, precio: r.precio });
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const toPrecioTejeduria = (r: any): PrecioTejeduria => ({ id: String(r.id), tipoTejido: r.tipo_tejido, precioKg: r.precio_kg });
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const toProducto = (r: any): Producto => ({ id: String(r.id), nombre: r.nombre, marca: r.marca ?? undefined, costoMoTotal: r.costo_mo ?? 0, precioServicio: r.precio_venta ?? 0, telaId: r.tela_id ? String(r.tela_id) : undefined, limiteConsumo: r.limite_consumo ?? undefined, limiteRendimiento: r.limite_rendimiento ?? undefined, propS: r.prop_s ?? undefined, propM: r.prop_m ?? undefined, propL: r.prop_l ?? undefined, propXL: r.prop_xl ?? undefined, notas: r.notas ?? '' });
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const toTarifa = (r: any): TarifaOperacion => ({ id: String(r.id), productoId: String(r.producto_id), orden: r.orden, operacion: r.operacion, tarifa: r.tarifa, notas: r.notas, clave: r.clave });
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const toOperario = (r: any): Operario => ({ id: String(r.id), codigo: r.codigo, nombre: r.nombre_completo, estado: r.estado ?? (r.activo === false ? 'INACTIVO' : 'ACTIVO'), dni: r.dni ?? undefined, telefono: r.telefono ?? undefined, modulo: r.modulo ?? undefined, maquina: r.maquina ?? undefined, fechaIngreso: r.fecha_ingreso ?? undefined });
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const toMovTela = (r: any): MovimientoTela => ({ id: String(r.id), fecha: r.fecha, tipo: r.tipo, clienteId: r.cliente_id ? String(r.cliente_id) : '', telaId: String(r.tela_id), colorId: String(r.color_id), rollos: r.rollos, kgTotal: r.kg_total, categoriaColor: r.categoria_color, precioKg: r.precio_kg, totalSoles: r.total_soles, stockRollosAntes: r.stock_rollos_antes, stockRollosDespues: r.stock_rollos_despues, responsable: r.responsable, proveedorId: r.proveedor_id ? String(r.proveedor_id) : undefined, nFactura: r.n_factura ?? undefined, costoRealFact: r.costo_real_fact ?? undefined, corteId: r.corte_id ? String(r.corte_id) : undefined, nCorte: r.n_corte ?? undefined, notas: r.notas });
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const toCorte = (r: any): Corte => ({ id: String(r.id), nCorte: r.n_corte, fecha: r.fecha, clienteId: String(r.cliente_id), productoId: String(r.producto_id), colorId: String(r.color_id), tonalidad: r.tonalidad ?? undefined, coloresDetalle: r.colores_detalle ?? undefined, telaId: r.tela_id ? String(r.tela_id) : undefined, cortador: r.cortador, ayudante: r.ayudante, tendedor: r.tendedor ?? '', kgUsados: r.kg_usados, rollosUsados: r.rollos_usados, tendidas: r.tendidas, mtsPorTendida: r.mts_por_tendida, ancho: r.ancho_cm ?? r.ancho, cantS: r.cant_s, cantM: r.cant_m, cantL: r.cant_l, cantXL: r.cant_xl, totalPrendas: r.total_prendas, consumo: r.consumo, rendimiento: r.rendimiento, revision: r.revision === true ? 'VERIFICADO' : (r.revision === 'VERIFICADO' ? 'VERIFICADO' : 'PENDIENTE'), traslado: r.traslado ?? false, estado: r.estado ?? 'EN_PROCESO', pagoCliente: r.pago_cliente === 1 || r.pago_cliente === 'COBRADO' ? 'COBRADO' : 'PENDIENTE', pagoPlanilla: r.pago_planilla === 1 || r.pago_planilla === 'PAGADO' ? 'PAGADO' : 'PENDIENTE', costoMoCorte: r.costo_mo_corte ?? 0, notas: r.notas ?? '' });
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const toSeguimientoFila = (r: any): SeguimientoFila => ({ id: String(r.id), corteId: String(r.corte_id), nCorte: r.n_corte, productoId: String(r.producto_id), fecha: r.fecha, colorId: String(r.color_id), talla: r.talla, cantidad: r.cantidad, asignaciones: r.asignaciones ?? [], pctAvance: r.pct_avance ?? r.porcentaje_avance ?? 0, estado: r.estado, totalPago: r.total_pago });
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const toBoletaLinea = (r: any): BoletaLinea => ({ id: String(r.id), operarioId: String(r.operario_id), corteId: r.corte_id ? String(r.corte_id) : '', nCorte: r.n_corte != null ? String(r.n_corte) : '', productoId: r.producto_id ? String(r.producto_id) : '', colorId: r.color_id ? String(r.color_id) : undefined, tarifaId: r.tarifa_id ? String(r.tarifa_id) : '', operacion: r.operacion ?? '', orden: r.orden ?? 0, tarifa: r.tarifa ?? 0, cantPrendas: r.cant_prendas ?? 0, importe: r.importe ?? 0, periodo: r.periodo ?? '', fechaRegistro: r.fecha_registro ?? undefined, estadoPago: r.estado_pago ?? 'PENDIENTE', fechaPago: r.fecha_pago ?? undefined });
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const toDescuento = (r: any): DescuentoBoleta => ({ id: String(r.id), operarioId: String(r.operario_id), periodo: r.periodo, tipo: r.tipo, monto: r.monto, notas: r.notas });
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const toPrograma = (r: any): ProgramaZurzam => ({ id: String(r.id), nombre: r.nombre, fecha: r.fecha, clienteId: String(r.cliente_id), rollosObjetivo: r.rollos_objetivo, kgObjetivo: r.kg_objetivo, estado: r.estado, comisionJose: r.comision_jose, estadoPagoComision: r.estado_pago_comision, diasEntrega: r.dias_entrega, notas: r.notas });
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const toDetalle = (r: any): ProgramaDetalle => ({ id: String(r.id), programaId: String(r.programa_id), colorId: String(r.color_id), categoriaColor: r.categoria_color, tipoServicio: r.tipo_servicio, prioridad: r.prioridad, kgTejEnviado: r.kg_tej_enviado, kgTejRetornado: r.kg_tej_retornado, precioKgTej: r.precio_kg_tej, monedaTej: r.moneda_tej, tcTej: r.tc_tej, costoTejido: r.costo_tejido, estadoPagoTej: r.estado_pago_tej, kgTintEnviado: r.kg_tint_enviado, kgTintRetornado: r.kg_tint_retornado, rollosFinal: r.rollos_final, precioKgTint: r.precio_kg_tint, monedaTint: r.moneda_tint, tcTint: r.tc_tint, costoTint: r.costo_tint, estadoPagoTint: r.estado_pago_tint, costoHiloProrrateado: r.costo_hilo_prorrateado, costoTotalColor: r.costo_total_color, notas: r.notas });
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const toCompraHilo = (r: any): CompraHilo => ({ id: String(r.id), fecha: r.fecha, programaId: String(r.programa_id), tipoHilo: r.tipo_hilo, kgAsignados: r.kg_asignados, precioKg: r.precio_kg, moneda: r.moneda, tipoCambio: r.tipo_cambio, totalSoles: r.total_soles, proveedorId: String(r.proveedor_id), nFactura: r.n_factura, costoRealFact: r.costo_real_fact, diferencia: r.diferencia, estadoPago: r.estado_pago, fechaPago: r.fecha_pago ?? undefined, montoPagado: r.monto_pagado, saldo: r.saldo, notas: r.notas });
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const toExtorno = (r: any): StockExtorno => ({ id: String(r.id), programaId: String(r.programa_id), programaDetalleId: r.programa_detalle_id ? String(r.programa_detalle_id) : undefined, fecha: r.fecha, kgConos: r.kg_conos, precioKgHilo: r.precio_kg_hilo, totalSoles: r.total_soles, usado: r.usado, notas: r.notas });
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const toCobro = (r: any): CobroDiario => ({ id: String(r.id), fecha: r.fecha, nCorte: r.n_corte, nFactura: r.n_factura, clienteId: String(r.cliente_id), productoId: String(r.producto_id), colorId: String(r.color_id), cantS: r.cant_s, cantM: r.cant_m, cantL: r.cant_l, cantXL: r.cant_xl, totalPrendas: r.total_prendas, precioUnitario: r.precio_unitario, bruto: r.bruto, detraccion10Pct: r.detraccion_10pct, disponible90Pct: r.disponible_90pct, estado: r.estado, notas: r.notas, fechaCobro: r.fecha_cobro ?? undefined });
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const toMovComplemento = (r: any): MovimientoComplemento => ({ id: String(r.id), fecha: r.fecha, tipo: r.tipo, tipoComplemento: r.tipo_complemento, colorId: String(r.color_id), talla: r.talla, cantidad: r.cantidad, precioUnit: r.precio_unit, totalSoles: r.total_soles, stockAntes: r.stock_antes, stockDespues: r.stock_despues, corteId: r.corte_id ? String(r.corte_id) : undefined, nCorte: r.n_corte ?? undefined, productoDestinoId: r.producto_destino_id ? String(r.producto_destino_id) : undefined, proveedorId: r.proveedor_id ? String(r.proveedor_id) : undefined, nFactura: r.n_factura ?? undefined, responsable: r.responsable, notas: r.notas });
+const toCliente = (r: DbCliente): Cliente => ({ id: String(r.id), nombre: r.nombre, contacto: r.contacto ?? '', notas: r.notas ?? '' });
+const toProveedor = (r: DbProveedor): Proveedor => ({ id: String(r.id), nombre: r.nombre, ruc: r.ruc ?? '', contacto: r.contacto ?? '', tipo: r.tipo });
+const toTela = (r: DbTela): Tela => ({ id: String(r.id), nombre: r.nombre, composicion: r.composicion ?? '', kgPorRollo: r.kg_por_rollo, notas: r.notas ?? '' });
+const toColor = (r: DbColor): Color => ({ id: String(r.id), nombre: r.nombre, categoria: r.categoria, prioridad: r.prioridad, notas: r.notas ?? '' });
+const toPrecioTela = (r: DbPrecioTela): PrecioTela => ({ id: String(r.id), telaId: String(r.tela_id), categoriaColor: r.categoria ?? r.categoria_color, precioKg: r.precio_kg });
+const toPrecioComplemento = (r: DbPrecioCompl): PrecioComplemento => ({ id: String(r.id), clave: r.clave, tipo: r.tipo, origen: r.origen, talla: r.talla, precio: r.precio });
+const toPrecioTejeduria = (r: DbPrecioTej): PrecioTejeduria => ({ id: String(r.id), tipoTejido: r.tipo_tejido, precioKg: r.precio_kg });
+const toProducto = (r: DbProducto): Producto => ({ id: String(r.id), nombre: r.nombre, marca: r.marca ?? undefined, costoMoTotal: r.costo_mo ?? 0, precioServicio: r.precio_venta ?? 0, telaId: r.tela_id ? String(r.tela_id) : undefined, limiteConsumo: r.limite_consumo ?? undefined, limiteRendimiento: r.limite_rendimiento ?? undefined, propS: r.prop_s ?? undefined, propM: r.prop_m ?? undefined, propL: r.prop_l ?? undefined, propXL: r.prop_xl ?? undefined, notas: r.notas ?? '' });
+const toTarifa = (r: DbTarifa): TarifaOperacion => ({ id: String(r.id), productoId: String(r.producto_id), orden: r.orden, operacion: r.operacion, tarifa: r.tarifa, notas: r.notas, clave: r.clave });
+const toOperario = (r: DbOperario): Operario => ({ id: String(r.id), codigo: r.codigo, nombre: r.nombre_completo, estado: r.estado ?? (r.activo === false ? 'INACTIVO' : 'ACTIVO'), dni: r.dni ?? undefined, telefono: r.telefono ?? undefined, modulo: r.modulo ?? undefined, maquina: r.maquina ?? undefined, fechaIngreso: r.fecha_ingreso ?? undefined });
+const toMovTela = (r: DbMovTela): MovimientoTela => ({ id: String(r.id), fecha: r.fecha, tipo: r.tipo, clienteId: r.cliente_id ? String(r.cliente_id) : '', telaId: String(r.tela_id), colorId: String(r.color_id), rollos: r.rollos, kgTotal: r.kg_total, categoriaColor: r.categoria_color, precioKg: r.precio_kg, totalSoles: r.total_soles, stockRollosAntes: r.stock_rollos_antes, stockRollosDespues: r.stock_rollos_despues, responsable: r.responsable, proveedorId: r.proveedor_id ? String(r.proveedor_id) : undefined, nFactura: r.n_factura ?? undefined, costoRealFact: r.costo_real_fact ?? undefined, corteId: r.corte_id ? String(r.corte_id) : undefined, nCorte: r.n_corte != null ? String(r.n_corte) : undefined, notas: r.notas });
+const toCorte = (r: DbCorte): Corte => ({ id: String(r.id), nCorte: String(r.n_corte), fecha: r.fecha, clienteId: String(r.cliente_id), productoId: String(r.producto_id), colorId: String(r.color_id), tonalidad: r.tonalidad ?? undefined, coloresDetalle: (r.colores_detalle as import('../types').CorteColorDetalle[] | null) ?? undefined, telaId: r.tela_id ? String(r.tela_id) : undefined, cortador: r.cortador, ayudante: r.ayudante, tendedor: r.tendedor ?? '', kgUsados: r.kg_usados, rollosUsados: r.rollos_usados, tendidas: r.tendidas, mtsPorTendida: r.mts_por_tendida, ancho: r.ancho_cm ?? r.ancho, cantS: r.cant_s, cantM: r.cant_m, cantL: r.cant_l, cantXL: r.cant_xl, totalPrendas: r.total_prendas, consumo: r.consumo, rendimiento: r.rendimiento, revision: r.revision === true ? 'VERIFICADO' : (r.revision === 'VERIFICADO' ? 'VERIFICADO' : 'PENDIENTE'), traslado: r.traslado ?? false, estado: r.estado ?? 'EN_PROCESO', pagoCliente: r.pago_cliente === 1 || r.pago_cliente === 'COBRADO' ? 'COBRADO' : 'PENDIENTE', pagoPlanilla: r.pago_planilla === 1 || r.pago_planilla === 'PAGADO' ? 'PAGADO' : 'PENDIENTE', costoMoCorte: r.costo_mo_corte ?? 0, notas: r.notas ?? '' });
+const toSeguimientoFila = (r: DbSeguimiento): SeguimientoFila => ({ id: String(r.id), corteId: String(r.corte_id), nCorte: r.n_corte, productoId: String(r.producto_id), fecha: r.fecha, colorId: String(r.color_id), talla: r.talla, cantidad: r.cantidad, asignaciones: (r.asignaciones as import('../types').SeguimientoAsignacion[] | null) ?? [], pctAvance: r.pct_avance ?? r.porcentaje_avance ?? 0, estado: r.estado, totalPago: r.total_pago });
+const toBoletaLinea = (r: DbBoletaLinea): BoletaLinea => ({ id: String(r.id), operarioId: String(r.operario_id), corteId: r.corte_id ? String(r.corte_id) : '', nCorte: r.n_corte != null ? String(r.n_corte) : '', productoId: r.producto_id ? String(r.producto_id) : '', colorId: r.color_id ? String(r.color_id) : undefined, tarifaId: r.tarifa_id ? String(r.tarifa_id) : '', operacion: r.operacion ?? '', orden: r.orden ?? 0, tarifa: r.tarifa ?? 0, cantPrendas: r.cant_prendas ?? 0, importe: r.importe ?? 0, periodo: r.periodo ?? '', fechaRegistro: r.fecha_registro ?? undefined, estadoPago: r.estado_pago ?? 'PENDIENTE', fechaPago: r.fecha_pago ?? undefined });
+const toDescuento = (r: DbDescuento): DescuentoBoleta => ({ id: String(r.id), operarioId: String(r.operario_id), periodo: r.periodo, tipo: r.tipo as import('../types').TipoDescuentoBoleta, monto: r.monto, notas: r.notas });
+const toPrograma = (r: DbPrograma): ProgramaZurzam => ({ id: String(r.id), nombre: r.nombre, fecha: r.fecha, clienteId: String(r.cliente_id), rollosObjetivo: r.rollos_objetivo, kgObjetivo: r.kg_objetivo, estado: r.estado, comisionJose: r.comision_jose, estadoPagoComision: r.estado_pago_comision, diasEntrega: r.dias_entrega, notas: r.notas });
+const toDetalle = (r: DbDetalle): ProgramaDetalle => ({ id: String(r.id), programaId: String(r.programa_id), colorId: String(r.color_id), categoriaColor: r.categoria_color, tipoServicio: r.tipo_servicio, prioridad: r.prioridad, kgTejEnviado: r.kg_tej_enviado, kgTejRetornado: r.kg_tej_retornado, precioKgTej: r.precio_kg_tej, monedaTej: r.moneda_tej, tcTej: r.tc_tej, costoTejido: r.costo_tejido, estadoPagoTej: r.estado_pago_tej, kgTintEnviado: r.kg_tint_enviado, kgTintRetornado: r.kg_tint_retornado, rollosFinal: r.rollos_final, precioKgTint: r.precio_kg_tint, monedaTint: r.moneda_tint, tcTint: r.tc_tint, costoTint: r.costo_tint, estadoPagoTint: r.estado_pago_tint, costoHiloProrrateado: r.costo_hilo_prorrateado, costoTotalColor: r.costo_total_color, notas: r.notas });
+const toCompraHilo = (r: DbCompraHilo): CompraHilo => ({ id: String(r.id), fecha: r.fecha, programaId: String(r.programa_id), tipoHilo: r.tipo_hilo, kgAsignados: r.kg_asignados, precioKg: r.precio_kg, moneda: r.moneda, tipoCambio: r.tipo_cambio, totalSoles: r.total_soles, proveedorId: String(r.proveedor_id), nFactura: r.n_factura, costoRealFact: r.costo_real_fact, diferencia: r.diferencia, estadoPago: r.estado_pago, fechaPago: r.fecha_pago ?? undefined, montoPagado: r.monto_pagado, saldo: r.saldo, notas: r.notas });
+const toExtorno = (r: DbExtorno): StockExtorno => ({ id: String(r.id), programaId: String(r.programa_id), programaDetalleId: r.programa_detalle_id ? String(r.programa_detalle_id) : undefined, fecha: r.fecha, kgConos: r.kg_conos, precioKgHilo: r.precio_kg_hilo, totalSoles: r.total_soles, usado: r.usado, notas: r.notas });
+const toCobro = (r: DbCobro): CobroDiario => ({ id: String(r.id), fecha: r.fecha, nCorte: r.n_corte != null ? String(r.n_corte) : '', nFactura: r.n_factura ?? '', clienteId: String(r.cliente_id), productoId: String(r.producto_id), colorId: String(r.color_id), cantS: r.cant_s, cantM: r.cant_m, cantL: r.cant_l, cantXL: r.cant_xl, totalPrendas: r.total_prendas, precioUnitario: r.precio_unitario, bruto: r.bruto, detraccion10Pct: r.detraccion_10pct, disponible90Pct: r.disponible_90pct, estado: r.estado, notas: r.notas, fechaCobro: r.fecha_cobro ?? undefined });
+const toMovComplemento = (r: DbMovComplemento): MovimientoComplemento => ({ id: String(r.id), fecha: r.fecha, tipo: r.tipo as import('../types').TipoMovimientoComplemento, tipoComplemento: r.tipo_complemento, colorId: String(r.color_id), talla: r.talla, cantidad: r.cantidad, precioUnit: r.precio_unit, totalSoles: r.total_soles, stockAntes: r.stock_antes, stockDespues: r.stock_despues, corteId: r.corte_id ? String(r.corte_id) : undefined, nCorte: r.n_corte ?? undefined, productoDestinoId: r.producto_destino_id ? String(r.producto_destino_id) : undefined, proveedorId: r.proveedor_id ? String(r.proveedor_id) : undefined, nFactura: r.n_factura ?? undefined, responsable: r.responsable, notas: r.notas });
 // Config es tabla key-value: [{clave, valor}]. Convertimos el array a objeto Config.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const toConfig = (rows: any[]): Config => {
+const toConfig = (rows: DbConfig[]): Config => {
   const kv: Record<string, string> = {};
   for (const r of rows) kv[r.clave] = r.valor;
   const num = (k: string, def: number) => parseFloat(kv[k] ?? String(def));
@@ -76,8 +93,7 @@ const toConfig = (rows: any[]): Config => {
     mermaMaxTint:     10,
   };
 };
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const toProductoColor = (r: any): ProductoColor => ({ id: String(r.id), productoId: String(r.producto_id), colorId: String(r.color_id), propS: r.prop_s, propM: r.prop_m, propL: r.prop_l, propXL: r.prop_xl });
+const toProductoColor = (r: DbProductoColor): ProductoColor => ({ id: String(r.id), productoId: String(r.producto_id), colorId: String(r.color_id), propS: r.prop_s, propM: r.prop_m, propL: r.prop_l, propXL: r.prop_xl });
 
 // ─── Mappers App → DB ────────────────────────────────────────────────────────
 
@@ -88,8 +104,7 @@ const fromColor = (v: Color) => ({ nombre: v.nombre, categoria: v.categoria, pri
 const fromPrecioTela = (v: PrecioTela) => ({ id: v.id, tela_id: v.telaId, categoria_color: v.categoriaColor, precio_kg: v.precioKg });
 const fromPrecioComplemento = (v: PrecioComplemento) => ({ id: v.id, clave: v.clave, tipo: v.tipo, origen: v.origen, talla: v.talla, precio: v.precio });
 const fromPrecioTejeduria = (v: PrecioTejeduria) => ({ id: v.id, tipo_tejido: v.tipoTejido, precio_kg: v.precioKg });
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const toPrecioTintoreria = (r: any): PrecioTintoreria => ({ id: String(r.id), tipoServicio: r.tipo_servicio, tipoTela: r.tipo_tela, precioKg: r.precio_kg, moneda: r.moneda, notas: r.notas ?? '' });
+const toPrecioTintoreria = (r: DbPrecioTint): PrecioTintoreria => ({ id: String(r.id), tipoServicio: r.tipo_servicio, tipoTela: r.tipo_tela, precioKg: r.precio_kg, moneda: r.moneda, notas: r.notas ?? '' });
 const fromPrecioTintoreria = (v: PrecioTintoreria) => ({ id: v.id, tipo_servicio: v.tipoServicio, tipo_tela: v.tipoTela, precio_kg: v.precioKg, moneda: v.moneda, notas: v.notas });
 const fromProducto = (v: Producto) => ({ id: v.id, nombre: v.nombre, marca: v.marca ?? null, costo_mo: v.costoMoTotal, precio_venta: v.precioServicio, tela_id: v.telaId ? parseInt(v.telaId) : null, limite_consumo: v.limiteConsumo ?? null, limite_rendimiento: v.limiteRendimiento ?? null, prop_s: v.propS ?? null, prop_m: v.propM ?? null, prop_l: v.propL ?? null, prop_xl: v.propXL ?? null, notas: v.notas });
 const fromTarifa = (v: TarifaOperacion) => ({ id: v.id, producto_id: v.productoId, orden: v.orden, operacion: v.operacion, tarifa: v.tarifa, notas: v.notas ?? null, clave: v.clave });
@@ -151,38 +166,55 @@ export interface DbAppState {
   config: Config | null;
 }
 
+// ─── Retry con backoff exponencial ──────────────────────────────────────────
+
+async function withRetry<T>(fn: () => Promise<T>, retries = 2, delayMs = 400): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (attempt < retries) await new Promise(r => setTimeout(r, delayMs * Math.pow(2, attempt)));
+    }
+  }
+  throw lastErr;
+}
+
 // ─── Carga inicial completa ──────────────────────────────────────────────────
 
 export async function loadAllFromDb(): Promise<DbAppState> {
+  const q = <T>(table: string) => supabase.from(table).select('*') as unknown as Promise<{ data: T[] | null; error: unknown }>;
+  // Tablas críticas usan retry; el resto falla graciosamente con array vacío
   const [
     c, p, te, co, pt, pc, ptej, ptint, pr, to, op,
     mt, cor, sf, bl, dbesc,
     pz, pd, ch, se, cd, mc, pcolores, cfg
   ] = await Promise.all([
-    supabase.from('clientes').select('*'),
-    supabase.from('proveedores').select('*'),
-    supabase.from('telas').select('*'),
-    supabase.from('colores').select('*'),
-    supabase.from('precios_telas').select('*'),
-    supabase.from('precios_complementos').select('*'),
-    supabase.from('precios_tejeduria').select('*'),
-    supabase.from('precios_tintoreria').select('*'),
-    supabase.from('productos').select('*'),
-    supabase.from('tarifas_operaciones').select('*'),
-    supabase.from('operarios').select('*'),
-    supabase.from('movimientos_tela').select('*'),
-    supabase.from('cortes').select('*'),
-    supabase.from('seguimiento_filas').select('*'),
-    supabase.from('boleta_lineas').select('*'),
-    supabase.from('descuentos_boleta').select('*'),
-    supabase.from('programas_zurzam').select('*'),
-    supabase.from('programa_detalles').select('*'),
-    supabase.from('compras_hilo').select('*'),
-    supabase.from('stock_extornos').select('*'),
-    supabase.from('cobros_diarios').select('*'),
-    supabase.from('movimientos_complemento').select('*'),
-    supabase.from('producto_colores').select('*'),
-    supabase.from('config').select('*'),
+    withRetry(() => q('clientes')),
+    q('proveedores'),
+    withRetry(() => q('telas')),
+    q('colores'),
+    q('precios_telas'),
+    q('precios_complementos'),
+    q('precios_tejeduria'),
+    q('precios_tintoreria'),
+    withRetry(() => q('productos')),
+    q('tarifas_operaciones'),
+    q('operarios'),
+    q('movimientos_tela'),
+    q('cortes'),
+    q('seguimiento_filas'),
+    q('boleta_lineas'),
+    q('descuentos_boleta'),
+    q('programas_zurzam'),
+    q('programa_detalles'),
+    q('compras_hilo'),
+    q('stock_extornos'),
+    q('cobros_diarios'),
+    q('movimientos_complemento'),
+    q('producto_colores'),
+    q('config'),
   ]);
 
   // Loguear errores individuales para diagnóstico
@@ -192,9 +224,9 @@ export async function loadAllFromDb(): Promise<DbAppState> {
   }
   if (cfg.error) console.error('[Supabase] SELECT config error:', cfg.error);
 
-  // Si producto_colores falló (permisos), reintentar con fetch directo REST
+  // Solo reintentar si hubo error real — no si la tabla simplemente está vacía
   let productoColoresData = pcolores.data ?? [];
-  if (pcolores.error || !productoColoresData.length) {
+  if (pcolores.error) {
     console.log('[Supabase] Reintentando producto_colores con fetch directo...');
     try {
       const { data: pcRetry, error: pcErr } = await supabase
@@ -212,8 +244,9 @@ export async function loadAllFromDb(): Promise<DbAppState> {
   }
 
   // Si alguna tabla crítica tiene error (no solo vacía), lanzar para que AppContext use caché
+  const errMsg = (e: unknown) => (e as { message?: string })?.message ?? String(e);
   if (c.error || te.error || pr.error) {
-    throw new Error(`Supabase SELECT falló: ${c.error?.message ?? te.error?.message ?? pr.error?.message}`);
+    throw new Error(`Supabase SELECT falló: ${errMsg(c.error ?? te.error ?? pr.error)}`);
   }
 
   return {
@@ -240,7 +273,7 @@ export async function loadAllFromDb(): Promise<DbAppState> {
     cobrosDiarios:          (cd.data   ?? []).map(toCobro),
     movimientosComplemento: (mc.data       ?? []).map(toMovComplemento),
     productoColores:        productoColoresData.map(toProductoColor),
-    config:                 (cfg.data && cfg.data.length > 0) ? toConfig(cfg.data) : null,
+    config:                 (cfg.data && cfg.data.length > 0) ? toConfig(cfg.data as DbConfig[]) : null,
   };
 }
 

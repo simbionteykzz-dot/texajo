@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { RefreshCw, ChevronDown, ChevronRight, AlertCircle, Loader2, X, FileSpreadsheet, FileText, LayoutDashboard, List } from 'lucide-react';
-import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { exportRowsToXlsx } from '../lib/exportExcel';
 import {
   fetchOdooAll,
   buildProductRows,
@@ -380,10 +380,7 @@ export default function OdooStock() {
         Ubicaciones: v.locationBreakdown.map(l => `${l.locationName}: ${l.qty.toFixed(0)}`).join(' | '),
       }))
     );
-    const ws = XLSX.utils.json_to_sheet(filas);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Stock Odoo');
-    XLSX.writeFile(wb, `stock-odoo-${new Date().toISOString().slice(0,10)}.xlsx`);
+    exportRowsToXlsx(filas, `stock-odoo-${new Date().toISOString().slice(0, 10)}`, 'Stock Odoo');
   };
 
   const exportarPDF = () => {

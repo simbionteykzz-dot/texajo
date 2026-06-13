@@ -7,8 +7,13 @@ import { BoletaLinea, TipoDescuentoBoleta } from '../types';
 import { ModuleInfoBox } from '../components/ModuleInfoBox';
 import { exportRowsToXlsx, exportTableToPdf } from '../lib/export';
 import { BoletaOperario } from '../components/BoletaOperario';
-
-const uid = () => crypto.randomUUID();
+import { newId } from '../lib/storage';
+import {
+  useBoletaLineas,
+  useResumenPorOperario,
+  useLineasGenerales,
+  useBoletasHuerfanas,
+} from '../hooks/useBoletaLineas';
 
 const PERIODOS = (() => {
   const result: string[] = [];
@@ -65,7 +70,7 @@ export function Destajo() {
   type DraftLinea = { id: string; corteId: string; tarifaId: string; cantPrendas: string };
   type DraftSeccion = { operarioId: string; lineas: DraftLinea[] };
 
-  const emptyLinea = (): DraftLinea => ({ id: uid(), corteId: '', tarifaId: '', cantPrendas: '' });
+  const emptyLinea = (): DraftLinea => ({ id: newId(), corteId: '', tarifaId: '', cantPrendas: '' });
   const emptySeccion = (opId: string): DraftSeccion => ({ operarioId: opId, lineas: [emptyLinea()] });
 
   const [draftSecciones, setDraftSecciones] = useState<DraftSeccion[]>([]);
@@ -109,22 +114,14 @@ export function Destajo() {
     return map;
   }, [cortes, tarifasOperaciones]);
 
-  const lineasFiltradas = useMemo(() =>
-    boletaLineas
-      .filter(b => {
-        if (b.operarioId !== selectedOperario) return false;
-        if (bCorteId && b.corteId !== bCorteId) return false;
-        if (bEstado && b.estadoPago !== bEstado) return false;
-        if (bDesde || bHasta) {
-          const fecha = b.fechaRegistro ?? b.periodo + '-01';
-          if (bDesde && fecha < bDesde) return false;
-          if (bHasta && fecha > bHasta) return false;
-          return true;
-        }
-        return b.periodo === selectedPeriodo;
-      })
-      .sort((a, b) => String(a.nCorte).localeCompare(String(b.nCorte)) || a.orden - b.orden),
-    [boletaLineas, selectedOperario, selectedPeriodo, bDesde, bHasta, bCorteId, bEstado]);
+  const { lineasFiltradas, totalBruto } = useBoletaLineas(boletaLineas, {
+    operarioId: selectedOperario,
+    periodo: selectedPeriodo,
+    desde: bDesde,
+    hasta: bHasta,
+    corteId: bCorteId,
+    estado: bEstado,
+  });
 
   // Vista general: todas las líneas con filtros opcionales
   const todasOperaciones = useMemo(() => {
@@ -133,47 +130,22 @@ export function Destajo() {
     return Array.from(ops).sort();
   }, [boletaLineas]);
 
-  const lineasGenerales = useMemo(() => {
-    return boletaLineas
-      .filter(b => {
-        if (gOperarioId && b.operarioId !== gOperarioId) return false;
-        if (gOperacion && b.operacion !== gOperacion) return false;
-        if (gPeriodo && b.periodo !== gPeriodo) return false;
-        if (gEstado && b.estadoPago !== gEstado) return false;
-        if (gCorteId && b.corteId !== gCorteId) return false;
-        return true;
-      })
-      .sort((a, b) => b.periodo.localeCompare(a.periodo) || String(a.nCorte).localeCompare(String(b.nCorte)) || a.orden - b.orden);
-  }, [boletaLineas, gOperarioId, gOperacion, gPeriodo, gEstado, gCorteId]);
+  const lineasGenerales = useLineasGenerales(boletaLineas, {
+    operarioId: gOperarioId,
+    operacion: gOperacion,
+    periodo: gPeriodo,
+    estado: gEstado,
+    corteId: gCorteId,
+  });
 
   const totalGeneral = lineasGenerales.reduce((s, b) => s + b.importe, 0);
 
   // Resumen por operario en un período dado (o rango libre)
-  const resumenPorOperario = useMemo(() => {
-    const usaRango = rDesde || rHasta;
-    const lineasPeriodo = boletaLineas.filter(b => {
-      if (usaRango) {
-        if (rDesde && b.periodo < rDesde.slice(0, 7)) return false;
-        if (rHasta && b.periodo > rHasta.slice(0, 7)) return false;
-        return true;
-      }
-      return b.periodo === rPeriodo;
-    });
-    const map = new Map<string, { total: number; prendas: number; pagado: number; pendiente: number; nLineas: number }>();
-    for (const b of lineasPeriodo) {
-      const prev = map.get(b.operarioId) ?? { total: 0, prendas: 0, pagado: 0, pendiente: 0, nLineas: 0 };
-      map.set(b.operarioId, {
-        total: prev.total + b.importe,
-        prendas: prev.prendas + b.cantPrendas,
-        pagado: prev.pagado + (b.estadoPago === 'PAGADO' ? b.importe : 0),
-        pendiente: prev.pendiente + (b.estadoPago === 'PENDIENTE' ? b.importe : 0),
-        nLineas: prev.nLineas + 1,
-      });
-    }
-    return Array.from(map.entries())
-      .map(([operarioId, stats]) => ({ operarioId, ...stats }))
-      .sort((a, b) => b.total - a.total);
-  }, [boletaLineas, rPeriodo, rDesde, rHasta]);
+  const resumenPorOperario = useResumenPorOperario(boletaLineas, {
+    periodo: rPeriodo,
+    desde: rDesde,
+    hasta: rHasta,
+  });
 
   const lineasDetalle = useMemo(() => {
     if (!detalleOperarioId) return [];
@@ -190,8 +162,6 @@ export function Destajo() {
       })
       .sort((a, b) => String(a.nCorte).localeCompare(String(b.nCorte)) || a.orden - b.orden);
   }, [boletaLineas, detalleOperarioId, rPeriodo, rDesde, rHasta]);
-
-  const totalBruto = lineasFiltradas.reduce((s, b) => s + b.importe, 0);
 
   const descuentosFiltrados = useMemo(() =>
     descuentosBoleta.filter(d => d.operarioId === selectedOperario && d.periodo === selectedPeriodo),
@@ -212,7 +182,7 @@ export function Destajo() {
       if (!tarifa || !corte) continue;
       const cant = parseInt(r.cantPrendas) || 0;
       result.push({
-        id: uid(),
+        id: newId(),
         operarioId: opId,
         corteId: r.corteId,
         nCorte: corte.nCorte,
@@ -263,7 +233,8 @@ export function Destajo() {
     const asignaciones = new Map<string, Set<string>>();
     for (const fila of filasCorte) {
       for (const asig of fila.asignaciones) {
-        if (asig.operarioId === selectedOperario) {
+        const esEsteOp = asig.operarioId === selectedOperario || (asig.operarioIds ?? []).includes(selectedOperario);
+        if (esEsteOp && asig.confirmado === true) {
           if (!asignaciones.has(asig.tarifaId)) asignaciones.set(asig.tarifaId, new Set());
           asignaciones.get(asig.tarifaId)!.add(fila.colorId);
         }
@@ -282,7 +253,7 @@ export function Destajo() {
         if (!coloresAsig) continue;
         for (const colorId of coloresAsig) {
           lineas.push({
-            id: uid(),
+            id: newId(),
             operarioId: selectedOperario,
             corteId: bulkCorteId,
             nCorte: corte.nCorte,
@@ -301,25 +272,9 @@ export function Destajo() {
         }
       }
     } else {
-      // Sin asignaciones registradas: cargar todas las tarifas sin color
-      for (const t of todasTarifas) {
-        lineas.push({
-          id: uid(),
-          operarioId: selectedOperario,
-          corteId: bulkCorteId,
-          nCorte: corte.nCorte,
-          productoId: corte.productoId,
-          tarifaId: t.id,
-          operacion: t.operacion,
-          orden: t.orden,
-          tarifa: t.tarifa,
-          cantPrendas: 0,
-          importe: 0,
-          periodo: selectedPeriodo,
-          fechaRegistro: hoy,
-          estadoPago: 'PENDIENTE',
-        });
-      }
+      // Sin asignaciones confirmadas para este operario en este corte — no cargar nada
+      addToast('Este operario no tiene operaciones asignadas en ese corte', 'error');
+      return;
     }
 
     if (lineas.length === 0) {
@@ -419,21 +374,7 @@ export function Destajo() {
   // ── Boletas huérfanas: líneas sin respaldo en seguimiento_filas confirmado ──
   const [huerfanasExpanded, setHuerfanasExpanded] = useState(false);
 
-  const boletasHuerfanas = useMemo(() => {
-    return boletaLineas.filter(b => {
-      // Una boleta tiene respaldo si existe una seguimientoFila del mismo corte+tarifa
-      // confirmada Y en la que el operario de la boleta esté asignado
-      const filaConfirmada = seguimientoFilas.some(f =>
-        f.corteId === b.corteId &&
-        f.asignaciones.some(a =>
-          a.tarifaId === b.tarifaId &&
-          a.confirmado === true &&
-          (a.operarioId === b.operarioId || (a.operarioIds ?? []).includes(b.operarioId))
-        )
-      );
-      return !filaConfirmada;
-    });
-  }, [boletaLineas, seguimientoFilas]);
+  const boletasHuerfanas = useBoletasHuerfanas(boletaLineas, seguimientoFilas);
 
   const eliminarHuerfanas = () => {
     boletasHuerfanas.forEach(b => deleteBoletaLinea(b.id));
@@ -671,7 +612,7 @@ export function Destajo() {
           } else {
             // Crear sub-línea con la talla y marcarla pagada
             const subLinea = {
-              id: uid(),
+              id: newId(),
               operarioId: linea.operarioId,
               corteId: linea.corteId,
               nCorte: linea.nCorte,
@@ -956,8 +897,9 @@ export function Destajo() {
                   <tbody>
                     {lineasGenerales.map(b => {
                       const op = operarioMap.get(b.operarioId);
+                      const rowBgG = b.estadoPago === 'PAGADO' ? 'bg-green-50 opacity-60' : 'bg-amber-50 hover:bg-amber-100';
                       return (
-                        <tr key={b.id} className={b.estadoPago === 'PAGADO' ? 'opacity-60' : ''}>
+                        <tr key={b.id} className={rowBgG}>
                           <td className="font-mono text-xs">{b.periodo}</td>
                           <td>
                             <div className="font-bold text-[11px]">{op?.nombre ?? b.operarioId}</div>
@@ -1042,7 +984,7 @@ export function Destajo() {
         </div>
         <div>
           <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Corte</label>
-          <select value={bCorteId} onChange={e => setBCorteId(e.target.value)} className="input-base w-44">
+          <select value={bCorteId} onChange={e => { setBCorteId(e.target.value); setBulkCorteId(e.target.value); }} className="input-base w-44">
             <option value="">Todos</option>
             {cortes.filter(c => c.estado !== 'ANULADO').map(c => (
               <option key={c.id} value={c.id}>{c.nCorte} — {productoMap.get(c.productoId)?.nombre}</option>
@@ -1081,7 +1023,7 @@ export function Destajo() {
         <div className="flex flex-wrap gap-3 items-end bg-gray-50 border border-gray-200 p-4">
           <div>
             <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Cargar todas las ops. de un corte</label>
-            <select value={bulkCorteId} onChange={e => setBulkCorteId(e.target.value)} className="input-base w-48">
+            <select value={bulkCorteId} onChange={e => { setBulkCorteId(e.target.value); setBCorteId(e.target.value); }} className="input-base w-48">
               <option value="">Seleccionar corte…</option>
               {cortes.filter(c => c.estado !== 'ANULADO').map(c => (
                 <option key={c.id} value={c.id}>{c.nCorte} — {productoMap.get(c.productoId)?.nombre}</option>
@@ -1136,7 +1078,7 @@ export function Destajo() {
                   {lineasFiltradas.map(b => {
                     // Líneas que ya son sub-líneas por talla no se expanden
                     if (b.talla) return (
-                      <tr key={b.id} className={`bg-blue-50/50 border-l-4 border-blue-200 ${b.estadoPago === 'PAGADO' ? 'opacity-60' : ''}`}>
+                      <tr key={b.id} className={`bg-blue-50/50 border-l-4 border-blue-200 ${b.estadoPago === 'PAGADO' ? 'opacity-60' : 'bg-amber-50/60'}`}>
                         <td className="px-3 py-2 font-mono text-gray-400 text-[10px]">↳ {b.nCorte}</td>
                         <td className="px-3 py-2 text-[11px] text-gray-500">{productoMap.get(b.productoId)?.nombre ?? '—'}</td>
                         <td className="px-3 py-2 text-[11px] text-gray-600">{b.colorId ? colorMap.get(b.colorId) ?? '—' : '—'}</td>
@@ -1162,11 +1104,16 @@ export function Destajo() {
                       f => f.corteId === b.corteId && (!b.colorId || f.colorId === b.colorId)
                     );
                     const tieneTallas = tallasDisp.length >= 1;
+                    const rowBgB = b.estadoPago === 'PAGADO'
+                      ? 'bg-green-50 opacity-60'
+                      : tieneTallas
+                        ? 'bg-amber-50 cursor-pointer hover:bg-amber-100'
+                        : 'bg-amber-50 hover:bg-amber-100';
 
                     return (
                       <React.Fragment key={b.id}>
                         <tr
-                          className={`${b.estadoPago === 'PAGADO' ? 'opacity-60' : ''} ${tieneTallas && b.estadoPago === 'PENDIENTE' ? 'cursor-pointer hover:bg-amber-50' : 'hover:bg-gray-50'}`}
+                          className={rowBgB}
                           onClick={() => tieneTallas && b.estadoPago === 'PENDIENTE' && setExpandedLineaId(isExp ? null : b.id)}
                         >
                           <td className="px-3 py-2 font-mono">
@@ -1258,7 +1205,7 @@ export function Destajo() {
                                       } else {
                                         const nuevaCant = b.cantPrendas - fila.cantidad;
                                         addBoletaLinea({
-                                          id: uid(),
+                                          id: newId(),
                                           operarioId: b.operarioId,
                                           corteId: b.corteId,
                                           nCorte: b.nCorte,

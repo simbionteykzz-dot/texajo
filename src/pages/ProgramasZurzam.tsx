@@ -7,8 +7,7 @@ import { ProgramaZurzam, ProgramaDetalle, CompraHilo, EstadoPrograma, EstadoPago
 import { ModuleInfoBox } from '../components/ModuleInfoBox';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { exportRowsToXlsx, exportTableToPdf } from '../lib/export';
-
-const uid = () => crypto.randomUUID();
+import { newId } from '../lib/storage';
 
 const ESTADOS: EstadoPrograma[] = ['NUEVO', 'EN_COMPRA', 'EN_TEJEDURIA', 'EN_TINTORERIA', 'EN_PLANTA', 'CERRADO'];
 const ESTADOS_PAGO: EstadoPago[] = ['PENDIENTE', 'PARCIAL', 'PAGADO', 'ANULADO'];
@@ -162,7 +161,7 @@ export function ProgramasZurzam() {
     if (!progForm.nombre || !progForm.clienteId) { addToast('Completa nombre y cliente', 'error'); return; }
     const kgObjetivo = parseFloat(progForm.kgObjetivo) || 0;
     addPrograma({
-      id: uid(), nombre: progForm.nombre, fecha: progForm.fecha,
+      id: newId(), nombre: progForm.nombre, fecha: progForm.fecha,
       clienteId: progForm.clienteId,
       rollosObjetivo: parseInt(progForm.rollosObjetivo) || 0,
       kgObjetivo,
@@ -188,7 +187,7 @@ export function ProgramasZurzam() {
     const costoTej = kgTej * precTej * (detForm.monedaTej === 'USD' ? tcTej : 1);
     const costoTint = kgTint * precTint * (detForm.monedaTint === 'USD' ? tcTint : 1);
     addProgramaDetalle({
-      id: uid(), programaId,
+      id: newId(), programaId,
       colorId: detForm.colorId,
       categoriaColor: colores.find(c => c.id === detForm.colorId)?.categoria ?? 'OSCURO',
       tipoServicio: detForm.tipoServicio,
@@ -230,7 +229,7 @@ export function ProgramasZurzam() {
     const tc = parseFloat(hiloForm.tipoCambio) || 1;
     const total = kg * prec * (hiloForm.moneda === 'USD' ? tc : 1);
     addCompraHilo({
-      id: uid(), fecha: hiloForm.fecha, programaId,
+      id: newId(), fecha: hiloForm.fecha, programaId,
       tipoHilo: hiloForm.tipoHilo, kgAsignados: kg, precioKg: prec,
       moneda: hiloForm.moneda, tipoCambio: tc, totalSoles: total,
       proveedorId: hiloForm.proveedorId, nFactura: hiloForm.nFactura,
@@ -266,7 +265,7 @@ export function ProgramasZurzam() {
     const precio = parseFloat(extornoForm.precioKgHilo) || 0;
     if (kg <= 0) { addToast('Ingresa Kg de conos', 'error'); return; }
     addStockExtorno({
-      id: uid(),
+      id: newId(),
       programaId,
       fecha: extornoForm.fecha,
       kgConos: kg,

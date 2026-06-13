@@ -1,6 +1,7 @@
 // En desarrollo: http://localhost:5001 (Flask local)
 // En producción (Vercel): '' → usa mismo origen /api/odoo-stock (serverless)
 const ODOO_BACKEND_URL = import.meta.env.VITE_ODOO_BACKEND_URL ?? '';
+const ODOO_API_SECRET  = import.meta.env.VITE_ODOO_API_SECRET  ?? '';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -101,7 +102,10 @@ export async function fetchOdooAll(): Promise<OdooAll> {
   const base = ODOO_BACKEND_URL;
   const url  = base ? `${base}/api/odoo-stock` : '/api/odoo-stock';
 
-  const res  = await fetch(url);
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (ODOO_API_SECRET) headers['X-Api-Key'] = ODOO_API_SECRET;
+
+  const res  = await fetch(url, { headers });
   const data = await res.json();
   if (!res.ok || data?.error) throw new Error(data?.error ?? `HTTP ${res.status}`);
   return data as OdooAll;

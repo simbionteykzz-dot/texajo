@@ -6,8 +6,7 @@ import { Download, Plus, X, FileText, Trash2 } from 'lucide-react';
 import { TipoComplemento, TipoMovimientoComplemento, MovimientoComplemento, TIPOS_COMPLEMENTO_LIST } from '../types';
 import { ModuleInfoBox } from '../components/ModuleInfoBox';
 import { exportRowsToXlsx, exportTableToPdf } from '../lib/export';
-
-const uid = () => crypto.randomUUID();
+import { newId } from '../lib/storage';
 
 const TIPOS_MOV: TipoMovimientoComplemento[] = ['INGRESO', 'CONSUMO', 'AJUSTE_POS', 'AJUSTE_NEG'];
 const MOV_LABEL: Record<TipoMovimientoComplemento, string> = {
@@ -132,7 +131,7 @@ export function Complementos() {
     }
 
     const mov: MovimientoComplemento = {
-      id: uid(),
+      id: newId(),
       fecha: form.fecha,
       tipo: form.tipo,
       tipoComplemento: form.tipoComplemento,
