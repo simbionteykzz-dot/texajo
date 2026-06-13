@@ -91,6 +91,8 @@ export function ProduccionConfeccion() {
   // Modal confirmar avance: { corteId, colorId, talla } + ops confirmadas { [tarifaId]: boolean }
   const [modalAvance, setModalAvance] = useState<{ corteId: string; colorId: string; talla: string } | null>(null);
   const [avanceOps, setAvanceOps] = useState<Record<string, boolean>>({});
+  // Operarios por operación en el modal confirmar: { [tarifaId]: { operarioId, cantidad }[] }
+  const [avanceOpsIds, setAvanceOpsIds] = useState<Record<string, { operarioId: string; cantidad: number }[]>>({});
   // Hex overrides por colorId — persiste durante la sesión para que el PDF use el color elegido
   const [colorHexOverrides, setColorHexOverrides] = useState<Record<string, string>>({});
   const [modalHex, setModalHex] = useState<string>('#9E9E9E');
@@ -195,8 +197,18 @@ export function ProduccionConfeccion() {
   const abrirModalAvance = (corteId: string, colorId: string, talla: string) => {
     const fila = seguimientoFilas.find(f => f.corteId === corteId && f.colorId === colorId && f.talla === talla);
     const inicial: Record<string, boolean> = {};
-    fila?.asignaciones.forEach(a => { inicial[a.tarifaId] = a.confirmado ?? false; });
+    const inicialIds: Record<string, { operarioId: string; cantidad: number }[]> = {};
+    fila?.asignaciones.forEach(a => {
+      inicial[a.tarifaId] = a.confirmado ?? false;
+      const ids = a.operarioIds?.length ? a.operarioIds : (a.operarioId ? [a.operarioId] : []);
+      const totalCant = fila.cantidad;
+      const base = ids.length > 0 ? Math.floor(totalCant / ids.length) : totalCant;
+      const resto = ids.length > 0 ? totalCant - base * ids.length : 0;
+      inicialIds[a.tarifaId] = ids.map((id, i) => ({ operarioId: id, cantidad: base + (i === 0 ? resto : 0) }));
+      if (inicialIds[a.tarifaId].length === 0) inicialIds[a.tarifaId] = [{ operarioId: '', cantidad: totalCant }];
+    });
     setAvanceOps(inicial);
+    setAvanceOpsIds(inicialIds);
     setModalAvance({ corteId, colorId, talla });
   };
 
@@ -211,7 +223,17 @@ export function ProduccionConfeccion() {
     const pctAvance = totalOps > 0 ? Math.round((confirmadas / totalOps) * 100) : 0;
     const estado = pctAvance === 100 ? 'LISTO' : pctAvance > 0 ? 'EN_PROCESO' : 'PENDIENTE';
 
-    const asignaciones = fila.asignaciones.map(a => ({ ...a, confirmado: avanceOps[a.tarifaId] ?? false }));
+    // Persistir operarios por talla en asignaciones
+    const asignaciones = fila.asignaciones.map(a => {
+      const ops = avanceOpsIds[a.tarifaId] ?? [];
+      const ids = ops.map(o => o.operarioId).filter(Boolean);
+      return {
+        ...a,
+        confirmado: avanceOps[a.tarifaId] ?? false,
+        operarioId: ids[0] ?? a.operarioId,
+        operarioIds: ids.length > 0 ? ids : (a.operarioIds ?? []),
+      };
+    });
     updateSeguimientoFila(fila.id, { asignaciones, pctAvance, estado });
 
     const periodo = fila.fecha.slice(0, 7);
@@ -219,16 +241,27 @@ export function ProduccionConfeccion() {
       f.id === fila.id ? { ...f, asignaciones, pctAvance, estado } : f
     );
 
-    // Por cada tarifa: si confirmada → upsert boleta; si no → eliminar boleta existente
+    // Por cada tarifa: si confirmada → upsert boleta por cada operario con su cantidad; si no → eliminar
     for (const t of tarifasCorte) {
-      const opId = fila.asignaciones.find(a => a.tarifaId === t.id)?.operarioId ?? '';
       if (avanceOps[t.id]) {
-        if (opId) upsertBoletaLinea(opId, corteId, t.id, periodo, filasActualizadas);
+        const ops = (avanceOpsIds[t.id] ?? []).filter(o => o.operarioId && o.cantidad > 0);
+        if (ops.length === 0) {
+          // Sin operario asignado en modal, usar el global
+          const opId = fila.asignaciones.find(a => a.tarifaId === t.id)?.operarioId ?? '';
+          if (opId) upsertBoletaLinea(opId, corteId, t.id, periodo, filasActualizadas, fila.cantidad);
+        } else {
+          // Eliminar boletas previas de esta tarifa+talla y recrear con cantidades individuales
+          boletaLineas
+            .filter(b => b.corteId === corteId && b.tarifaId === t.id && b.periodo === periodo && b.colorId === colorId)
+            .forEach(b => deleteBoletaLinea(b.id));
+          for (const op of ops) {
+            upsertBoletaLinea(op.operarioId, corteId, t.id, periodo, filasActualizadas, op.cantidad);
+          }
+        }
       } else {
-        const linea = boletaLineas.find(
-          b => b.corteId === corteId && b.tarifaId === t.id && b.periodo === periodo && b.colorId === colorId
-        );
-        if (linea) deleteBoletaLinea(linea.id);
+        boletaLineas
+          .filter(b => b.corteId === corteId && b.tarifaId === t.id && b.periodo === periodo && b.colorId === colorId)
+          .forEach(b => deleteBoletaLinea(b.id));
       }
     }
 
@@ -1007,33 +1040,128 @@ export function ProduccionConfeccion() {
                   <X className="h-4 w-4" />
                 </button>
               </div>
-              <div className="px-5 py-4 space-y-2">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-3">Marcar operaciones completadas</p>
+              <div className="px-5 py-4 space-y-3 max-h-[55vh] overflow-y-auto">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Operaciones — Talla {talla}</p>
                 {tarifasModal.map(t => {
-                  const asignacion = filaModal?.asignaciones.find(a => a.tarifaId === t.id);
-                  const operario = asignacion?.operarioId ? operarioMap.get(asignacion.operarioId) : null;
                   const checked = avanceOps[t.id] ?? false;
+                  const ops = avanceOpsIds[t.id] ?? [];
+                  const totalAsignado = ops.reduce((s, o) => s + (o.cantidad || 0), 0);
+                  const cantFila = filaModal?.cantidad ?? 0;
+                  const descuadre = totalAsignado !== cantFila && ops.some(o => o.operarioId);
                   return (
-                    <label
+                    <div
                       key={t.id}
-                      className={`flex items-center gap-3 px-3 py-2 rounded border cursor-pointer transition-colors ${
-                        checked ? 'border-green-300 bg-green-50' : 'border-gray-200 hover:bg-gray-50'
-                      }`}
+                      className={`rounded border transition-colors ${checked ? 'border-green-300 bg-green-50' : 'border-gray-200 bg-white'}`}
                     >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={e => setAvanceOps(prev => ({ ...prev, [t.id]: e.target.checked }))}
-                        className="h-3.5 w-3.5 accent-green-600"
-                      />
-                      <span className="text-[10px] text-gray-400 font-mono w-4 flex-shrink-0">{t.orden}.</span>
-                      <span className={`text-[11px] font-bold flex-1 truncate ${checked ? 'text-green-800' : 'text-gray-700'}`}>{t.operacion}</span>
-                      {operario && (
-                        <span className="text-[10px] text-gray-400 whitespace-nowrap">
-                          {(operario.nombre ?? operario.codigo).split(',')[1]?.trim().split(/\s+/)[0] ?? (operario.nombre ?? operario.codigo).split(/\s+/)[0]}
-                        </span>
-                      )}
-                    </label>
+                      {/* Fila principal: checkbox + nombre operación */}
+                      <label className="flex items-center gap-3 px-3 py-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={e => setAvanceOps(prev => ({ ...prev, [t.id]: e.target.checked }))}
+                          className="h-3.5 w-3.5 accent-green-600 flex-shrink-0"
+                        />
+                        <span className="text-[10px] text-gray-400 font-mono w-4 flex-shrink-0">{t.orden}.</span>
+                        <span className={`text-[11px] font-bold flex-1 ${checked ? 'text-green-800' : 'text-gray-700'}`}>{t.operacion}</span>
+                        {descuadre && (
+                          <span className="text-[9px] text-amber-600 font-bold whitespace-nowrap">{totalAsignado}/{cantFila}</span>
+                        )}
+                      </label>
+                      {/* Operarios asignados con cantidades */}
+                      <div className="px-3 pb-2 space-y-1">
+                        {ops.map((op, opIdx) => {
+                          const opInfo = op.operarioId ? operarioMap.get(op.operarioId) : null;
+                          const nombreCorto = opInfo
+                            ? ((opInfo.nombre ?? opInfo.codigo).split(',')[1]?.trim().split(/\s+/)[0] ?? (opInfo.nombre ?? opInfo.codigo).split(/\s+/)[0])
+                            : '';
+                          return (
+                            <div key={opIdx} className="flex items-center gap-1.5">
+                              <select
+                                value={op.operarioId}
+                                onChange={e => {
+                                  const newId = e.target.value;
+                                  setAvanceOpsIds(prev => {
+                                    const list = [...(prev[t.id] ?? [])];
+                                    list[opIdx] = { ...list[opIdx], operarioId: newId };
+                                    return { ...prev, [t.id]: list };
+                                  });
+                                }}
+                                className="flex-1 text-[10px] border border-gray-200 rounded px-1.5 py-0.5 bg-white min-w-0"
+                              >
+                                <option value="">— sin operario —</option>
+                                {operarios.map(o => (
+                                  <option key={o.id} value={o.id}>
+                                    {(o.nombre ?? o.codigo).split(',')[1]?.trim().split(/\s+/)[0] ?? (o.nombre ?? o.codigo).split(/\s+/)[0]} ({o.codigo})
+                                  </option>
+                                ))}
+                              </select>
+                              <input
+                                type="number"
+                                min={0}
+                                max={cantFila}
+                                value={op.cantidad}
+                                onChange={e => {
+                                  const val = Math.min(parseInt(e.target.value) || 0, cantFila);
+                                  setAvanceOpsIds(prev => {
+                                    const list = [...(prev[t.id] ?? [])];
+                                    list[opIdx] = { ...list[opIdx], cantidad: val };
+                                    // Distribuir el resto entre los demás operarios
+                                    const otros = list.length - 1;
+                                    if (otros > 0) {
+                                      const resto = cantFila - val;
+                                      const base = Math.floor(Math.max(resto, 0) / otros);
+                                      const mod = Math.max(resto, 0) - base * otros;
+                                      let primerOtro = true;
+                                      for (let i = 0; i < list.length; i++) {
+                                        if (i === opIdx) continue;
+                                        list[i] = { ...list[i], cantidad: base + (primerOtro ? mod : 0) };
+                                        primerOtro = false;
+                                      }
+                                    }
+                                    return { ...prev, [t.id]: list };
+                                  });
+                                }}
+                                className="w-14 text-[10px] border border-gray-200 rounded px-1.5 py-0.5 text-right font-mono"
+                              />
+                              {ops.length > 1 && (
+                                <button
+                                  onClick={() => setAvanceOpsIds(prev => {
+                                    const list = (prev[t.id] ?? []).filter((_, i) => i !== opIdx);
+                                    // redistribuir
+                                    const total = list.reduce((s, o) => s + o.cantidad, 0);
+                                    if (total !== cantFila && list.length > 0) {
+                                      const base = Math.floor(cantFila / list.length);
+                                      const resto = cantFila - base * list.length;
+                                      return { ...prev, [t.id]: list.map((o, i) => ({ ...o, cantidad: base + (i === 0 ? resto : 0) })) };
+                                    }
+                                    return { ...prev, [t.id]: list };
+                                  })}
+                                  className="text-gray-300 hover:text-red-400 flex-shrink-0"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                        {/* Botón añadir operario */}
+                        <button
+                          onClick={() => setAvanceOpsIds(prev => {
+                            const list = [...(prev[t.id] ?? [])];
+                            const newCount = list.length + 1;
+                            const base = Math.floor(cantFila / newCount);
+                            const resto = cantFila - base * newCount;
+                            const newList = list.map((o, i) => ({ ...o, cantidad: base + (i === 0 ? resto : 0) }));
+                            newList.push({ operarioId: '', cantidad: base });
+                            return { ...prev, [t.id]: newList };
+                          })}
+                          className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-gray-700 mt-0.5"
+                        >
+                          <Plus className="h-3 w-3" />
+                          <span>Agregar operario</span>
+                        </button>
+                      </div>
+                    </div>
                   );
                 })}
               </div>
