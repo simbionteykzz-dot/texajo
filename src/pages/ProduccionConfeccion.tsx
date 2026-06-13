@@ -95,7 +95,7 @@ export function ProduccionConfeccion() {
   const [colorHexOverrides, setColorHexOverrides] = useState<Record<string, string>>({});
   const [modalHex, setModalHex] = useState<string>('#9E9E9E');
   // Fuente del PDF — persiste en la sesión
-  const [pdfFont, setPdfFont] = useState<PdfFont>('helvetica');
+  const pdfFont: PdfFont = 'oswald';
 
   const abrirModalAsignarColor = (corteId: string, colorId: string) => {
     const primerFila = seguimientoFilas.find(f => f.corteId === corteId && f.colorId === colorId);
@@ -1187,44 +1187,6 @@ export function ProduccionConfeccion() {
                 <button onClick={() => setModalColor(null)} className="text-gray-400 hover:text-gray-600">
                   <X className="h-4 w-4" />
                 </button>
-              </div>
-              {/* Selector de fuente para PDF */}
-              <div className="px-5 pt-3 pb-1 border-t border-gray-100">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Fuente del PDF</p>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {([
-                    { key: 'helvetica',  label: 'Sans-serif',  sub: 'Helvetica',       preview: 'Aa Bb 123', family: 'Arial, sans-serif' },
-                    { key: 'times',      label: 'Serif',       sub: 'Times New Roman', preview: 'Aa Bb 123', family: 'Georgia, serif' },
-                    { key: 'courier',    label: 'Mono',        sub: 'Courier New',     preview: 'Aa Bb 123', family: '"Courier New", monospace' },
-                    { key: 'roboto',     label: 'Roboto',      sub: 'Google Fonts',    preview: 'Aa Bb 123', family: 'Roboto, Arial, sans-serif' },
-                    { key: 'opensans',   label: 'Open Sans',   sub: 'Google Fonts',    preview: 'Aa Bb 123', family: '"Open Sans", Arial, sans-serif' },
-                    { key: 'lato',       label: 'Lato',        sub: 'Google Fonts',    preview: 'Aa Bb 123', family: 'Lato, Arial, sans-serif' },
-                    { key: 'montserrat', label: 'Montserrat',  sub: 'Google Fonts',    preview: 'Aa Bb 123', family: 'Montserrat, Arial, sans-serif' },
-                    { key: 'oswald',     label: 'Oswald',      sub: 'Google Fonts',    preview: 'Aa Bb 123', family: 'Oswald, Arial, sans-serif' },
-                    { key: 'raleway',    label: 'Raleway',     sub: 'Google Fonts',    preview: 'Aa Bb 123', family: 'Raleway, Arial, sans-serif' },
-                    { key: 'playfair',   label: 'Playfair',    sub: 'Google Fonts',    preview: 'Aa Bb 123', family: '"Playfair Display", Georgia, serif' },
-                    { key: 'ubuntu',     label: 'Ubuntu',      sub: 'Google Fonts',    preview: 'Aa Bb 123', family: 'Ubuntu, Arial, sans-serif' },
-                  ] as const).map(f => (
-                    <button
-                      key={f.key}
-                      onClick={() => setPdfFont(f.key)}
-                      className={`rounded border px-2 py-2 text-center transition-all ${
-                        pdfFont === f.key
-                          ? 'border-black bg-black text-white'
-                          : 'border-gray-200 bg-white text-gray-600 hover:border-gray-400'
-                      }`}
-                    >
-                      <span
-                        className="block text-sm leading-tight"
-                        style={{ fontFamily: f.family }}
-                      >
-                        {f.preview}
-                      </span>
-                      <span className="block text-[10px] font-semibold mt-0.5">{f.label}</span>
-                      <span className="block text-[8px] opacity-60 mt-0.5">{f.sub}</span>
-                    </button>
-                  ))}
-                </div>
               </div>
               {/* Selector de color para PDF */}
               <div className="px-5 pt-3 pb-1">

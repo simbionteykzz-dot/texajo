@@ -602,7 +602,7 @@ const YELLOW_SOFT = [255, 230, 100] as [number, number, number];
 const BLK         = [  0,   0,   0] as [number, number, number];
 const GRAY_ALT    = [250, 250, 250] as [number, number, number];
 
-export async function exportHojaSeguimientoPdf(data: HojaSeguimientoData, font: PdfFont = 'helvetica') {
+export async function exportHojaSeguimientoPdf(data: HojaSeguimientoData, font: PdfFont = 'oswald') {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   const pageW = doc.internal.pageSize.getWidth(); // 297 mm
   const pageH = doc.internal.pageSize.getHeight(); // 210 mm

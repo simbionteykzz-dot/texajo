@@ -1,30 +1,11 @@
 import type { jsPDF } from 'jspdf';
 
-export type PdfFont =
-  | 'helvetica'
-  | 'times'
-  | 'courier'
-  | 'roboto'
-  | 'opensans'
-  | 'lato'
-  | 'montserrat'
-  | 'oswald'
-  | 'raleway'
-  | 'playfair'
-  | 'ubuntu';
+export type PdfFont = 'oswald';
 
-// jsPDF built-ins — no registration needed
-const BUILTIN: PdfFont[] = ['helvetica', 'times', 'courier'];
+const BUILTIN: PdfFont[] = [];
 
 const loaders: Record<string, () => Promise<string>> = {
-  roboto:     () => import('./roboto').then(m => m.default),
-  opensans:   () => import('./opensans').then(m => m.default),
-  lato:       () => import('./lato').then(m => m.default),
-  montserrat: () => import('./montserrat').then(m => m.default),
-  oswald:     () => import('./oswald').then(m => m.default),
-  raleway:    () => import('./raleway').then(m => m.default),
-  playfair:   () => import('./playfair').then(m => m.default),
-  ubuntu:     () => import('./ubuntu').then(m => m.default),
+  oswald: () => import('./oswald').then(m => m.default),
 };
 
 const registered = new Set<string>();
