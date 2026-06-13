@@ -421,10 +421,10 @@ export function Destajo() {
 
   const boletasHuerfanas = useMemo(() => {
     return boletaLineas.filter(b => {
-      // Buscar alguna seguimientoFila con corteId+colorId+tarifaId confirmada
+      // Una boleta tiene respaldo si existe alguna seguimientoFila del mismo corte
+      // con la misma tarifa confirmada (no exigimos colorId para evitar falsos positivos)
       const filaConfirmada = seguimientoFilas.some(f =>
         f.corteId === b.corteId &&
-        f.colorId === b.colorId &&
         f.asignaciones.some(a => a.tarifaId === b.tarifaId && a.confirmado === true)
       );
       return !filaConfirmada;
