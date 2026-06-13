@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { motion } from 'motion/react';
 import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
-import { Download, Plus, X, FileText, Receipt, Users, BarChart2 } from 'lucide-react';
+import { Download, Plus, X, FileText, Receipt, Users, BarChart2, AlertTriangle, ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
 import { BoletaLinea, TipoDescuentoBoleta } from '../types';
 import { ModuleInfoBox } from '../components/ModuleInfoBox';
 import { exportRowsToXlsx, exportTableToPdf } from '../lib/export';
@@ -416,6 +416,27 @@ export function Destajo() {
     addToast('PDF exportado', 'success');
   };
 
+  // ── Boletas huérfanas: líneas sin respaldo en seguimiento_filas confirmado ──
+  const [huerfanasExpanded, setHuerfanasExpanded] = useState(false);
+
+  const boletasHuerfanas = useMemo(() => {
+    return boletaLineas.filter(b => {
+      // Buscar alguna seguimientoFila con corteId+colorId+tarifaId confirmada
+      const filaConfirmada = seguimientoFilas.some(f =>
+        f.corteId === b.corteId &&
+        f.colorId === b.colorId &&
+        f.asignaciones.some(a => a.tarifaId === b.tarifaId && a.confirmado === true)
+      );
+      return !filaConfirmada;
+    });
+  }, [boletaLineas, seguimientoFilas]);
+
+  const eliminarHuerfanas = () => {
+    boletasHuerfanas.forEach(b => deleteBoletaLinea(b.id));
+    addToast(`${boletasHuerfanas.length} línea${boletasHuerfanas.length !== 1 ? 's' : ''} huérfana${boletasHuerfanas.length !== 1 ? 's' : ''} eliminada${boletasHuerfanas.length !== 1 ? 's' : ''}`, 'success');
+    setHuerfanasExpanded(false);
+  };
+
   return (
     <motion.div
       className="space-y-8"
@@ -442,6 +463,66 @@ export function Destajo() {
             ]}
           />
         </div>
+        {/* Sección boletas huérfanas */}
+        {boletasHuerfanas.length > 0 && (
+          <div className="mt-4 border border-amber-200 bg-amber-50 rounded">
+            <button
+              className="w-full flex items-center gap-2 px-4 py-2.5 text-left"
+              onClick={() => setHuerfanasExpanded(v => !v)}
+            >
+              <AlertTriangle className="h-3.5 w-3.5 text-amber-500 flex-shrink-0" />
+              <span className="text-[11px] font-bold text-amber-800 flex-1">
+                {boletasHuerfanas.length} línea{boletasHuerfanas.length !== 1 ? 's' : ''} sin respaldo en seguimiento
+              </span>
+              <span className="text-[10px] text-amber-600 mr-2">Estas boletas no tienen una operación confirmada en Confección</span>
+              {huerfanasExpanded ? <ChevronDown className="h-3.5 w-3.5 text-amber-500" /> : <ChevronRight className="h-3.5 w-3.5 text-amber-500" />}
+            </button>
+            {huerfanasExpanded && (
+              <div className="px-4 pb-3 space-y-2">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[11px]">
+                    <thead>
+                      <tr className="text-[10px] font-bold uppercase tracking-widest text-amber-700 border-b border-amber-200">
+                        <th className="text-left py-1 pr-3">N° Corte</th>
+                        <th className="text-left py-1 pr-3">Operario</th>
+                        <th className="text-left py-1 pr-3">Color</th>
+                        <th className="text-left py-1 pr-3">Operación</th>
+                        <th className="text-right py-1 pr-3">Prendas</th>
+                        <th className="text-right py-1 pr-3">Importe</th>
+                        <th className="text-left py-1">Período</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {boletasHuerfanas.map(b => {
+                        const op = operarioMap.get(b.operarioId);
+                        return (
+                          <tr key={b.id} className="border-b border-amber-100 last:border-0">
+                            <td className="py-1 pr-3 font-mono">{b.nCorte}</td>
+                            <td className="py-1 pr-3">{op?.nombre ?? op?.codigo ?? b.operarioId}</td>
+                            <td className="py-1 pr-3">{colorMap.get(b.colorId) ?? b.colorId}</td>
+                            <td className="py-1 pr-3">{b.operacion}</td>
+                            <td className="py-1 pr-3 text-right font-mono">{b.cantPrendas}</td>
+                            <td className="py-1 pr-3 text-right font-mono">S/ {b.importe.toFixed(2)}</td>
+                            <td className="py-1 text-gray-500">{b.periodo}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="flex justify-end pt-1">
+                  <button
+                    onClick={eliminarHuerfanas}
+                    className="flex items-center gap-1.5 text-[11px] font-bold text-red-600 border border-red-200 bg-white hover:bg-red-50 px-3 py-1.5 rounded"
+                  >
+                    <Trash2 className="h-3 w-3" /> Eliminar todas
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="flex gap-1 mt-4 border-b border-[#DDD8CF]">
           {([
             { key: 'boleta', label: 'Mi Boleta', icon: Receipt },
