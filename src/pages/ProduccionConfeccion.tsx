@@ -98,14 +98,29 @@ export function ProduccionConfeccion() {
   const [modalHex, setModalHex] = useState<string>('#9E9E9E');
   // Fuente del PDF — persiste en la sesión
   const pdfFont: PdfFont = 'oswald';
+  // Cantidades por operario en el modal global: { [tarifaId]: number[] }
+  const [modalOpsQty, setModalOpsQty] = useState<Record<string, number[]>>({});
 
   const abrirModalAsignarColor = (corteId: string, colorId: string) => {
     const primerFila = seguimientoFilas.find(f => f.corteId === corteId && f.colorId === colorId);
+    const filasDelColor = seguimientoFilas.filter(f => f.corteId === corteId && f.colorId === colorId);
+    const totalPrendasInit = filasDelColor.reduce((s, f) => s + f.cantidad, 0);
     const ops: Record<string, string[]> = {};
+    const qty: Record<string, number[]> = {};
     primerFila?.asignaciones.forEach(a => {
-      ops[a.tarifaId] = a.operarioIds?.length ? a.operarioIds : (a.operarioId ? [a.operarioId] : ['']);
+      const ids = a.operarioIds?.length ? a.operarioIds : (a.operarioId ? [a.operarioId] : ['']);
+      ops[a.tarifaId] = ids;
+      const validIds = ids.filter(Boolean);
+      if (validIds.length > 1) {
+        const base = Math.floor(totalPrendasInit / validIds.length);
+        const resto = totalPrendasInit - base * validIds.length;
+        qty[a.tarifaId] = ids.map((id, i) => id ? (base + (i === 0 ? resto : 0)) : 0);
+      } else {
+        qty[a.tarifaId] = ids.map(id => id ? totalPrendasInit : 0);
+      }
     });
     setModalOps(ops);
+    setModalOpsQty(qty);
     // Inicializar hex: override guardado → nombre del color → default
     const hexInicial = colorHexOverrides[colorId] ?? colorHexFromName(colorMap.get(colorId) ?? '');
     setModalHex(hexInicial);
@@ -179,11 +194,13 @@ export function ProduccionConfeccion() {
           if (linea) deleteBoletaLinea(linea.id);
         }
       } else if (idsNuevos.length > 0) {
-        // Confirmada: upsert dividiendo en partes iguales
-        const cantPorOp = Math.floor(totalPrendasColor / idsNuevos.length);
-        const resto = totalPrendasColor % idsNuevos.length;
+        // Confirmada: usar cantidades individuales del modal (o distribuir en partes iguales si no hay)
+        const qtys = modalOpsQty[t.id] ?? [];
+        const allIds = modalOps[t.id] ?? [];
         idsNuevos.forEach((opId, idx) => {
-          upsertBoletaLinea(opId, corteId, t.id, periodo, filasActualizadas, cantPorOp + (idx === 0 ? resto : 0));
+          const globalIdx = allIds.indexOf(opId);
+          const cant = qtys[globalIdx] ?? Math.floor(totalPrendasColor / idsNuevos.length) + (idx === 0 ? totalPrendasColor % idsNuevos.length : 0);
+          upsertBoletaLinea(opId, corteId, t.id, periodo, filasActualizadas, cant);
         });
       }
     }
@@ -1341,17 +1358,33 @@ export function ProduccionConfeccion() {
               <div className="px-5 py-3 space-y-3 max-h-64 overflow-y-auto">
                 {tarifasModal.map(t => {
                   const ids = modalOps[t.id] ?? [''];
-                  const cantPorOp = ids.filter(Boolean).length > 1
-                    ? Math.floor(totalPrendas / ids.filter(Boolean).length)
-                    : null;
+                  const qtys = modalOpsQty[t.id] ?? ids.map(() => totalPrendas);
+                  const totalAsignado = ids.reduce((s, id, i) => s + (id ? (qtys[i] || 0) : 0), 0);
+                  const descuadre = ids.filter(Boolean).length > 1 && totalAsignado !== totalPrendas;
                   return (
                     <div key={t.id} className="space-y-1">
                       <div className="flex items-center gap-2">
                         <span className="text-[11px] font-mono text-gray-400 w-5 text-right flex-shrink-0">{t.orden}.</span>
                         <span className="text-[11px] font-bold text-gray-700 flex-1 truncate">{t.operacion}</span>
+                        {descuadre && (
+                          <span className="text-[9px] text-amber-600 font-bold whitespace-nowrap">{totalAsignado}/{totalPrendas}</span>
+                        )}
                         <button
                           type="button"
-                          onClick={() => setModalOps(prev => ({ ...prev, [t.id]: [...(prev[t.id] ?? ['']), ''] }))}
+                          onClick={() => {
+                            const newIds = [...(ids), ''];
+                            const newCount = newIds.filter(Boolean).length + 1;
+                            const base = Math.floor(totalPrendas / newCount);
+                            const resto = totalPrendas - base * newCount;
+                            const newQtys = newIds.map((id, i) => id ? (base + (i === 0 ? resto : 0)) : 0);
+                            newQtys[newIds.length - 1] = base;
+                            // redistribuir todos
+                            const validCount = newIds.length;
+                            const b2 = Math.floor(totalPrendas / validCount);
+                            const r2 = totalPrendas - b2 * validCount;
+                            setModalOps(prev => ({ ...prev, [t.id]: newIds }));
+                            setModalOpsQty(prev => ({ ...prev, [t.id]: newIds.map((_, i) => b2 + (i === 0 ? r2 : 0)) }));
+                          }}
                           className="text-[10px] text-blue-500 hover:text-blue-700 px-1 flex-shrink-0"
                           title="Agregar segundo operario"
                         >+ op</button>
@@ -1373,19 +1406,48 @@ export function ProduccionConfeccion() {
                             ))}
                           </select>
                           {ids.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => setModalOps(prev => {
-                                const next = (prev[t.id] ?? ['']).filter((_, i) => i !== idx);
-                                return { ...prev, [t.id]: next.length ? next : [''] };
-                              })}
-                              className="text-gray-300 hover:text-red-500 flex-shrink-0"
-                            ><X className="h-3 w-3" /></button>
-                          )}
-                          {cantPorOp !== null && opId && (
-                            <span className="text-[10px] text-gray-400 whitespace-nowrap flex-shrink-0">
-                              ~{cantPorOp + (idx === 0 ? totalPrendas % ids.filter(Boolean).length : 0)} prendas
-                            </span>
+                            <>
+                              <input
+                                type="number"
+                                min={0}
+                                max={totalPrendas}
+                                value={qtys[idx] ?? 0}
+                                onChange={e => {
+                                  const val = Math.min(parseInt(e.target.value) || 0, totalPrendas);
+                                  setModalOpsQty(prev => {
+                                    const list = [...(prev[t.id] ?? ids.map(() => 0))];
+                                    list[idx] = val;
+                                    const otros = list.length - 1;
+                                    if (otros > 0) {
+                                      const resto = Math.max(totalPrendas - val, 0);
+                                      const base = Math.floor(resto / otros);
+                                      const mod = resto - base * otros;
+                                      let primerOtro = true;
+                                      for (let i = 0; i < list.length; i++) {
+                                        if (i === idx) continue;
+                                        list[i] = base + (primerOtro ? mod : 0);
+                                        primerOtro = false;
+                                      }
+                                    }
+                                    return { ...prev, [t.id]: list };
+                                  });
+                                }}
+                                className="w-14 text-[10px] border border-gray-200 rounded px-1.5 py-0.5 text-right font-mono"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const newIds = (ids).filter((_, i) => i !== idx);
+                                  const nextIds = newIds.length ? newIds : [''];
+                                  const validCount = nextIds.filter(Boolean).length;
+                                  const base = validCount > 0 ? Math.floor(totalPrendas / validCount) : totalPrendas;
+                                  const resto = validCount > 0 ? totalPrendas - base * validCount : 0;
+                                  setModalOps(prev => ({ ...prev, [t.id]: nextIds }));
+                                  setModalOpsQty(prev => ({ ...prev, [t.id]: nextIds.map((id, i) => id ? (base + (i === 0 ? resto : 0)) : 0) }));
+                                }}
+                                className="text-gray-300 hover:text-red-500 flex-shrink-0"
+                              ><X className="h-3 w-3" /></button>
+                            </>
                           )}
                         </div>
                       ))}
