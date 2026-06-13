@@ -553,7 +553,7 @@ export function Cortes() {
               </tr>
             </thead>
             <tbody>
-              {cortesFiltrados.map(c => {
+              {cortesFiltrados.map((c, corteIdx) => {
                 // Construir filas: una por color×talla con cantidad > 0
                 const detalles = c.coloresDetalle && c.coloresDetalle.length > 0
                   ? c.coloresDetalle
@@ -572,18 +572,18 @@ export function Cortes() {
                 }));
 
                 const rowSpan = filas.length;
+                const bgCorte = corteIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50/60';
+                const hoverBg = corteIdx % 2 === 0 ? 'hover:bg-amber-50/40' : 'hover:bg-amber-50/60';
 
                 return filas.map((fila, fi) => {
                   const esFirstFila = fi === 0;
-                  const esLastFila = fi === filas.length - 1;
-                  const borderTop = esFirstFila ? 'border-t-2 border-gray-300' : 'border-t border-gray-100';
-                  const borderBottom = esLastFila ? '' : '';
+                  const borderTop = esFirstFila ? 'border-t-2 border-gray-300' : 'border-t border-gray-200/60';
 
                   return (
-                    <tr key={`${c.id}-${fi}`} className={`${borderTop} ${borderBottom} hover:bg-gray-50`}>
+                    <tr key={`${c.id}-${fi}`} className={`${borderTop} ${bgCorte} ${hoverBg} transition-colors`}>
                       {esFirstFila && (
                         <>
-                          <td rowSpan={rowSpan} className="px-3 py-2 font-mono font-black text-gray-800 align-top border-r border-gray-100">{c.nCorte}</td>
+                          <td rowSpan={rowSpan} className="px-3 py-2 font-mono font-black text-gray-800 align-top border-r border-gray-200 border-l-4 border-l-[#B66F35]">{c.nCorte}</td>
                           <td rowSpan={rowSpan} className="px-3 py-2 font-mono whitespace-nowrap align-top border-r border-gray-100">{c.fecha}</td>
                           <td rowSpan={rowSpan} className="px-3 py-2 whitespace-nowrap align-top border-r border-gray-100">{clienteMap.get(c.clienteId) ?? c.clienteId}</td>
                           <td rowSpan={rowSpan} className="px-3 py-2 whitespace-nowrap align-top border-r border-gray-100">{productoMap.get(c.productoId)?.nombre ?? c.productoId}</td>

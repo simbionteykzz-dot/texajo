@@ -29,7 +29,7 @@ const toPrecioComplemento = (r: any): PrecioComplemento => ({ id: String(r.id), 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const toPrecioTejeduria = (r: any): PrecioTejeduria => ({ id: String(r.id), tipoTejido: r.tipo_tejido, precioKg: r.precio_kg });
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const toProducto = (r: any): Producto => ({ id: String(r.id), nombre: r.nombre, costoMoTotal: r.costo_mo ?? 0, precioServicio: r.precio_venta ?? 0, telaId: r.tela_id ? String(r.tela_id) : undefined, limiteConsumo: r.limite_consumo ?? undefined, limiteRendimiento: r.limite_rendimiento ?? undefined, propS: r.prop_s ?? undefined, propM: r.prop_m ?? undefined, propL: r.prop_l ?? undefined, propXL: r.prop_xl ?? undefined, notas: r.notas ?? '' });
+const toProducto = (r: any): Producto => ({ id: String(r.id), nombre: r.nombre, marca: r.marca ?? undefined, costoMoTotal: r.costo_mo ?? 0, precioServicio: r.precio_venta ?? 0, telaId: r.tela_id ? String(r.tela_id) : undefined, limiteConsumo: r.limite_consumo ?? undefined, limiteRendimiento: r.limite_rendimiento ?? undefined, propS: r.prop_s ?? undefined, propM: r.prop_m ?? undefined, propL: r.prop_l ?? undefined, propXL: r.prop_xl ?? undefined, notas: r.notas ?? '' });
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const toTarifa = (r: any): TarifaOperacion => ({ id: String(r.id), productoId: String(r.producto_id), orden: r.orden, operacion: r.operacion, tarifa: r.tarifa, notas: r.notas, clave: r.clave });
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -91,7 +91,7 @@ const fromPrecioTejeduria = (v: PrecioTejeduria) => ({ id: v.id, tipo_tejido: v.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const toPrecioTintoreria = (r: any): PrecioTintoreria => ({ id: String(r.id), tipoServicio: r.tipo_servicio, tipoTela: r.tipo_tela, precioKg: r.precio_kg, moneda: r.moneda, notas: r.notas ?? '' });
 const fromPrecioTintoreria = (v: PrecioTintoreria) => ({ id: v.id, tipo_servicio: v.tipoServicio, tipo_tela: v.tipoTela, precio_kg: v.precioKg, moneda: v.moneda, notas: v.notas });
-const fromProducto = (v: Producto) => ({ id: v.id, nombre: v.nombre, costo_mo: v.costoMoTotal, precio_venta: v.precioServicio, tela_id: v.telaId ? parseInt(v.telaId) : null, limite_consumo: v.limiteConsumo ?? null, limite_rendimiento: v.limiteRendimiento ?? null, prop_s: v.propS ?? null, prop_m: v.propM ?? null, prop_l: v.propL ?? null, prop_xl: v.propXL ?? null, notas: v.notas });
+const fromProducto = (v: Producto) => ({ id: v.id, nombre: v.nombre, marca: v.marca ?? null, costo_mo: v.costoMoTotal, precio_venta: v.precioServicio, tela_id: v.telaId ? parseInt(v.telaId) : null, limite_consumo: v.limiteConsumo ?? null, limite_rendimiento: v.limiteRendimiento ?? null, prop_s: v.propS ?? null, prop_m: v.propM ?? null, prop_l: v.propL ?? null, prop_xl: v.propXL ?? null, notas: v.notas });
 const fromTarifa = (v: TarifaOperacion) => ({ id: v.id, producto_id: v.productoId, orden: v.orden, operacion: v.operacion, tarifa: v.tarifa, notas: v.notas ?? null, clave: v.clave });
 const fromOperario = (v: Operario) => ({ id: v.id, codigo: v.codigo, nombre_completo: v.nombre, activo: v.estado === 'ACTIVO' });
 // Para INSERT omitimos id (PK integer autoincremental)
