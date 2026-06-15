@@ -457,15 +457,32 @@ export function exportBoletaToPdf(data: BoletaPdfData) {
   // ══════════════════════════════════════════════════════════
   // RESUMEN FINANCIERO
   // ══════════════════════════════════════════════════════════
-  const totalBruto = data.totalesImporte;
-  const descuento  = data.descuentoOverride !== undefined ? data.descuentoOverride : totalBruto * 0.01;
-  const totalNeto  = totalBruto - descuento;
+  const totalBruto      = data.totalesImporte;
+  const mermaAmount     = totalBruto * 0.01;
+  const descuentosExtra = data.descuentoOverride ?? 0;
+  const totalNeto       = totalBruto - mermaAmount - descuentosExtra;
 
   let fy = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 7;
 
   const BOX_W = 95;
   const BOX_X = R - BOX_W;
   const ROW_H = 9;
+
+  const drawDescRow = (label: string, amount: number) => {
+    doc.setFillColor(255, 249, 245);
+    doc.setDrawColor(...BORDER);
+    doc.setLineWidth(0.25);
+    doc.rect(BOX_X, fy, BOX_W, ROW_H, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.5);
+    doc.setTextColor(196, 72, 18);
+    doc.text(label, BOX_X + 5, fy + ROW_H / 2 + 1.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(196, 72, 18);
+    doc.text(`-${fSoles(amount)}`, R - 5, fy + ROW_H / 2 + 1.5, { align: 'right' });
+    fy += ROW_H;
+  };
 
   // Fila Bruto
   doc.setFillColor(255, 255, 255);
@@ -482,18 +499,11 @@ export function exportBoletaToPdf(data: BoletaPdfData) {
   doc.text(fSoles(totalBruto), R - 5, fy + ROW_H / 2 + 1.5, { align: 'right' });
   fy += ROW_H;
 
-  // Fila Descuento
-  doc.setFillColor(255, 249, 245);
-  doc.rect(BOX_X, fy, BOX_W, ROW_H, 'FD');
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.5);
-  doc.setTextColor(196, 72, 18);
-  doc.text(data.descuentoOverride !== undefined ? 'DESCUENTOS' : 'DESC. 1%', BOX_X + 5, fy + ROW_H / 2 + 1.5);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(196, 72, 18);
-  doc.text(`-${fSoles(descuento)}`, R - 5, fy + ROW_H / 2 + 1.5, { align: 'right' });
-  fy += ROW_H;
+  // Fila Merma 1%
+  drawDescRow('MERMA (1%)', mermaAmount);
+
+  // Fila descuentos manuales (si los hay)
+  if (descuentosExtra > 0) drawDescRow('DESCUENTOS', descuentosExtra);
 
   // Fila Neto — verde oscuro, tipografía grande
   const NETO_H = 12;

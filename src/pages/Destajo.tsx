@@ -114,7 +114,7 @@ export function Destajo() {
     return map;
   }, [cortes, tarifasOperaciones]);
 
-  const { lineasFiltradas, totalBruto } = useBoletaLineas(boletaLineas, {
+  const { lineasFiltradas } = useBoletaLineas(boletaLineas, {
     operarioId: selectedOperario,
     periodo: selectedPeriodo,
     desde: bDesde,
@@ -122,6 +122,21 @@ export function Destajo() {
     corteId: bCorteId,
     estado: bEstado,
   });
+
+  // totalBruto recalculado usando cantPrendas real por operario desde seguimientoFilas
+  const totalBruto = useMemo(() => lineasFiltradas.reduce((sum, b) => {
+    if (b.talla) return sum + b.importe; // sub-líneas por talla: ya tienen el valor correcto
+    const filasSeg = seguimientoFilas.filter(
+      f => f.corteId === b.corteId && (!b.colorId || f.colorId === b.colorId) && f.asignaciones.some(a => a.tarifaId === b.tarifaId && a.confirmado === true)
+    );
+    if (filasSeg.length === 0) return sum + b.importe;
+    const cantReal = filasSeg.reduce((s, fila) => {
+      const asig = fila.asignaciones.find(a => a.tarifaId === b.tarifaId && a.confirmado === true);
+      const nOps = asig?.operarioIds?.filter(Boolean).length ?? (asig?.operarioId ? 1 : 1);
+      return s + (nOps > 1 ? Math.round(fila.cantidad / nOps) : fila.cantidad);
+    }, 0);
+    return sum + cantReal * b.tarifa;
+  }, 0), [lineasFiltradas, seguimientoFilas]);
 
   // Vista general: todas las líneas con filtros opcionales
   const todasOperaciones = useMemo(() => {
@@ -168,7 +183,8 @@ export function Destajo() {
     [descuentosBoleta, selectedOperario, selectedPeriodo]
   );
   const totalDescuentos = descuentosFiltrados.reduce((s, d) => s + d.monto, 0);
-  const totalNeto = totalBruto - totalDescuentos;
+  const descuentoFijo = totalBruto * 0.01;
+  const totalNeto = totalBruto - descuentoFijo - totalDescuentos;
 
   const pendientes = lineasFiltradas.filter(b => b.estadoPago === 'PENDIENTE');
   const pagadas = lineasFiltradas.filter(b => b.estadoPago === 'PAGADO');
@@ -692,7 +708,7 @@ export function Destajo() {
                         const isExpanded = expandedLineaId === b.id;
                         // Tallas disponibles de seguimientoFilas para este corte+color
                         const tallasFilas = seguimientoFilas.filter(
-                          f => f.corteId === b.corteId && (!b.colorId || f.colorId === b.colorId)
+                          f => f.corteId === b.corteId && (!b.colorId || f.colorId === b.colorId) && f.asignaciones.some(a => a.tarifaId === b.tarifaId && a.confirmado === true)
                         );
                         const tieneTallas = tallasFilas.length >= 1 && !b.talla;
 
@@ -741,6 +757,9 @@ export function Destajo() {
                                       bl.talla === fila.talla
                               );
                               const yaPagada = subLinea?.estadoPago === 'PAGADO';
+                              const asig = fila.asignaciones.find(a => a.tarifaId === b.tarifaId && a.confirmado === true);
+                              const nOps = asig?.operarioIds?.filter(Boolean).length ?? (asig?.operarioId ? 1 : 1);
+                              const cantOperario = nOps > 1 ? Math.round(fila.cantidad / nOps) : fila.cantidad;
                               return (
                                 <tr key={`${b.id}-${fila.talla}`} className="bg-blue-50 border-l-4 border-blue-200">
                                   <td />
@@ -749,8 +768,8 @@ export function Destajo() {
                                   <td className="px-3 py-1.5 font-mono font-black text-[11px] text-blue-700">{fila.talla}</td>
                                   <td className="px-3 py-1.5 text-gray-500 text-[10px]">{b.operacion}</td>
                                   <td className="px-3 py-1.5 font-mono text-right text-[10px]">S/ {b.tarifa.toFixed(3)}</td>
-                                  <td className="px-3 py-1.5 font-mono text-right font-bold text-[11px]">{fila.cantidad}</td>
-                                  <td className="px-3 py-1.5 font-mono text-right font-black text-[11px]">S/ {(fila.cantidad * b.tarifa).toFixed(2)}</td>
+                                  <td className="px-3 py-1.5 font-mono text-right font-bold text-[11px]">{cantOperario}</td>
+                                  <td className="px-3 py-1.5 font-mono text-right font-black text-[11px]">S/ {(cantOperario * b.tarifa).toFixed(2)}</td>
                                   <td className="px-3 py-1.5">
                                     {yaPagada ? (
                                       <span className="inline-block px-2 py-0.5 font-mono font-bold text-[9px] uppercase tracking-wide rounded bg-green-100 text-green-700">Pagado</span>
@@ -762,7 +781,7 @@ export function Destajo() {
                                   <td className="px-3 py-1.5">
                                     {!yaPagada && (
                                       <button
-                                        onClick={e => { e.stopPropagation(); pagarTalla(b, fila.talla, fila.cantidad); }}
+                                        onClick={e => { e.stopPropagation(); pagarTalla(b, fila.talla, cantOperario); }}
                                         className="text-[9px] font-bold uppercase text-green-700 border border-green-300 px-2 py-0.5 hover:bg-green-50 whitespace-nowrap"
                                       >Pagar talla</button>
                                     )}
@@ -1101,9 +1120,18 @@ export function Destajo() {
                     const isExp = expandedLineaId === b.id;
                     // Tallas del corte+color desde seguimientoFilas (sin depender de asignaciones)
                     const tallasDisp = seguimientoFilas.filter(
-                      f => f.corteId === b.corteId && (!b.colorId || f.colorId === b.colorId)
+                      f => f.corteId === b.corteId && (!b.colorId || f.colorId === b.colorId) && f.asignaciones.some(a => a.tarifaId === b.tarifaId && a.confirmado === true)
                     );
                     const tieneTallas = tallasDisp.length >= 1;
+                    // Calcular cantPrendas real para el operario sumando cantOperario por talla
+                    const cantPrendasReal = tieneTallas
+                      ? tallasDisp.reduce((sum, fila) => {
+                          const asig = fila.asignaciones.find(a => a.tarifaId === b.tarifaId && a.confirmado === true);
+                          const nOps = asig?.operarioIds?.filter(Boolean).length ?? (asig?.operarioId ? 1 : 1);
+                          return sum + (nOps > 1 ? Math.round(fila.cantidad / nOps) : fila.cantidad);
+                        }, 0)
+                      : b.cantPrendas;
+                    const importeReal = cantPrendasReal * b.tarifa;
                     const rowBgB = b.estadoPago === 'PAGADO'
                       ? 'bg-green-50 opacity-60'
                       : tieneTallas
@@ -1134,16 +1162,20 @@ export function Destajo() {
                           <td className="px-3 py-2">{b.operacion}</td>
                           <td className="px-3 py-2 font-mono text-right">S/ {b.tarifa.toFixed(3)}</td>
                           <td className="px-3 py-2">
-                            <input
-                              type="number" min={0}
-                              value={b.cantPrendas}
-                              onChange={e => updateBoletaLinea(b.id, { cantPrendas: parseInt(e.target.value) || 0, importe: (parseInt(e.target.value) || 0) * b.tarifa })}
-                              className="w-20 input-base text-right text-xs py-0.5"
-                              disabled={b.estadoPago === 'PAGADO'}
-                              onClick={e => e.stopPropagation()}
-                            />
+                            {tieneTallas ? (
+                              <span className="font-mono font-bold text-right block">{cantPrendasReal.toLocaleString()}</span>
+                            ) : (
+                              <input
+                                type="number" min={0}
+                                value={b.cantPrendas}
+                                onChange={e => updateBoletaLinea(b.id, { cantPrendas: parseInt(e.target.value) || 0, importe: (parseInt(e.target.value) || 0) * b.tarifa })}
+                                className="w-20 input-base text-right text-xs py-0.5"
+                                disabled={b.estadoPago === 'PAGADO'}
+                                onClick={e => e.stopPropagation()}
+                              />
+                            )}
                           </td>
-                          <td className="px-3 py-2 font-mono text-right font-bold">S/ {b.importe.toFixed(2)}</td>
+                          <td className="px-3 py-2 font-mono text-right font-bold">S/ {importeReal.toFixed(2)}</td>
                           <td className="px-3 py-2">
                             <span className={`text-[10px] font-bold uppercase ${b.estadoPago === 'PAGADO' ? 'text-green-700' : 'text-yellow-700'}`}>{b.estadoPago}</span>
                           </td>
@@ -1151,7 +1183,7 @@ export function Destajo() {
                             <div className="flex items-center gap-2">
                               {b.estadoPago === 'PENDIENTE' && (
                                 <button
-                                  onClick={() => updateBoletaLinea(b.id, { estadoPago: 'PAGADO', fechaPago: new Date().toISOString().slice(0, 10) })}
+                                  onClick={() => updateBoletaLinea(b.id, { estadoPago: 'PAGADO', fechaPago: new Date().toISOString().slice(0, 10), cantPrendas: cantPrendasReal, importe: importeReal })}
                                   className="text-[10px] text-green-600 hover:text-green-800 font-bold uppercase"
                                 >Pagar todo</button>
                               )}
@@ -1179,6 +1211,9 @@ export function Destajo() {
                                   bl.talla === fila.talla
                           );
                           const yaPagada = subLinea?.estadoPago === 'PAGADO';
+                          const asig = fila.asignaciones.find(a => a.tarifaId === b.tarifaId && a.confirmado === true);
+                          const nOps = asig?.operarioIds?.filter(Boolean).length ?? (asig?.operarioId ? 1 : 1);
+                          const cantOperario = nOps > 1 ? Math.round(fila.cantidad / nOps) : fila.cantidad;
                           return (
                             <tr key={`${b.id}-${fila.talla}`} className="bg-amber-50 border-l-4 border-amber-300">
                               <td className="px-3 py-1.5 font-mono text-gray-400 text-[10px]">↳ {b.nCorte}</td>
@@ -1187,8 +1222,8 @@ export function Destajo() {
                               <td className="px-3 py-1.5 font-mono font-black text-amber-700">{fila.talla}</td>
                               <td className="px-3 py-1.5 text-[10px] text-gray-500">{b.operacion}</td>
                               <td className="px-3 py-1.5 font-mono text-right text-[10px]">S/ {b.tarifa.toFixed(3)}</td>
-                              <td className="px-3 py-1.5 font-mono text-right font-bold">{fila.cantidad}</td>
-                              <td className="px-3 py-1.5 font-mono text-right font-black">S/ {(fila.cantidad * b.tarifa).toFixed(2)}</td>
+                              <td className="px-3 py-1.5 font-mono text-right font-bold">{cantOperario}</td>
+                              <td className="px-3 py-1.5 font-mono text-right font-black">S/ {(cantOperario * b.tarifa).toFixed(2)}</td>
                               <td className="px-3 py-1.5">
                                 {yaPagada
                                   ? <span className="text-[10px] font-bold uppercase text-green-700">Pagado</span>
@@ -1203,7 +1238,7 @@ export function Destajo() {
                                       if (subLinea) {
                                         updateBoletaLinea(subLinea.id, { estadoPago: 'PAGADO', fechaPago: hoy });
                                       } else {
-                                        const nuevaCant = b.cantPrendas - fila.cantidad;
+                                        const nuevaCant = cantPrendasReal - cantOperario;
                                         addBoletaLinea({
                                           id: newId(),
                                           operarioId: b.operarioId,
@@ -1216,8 +1251,8 @@ export function Destajo() {
                                           operacion: b.operacion,
                                           orden: b.orden,
                                           tarifa: b.tarifa,
-                                          cantPrendas: fila.cantidad,
-                                          importe: fila.cantidad * b.tarifa,
+                                          cantPrendas: cantOperario,
+                                          importe: cantOperario * b.tarifa,
                                           periodo: b.periodo,
                                           fechaRegistro: b.fechaRegistro,
                                           estadoPago: 'PAGADO',
@@ -1253,6 +1288,12 @@ export function Destajo() {
                 <div className="flex justify-between text-xs">
                   <span className="text-gray-500 font-bold uppercase">Bruto Destajo</span>
                   <span className="font-mono">S/ {totalBruto.toFixed(2)}</span>
+                </div>
+
+                {/* Descuento fijo 1% */}
+                <div className="flex justify-between text-xs text-red-700">
+                  <span className="font-bold uppercase">Desc. 1%</span>
+                  <span className="font-mono">− S/ {descuentoFijo.toFixed(2)}</span>
                 </div>
 
                 {/* Descuentos individuales */}

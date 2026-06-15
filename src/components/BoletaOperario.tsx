@@ -44,12 +44,13 @@ export function BoletaOperario({ operario, periodo, desde, hasta, estadoPago, on
   const productoMap = useMemo(() => new Map(productos.map(p => [p.id, p])), [productos]);
 
   const totalBruto    = lineas.reduce((s, b) => s + b.importe, 0);
+  const merma         = totalBruto * 0.01;
   const descuentos    = descuentosBoleta.filter(d => {
     if (d.operarioId !== operario.id) return false;
     return usaRango ? true : d.periodo === periodo;
   });
   const totalDescuentos = descuentos.reduce((s, d) => s + d.monto, 0);
-  const totalNeto     = totalBruto - totalDescuentos;
+  const totalNeto     = totalBruto - merma - totalDescuentos;
   const pendiente     = lineas.filter(b => b.estadoPago === 'PENDIENTE').reduce((s, b) => s + b.importe, 0);
   const cortesUnicos  = new Set(lineas.map(b => b.nCorte)).size;
 
@@ -270,6 +271,12 @@ export function BoletaOperario({ operario, periodo, desde, hasta, estadoPago, on
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid #EDE9E0' }}>
                   <span style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#9A8F87' }}>Bruto</span>
                   <span style={{ fontFamily: 'var(--font-mono)', fontSize: '12px' }}>S/. {soles(totalBruto)}</span>
+                </div>
+
+                {/* Merma 1% */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid #EDE9E0' }}>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#C84B1A' }}>Merma (1%)</span>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: '#C84B1A' }}>− S/. {soles(merma)}</span>
                 </div>
 
                 {/* Filas de descuentos */}
