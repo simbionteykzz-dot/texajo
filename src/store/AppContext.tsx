@@ -213,6 +213,8 @@ function describeRecord(entidad: string, record: Record<string, unknown>): strin
 
 export function AppProvider({ children, authUser }: { children: ReactNode; authUser?: AuthUser | null }) {
   const [state, setState] = useState<AppState>(() => loadLocalState() ?? defaultState());
+  const stateRef = useRef<AppState>(state);
+  useEffect(() => { stateRef.current = state; }, [state]);
   const [dbReady, setDbReady] = useState(false);
   const authUserRef = useRef(authUser);
   useEffect(() => { authUserRef.current = authUser; }, [authUser]);
@@ -366,7 +368,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   }, [state, dbReady]);
 
   // ── Helper de mutación: actualiza estado local + persiste en Supabase ────
-  const set = useCallback((updater: (prev: AppState) => AppState) => setState(updater), []);
+  const set = useCallback((updater: (prev: AppState) => AppState) => setState(p => { const next = updater(p); stateRef.current = next; return next; }), []);
 
   // ─── Helpers de mutación con Supabase ────────────────────────────────────
 
@@ -406,13 +408,12 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     dbUpdate: (id: string, updates: Partial<T>, cur: T) => Promise<void>
   ) {
     return (id: string, updates: Partial<T>) => {
-      let cur: T | undefined;
-      // Leer cur dentro del setter para evitar stale closure snapshot
-      set(p => {
-        cur = (p[field] as unknown as T[]).find(x => x.id === id);
-        return { ...p, [field]: (p[field] as unknown as T[]).map(x => x.id === id ? { ...x, ...updates } : x) as AppState[typeof field] };
-      });
-      // cur se asigna de forma síncrona dentro del setter antes de que el state flush
+      // Leer cur desde stateRef para evitar race conditions con React StrictMode
+      const cur = (stateRef.current[field] as unknown as T[]).find(x => x.id === id);
+      set(p => ({
+        ...p,
+        [field]: (p[field] as unknown as T[]).map(x => x.id === id ? { ...x, ...updates } : x) as AppState[typeof field],
+      }));
       if (cur) {
         const entidad = FIELD_TO_TABLE[field] ?? String(field);
         const curSnap = cur;

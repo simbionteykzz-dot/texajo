@@ -462,7 +462,7 @@ export const db = {
     delete: (id: string) => dbDelete('movimientos_complemento', id),
   },
   productoColores: {
-    add: (v: ProductoColor) => dbInsert('producto_colores', v, (x: ProductoColor) => ({ producto_id: Number(x.productoId), color_id: Number(x.colorId), prop_s: x.propS, prop_m: x.propM, prop_l: x.propL, prop_xl: x.propXL })),
+    add: (v: ProductoColor) => dbInsert('producto_colores', v, (x: ProductoColor) => ({ producto_id: x.productoId, color_id: x.colorId, prop_s: x.propS, prop_m: x.propM, prop_l: x.propL, prop_xl: x.propXL })),
     update: (id: string, u: Partial<ProductoColor>, cur: ProductoColor) => dbUpdate('producto_colores', id, u, (x: ProductoColor) => ({ id: x.id, producto_id: x.productoId, color_id: x.colorId, prop_s: x.propS, prop_m: x.propM, prop_l: x.propL, prop_xl: x.propXL }), cur),
     delete: (id: string) => dbDelete('producto_colores', id),
   },

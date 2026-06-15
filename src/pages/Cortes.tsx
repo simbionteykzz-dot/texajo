@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
-import { Download, Plus, X, CheckCircle, Clock, XCircle, FileText, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
+import { Download, Plus, X, CheckCircle, Clock, XCircle, FileText, Trash2, ChevronDown, ChevronRight, Save } from 'lucide-react';
 import { Corte, CorteColorDetalle, SeguimientoAsignacion, SeguimientoFila, MovimientoTela } from '../types';
 import { ModuleInfoBox } from '../components/ModuleInfoBox';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -35,6 +35,7 @@ interface CorteForm {
   telaId: string;
   cortador: string; ayudante: string; tendedor: string;
   mtsPorTendida: string; ancho: string;
+  propS: string; propM: string; propL: string; propXL: string;
   colores: ColorDetalle[];
   traslado: boolean; notas: string;
 }
@@ -51,6 +52,7 @@ const emptyForm = (): CorteForm => ({
   clienteId: '', productoId: '', telaId: '',
   cortador: '', ayudante: '', tendedor: '',
   mtsPorTendida: '', ancho: '',
+  propS: '', propM: '', propL: '', propXL: '',
   colores: [emptyColorDetalle()],
   traslado: false, notas: '',
 });
@@ -67,7 +69,7 @@ export function Cortes() {
     movimientosTela, seguimientoFilas, productoColores,
     addCorte, updateCorte, deleteCorte,
     addMovimientoTela, addSeguimientoFila,
-    updateProducto, addColorConProductoColor,
+    updateProducto, addColorConProductoColor, updateProductoColor, addProductoColor,
   } = useAppContext();
 
   const { addToast } = useToast();
@@ -115,18 +117,13 @@ export function Cortes() {
       if (prod.telaId && !f.telaId) partial.telaId = prod.telaId;
       const pS = prod.propS ?? 0, pM = prod.propM ?? 0, pL = prod.propL ?? 0, pXL = prod.propXL ?? 0;
       const hasProps = pS > 0 || pM > 0 || pL > 0 || pXL > 0;
-      const updatedColores = hasProps
-        ? f.colores.map(c => {
-            if (c.propS || c.propM || c.propL || c.propXL) return c;
-            const t = parseInt(c.tendidas) || 0;
-            return {
-              ...c,
-              propS: String(pS), propM: String(pM), propL: String(pL), propXL: String(pXL),
-              ...(t > 0 ? { cantS: String(pS * t), cantM: String(pM * t), cantL: String(pL * t), cantXL: String(pXL * t) } : {}),
-            };
-          })
-        : f.colores;
-      return { ...f, ...partial, colores: updatedColores };
+      if (hasProps && !f.propS && !f.propM && !f.propL && !f.propXL) {
+        partial.propS = String(pS);
+        partial.propM = String(pM);
+        partial.propL = String(pL);
+        partial.propXL = String(pXL);
+      }
+      return { ...f, ...partial };
     });
   }, [form.productoId, productoMap]);
 
@@ -137,27 +134,23 @@ export function Cortes() {
       .sort((a, b) => b.fecha.localeCompare(a.fecha)),
     [cortes, filterEstado, filterCliente]);
 
-  // Detecta si alguna fila tiene props distintas a las guardadas en el producto
+  // Detecta si los props globales difieren de los guardados en el producto
   const propsModificadas = useMemo(() => {
     if (!form.productoId) return false;
     const prod = productoMap.get(form.productoId);
     if (!prod) return false;
-    return form.colores.some(det => {
-      const pS = parseInt(det.propS) || 0;
-      const pM = parseInt(det.propM) || 0;
-      const pL = parseInt(det.propL) || 0;
-      const pXL = parseInt(det.propXL) || 0;
-      return pS !== (prod.propS ?? 0) || pM !== (prod.propM ?? 0) || pL !== (prod.propL ?? 0) || pXL !== (prod.propXL ?? 0);
-    });
-  }, [form.colores, form.productoId, productoMap]);
+    return (parseInt(form.propS) || 0) !== (prod.propS ?? 0)
+      || (parseInt(form.propM) || 0) !== (prod.propM ?? 0)
+      || (parseInt(form.propL) || 0) !== (prod.propL ?? 0)
+      || (parseInt(form.propXL) || 0) !== (prod.propXL ?? 0);
+  }, [form.propS, form.propM, form.propL, form.propXL, form.productoId, productoMap]);
 
   const guardarPropsEnProducto = () => {
     if (!form.productoId) return;
-    const det = form.colores[0];
-    const pS = parseInt(det.propS) || 0;
-    const pM = parseInt(det.propM) || 0;
-    const pL = parseInt(det.propL) || 0;
-    const pXL = parseInt(det.propXL) || 0;
+    const pS = parseInt(form.propS) || 0;
+    const pM = parseInt(form.propM) || 0;
+    const pL = parseInt(form.propL) || 0;
+    const pXL = parseInt(form.propXL) || 0;
     updateProducto(form.productoId, { propS: pS, propM: pM, propL: pL, propXL: pXL });
     addToast('Proporciones guardadas en el producto', 'success');
   };
@@ -323,6 +316,12 @@ export function Cortes() {
       return;
     }
 
+    // Props globales del corte
+    const gPropS = parseInt(form.propS) || 0;
+    const gPropM = parseInt(form.propM) || 0;
+    const gPropL = parseInt(form.propL) || 0;
+    const gPropXL = parseInt(form.propXL) || 0;
+
     // Construir detalle por color
     const coloresDetalle: CorteColorDetalle[] = coloresValidos.map(det => {
       const cantS = parseInt(det.cantS) || 0;
@@ -335,10 +334,10 @@ export function Cortes() {
         kgUsados: parseFloat(det.kgUsados) || 0,
         rollosUsados: parseFloat(det.rollosUsados) || 0,
         tendidas: parseInt(det.tendidas) || 0,
-        propS: parseInt(det.propS) || 0,
-        propM: parseInt(det.propM) || 0,
-        propL: parseInt(det.propL) || 0,
-        propXL: parseInt(det.propXL) || 0,
+        propS: gPropS,
+        propM: gPropM,
+        propL: gPropL,
+        propXL: gPropXL,
         cantS, cantM, cantL, cantXL,
         totalPrendas: cantS + cantM + cantL + cantXL,
       };
@@ -840,37 +839,90 @@ export function Cortes() {
 
               {/* Tabla colores × cantidades */}
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-3">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                      Colores y Cantidades
-                    </label>
-                    {propsModificadas && (
-                      <button
-                        type="button"
-                        onClick={guardarPropsEnProducto}
-                        className="text-[10px] font-bold uppercase tracking-widest text-white flex items-center gap-1 px-2 py-0.5 rounded bg-green-600 hover:bg-green-700 animate-pulse"
-                      >
-                        ✓ Guardar props en producto
-                      </button>
+                {/* Props globales — encima de la tabla */}
+                <div className="mb-3 border border-blue-200 bg-blue-50/60 px-4 py-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-blue-500">Proporciones por talla (aplican a todos los colores)</span>
+                    <div className="flex items-center gap-2">
+                      {propsModificadas && (
+                        <button
+                          type="button"
+                          onClick={guardarPropsEnProducto}
+                          className="text-[10px] font-bold uppercase tracking-widest text-white flex items-center gap-1 px-2 py-0.5 rounded bg-green-600 hover:bg-green-700 animate-pulse"
+                        >
+                          <Save className="h-3 w-3" /> Guardar en producto
+                        </button>
+                      )}
+                      {form.productoId && (parseInt(form.propS)||0)+(parseInt(form.propM)||0)+(parseInt(form.propL)||0)+(parseInt(form.propXL)||0) > 0 && (
+                        <button
+                          type="button"
+                          title="Limpiar proporciones guardadas en el producto"
+                          onClick={() => {
+                            updateProducto(form.productoId, { propS: 0, propM: 0, propL: 0, propXL: 0 });
+                            setForm(f => ({ ...f, propS: '', propM: '', propL: '', propXL: '' }));
+                            addToast('Proporciones del producto limpiadas', 'info');
+                          }}
+                          className="text-[10px] font-bold uppercase tracking-widest text-gray-500 flex items-center gap-1 px-2 py-0.5 rounded border border-gray-300 hover:bg-red-50 hover:text-red-600 hover:border-red-300"
+                        >
+                          <X className="h-3 w-3" /> Limpiar
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    {(['S','M','L','XL'] as const).map(t => {
+                      const field = `prop${t}` as 'propS'|'propM'|'propL'|'propXL';
+                      return (
+                        <div key={t} className="flex flex-col items-center gap-1">
+                          <label className="text-[10px] font-bold uppercase text-blue-400">{t}</label>
+                          <input
+                            type="number" min={0} step={1}
+                            value={form[field]}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setForm(f => {
+                                const pS  = field === 'propS'  ? (parseInt(val)||0) : (parseInt(f.propS)||0);
+                                const pM  = field === 'propM'  ? (parseInt(val)||0) : (parseInt(f.propM)||0);
+                                const pL  = field === 'propL'  ? (parseInt(val)||0) : (parseInt(f.propL)||0);
+                                const pXL = field === 'propXL' ? (parseInt(val)||0) : (parseInt(f.propXL)||0);
+                                const updatedColores = f.colores.map((c, ci) => {
+                                  const t2 = parseInt(c.tendidas) || 0;
+                                  // Row 0 es la fuente de verdad de las props — no se sobreescribe desde el panel
+                                  if (ci === 0) return c;
+                                  if (t2 <= 0 || (pS + pM + pL + pXL) === 0) return c;
+                                  return {
+                                    ...c,
+                                    cantS: String(pS * t2),
+                                    cantM: String(pM * t2),
+                                    cantL: String(pL * t2),
+                                    cantXL: String(pXL * t2),
+                                  };
+                                });
+                                return { ...f, [field]: val, colores: updatedColores };
+                              });
+                            }}
+                            className="input-base text-xs py-1 text-center w-16"
+                            placeholder="0"
+                          />
+                        </div>
+                      );
+                    })}
+                    {(parseInt(form.propS)||0)+(parseInt(form.propM)||0)+(parseInt(form.propL)||0)+(parseInt(form.propXL)||0) > 0 && (
+                      <div className="ml-2 text-[10px] text-blue-400 font-mono">
+                        Total proporción: {(parseInt(form.propS)||0)+(parseInt(form.propM)||0)+(parseInt(form.propL)||0)+(parseInt(form.propXL)||0)} prendas/tendida
+                      </div>
                     )}
                   </div>
+                </div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Colores y Cantidades</label>
                   <div className="flex items-center gap-3">
                   <button
                     type="button"
-                    onClick={() => setForm(f => {
-                      const prod = productoMap.get(f.productoId);
-                      return { ...f, colores: [...f.colores, {
-                        ...emptyColorDetalle(),
-                        propS: String(prod?.propS ?? ''),
-                        propM: String(prod?.propM ?? ''),
-                        propL: String(prod?.propL ?? ''),
-                        propXL: String(prod?.propXL ?? ''),
-                      }] };
-                    })}
+                    onClick={() => setForm(f => ({ ...f, colores: [...f.colores, emptyColorDetalle()] }))}
                     className="text-[10px] font-bold uppercase tracking-widest text-[#C4612A] hover:text-[#a04e22] flex items-center gap-1 px-2 py-0.5 rounded border border-orange-300 bg-orange-50 hover:bg-orange-100"
                   >
-                    <Plus className="h-3 w-3" /> + Color con Props
+                    <Plus className="h-3 w-3" /> + Color
                   </button>
                   <button
                     type="button"
@@ -894,14 +946,11 @@ export function Cortes() {
                         <th className="px-3 py-1.5 text-[10px] font-bold uppercase text-gray-500 text-right w-16">Kg</th>
                         <th className="px-3 py-1.5 text-[10px] font-bold uppercase text-gray-500 text-right w-16">Rollos</th>
                         <th className="px-3 py-1.5 text-[10px] font-bold uppercase text-gray-500 text-center w-16">Tendidas</th>
-                        <th className="px-2 py-1.5 text-[10px] font-bold uppercase text-blue-400 text-center w-14">PropS</th>
-                        <th className="px-2 py-1.5 text-[10px] font-bold uppercase text-blue-400 text-center w-14">PropM</th>
-                        <th className="px-2 py-1.5 text-[10px] font-bold uppercase text-blue-400 text-center w-14">PropL</th>
-                        <th className="px-2 py-1.5 text-[10px] font-bold uppercase text-blue-400 text-center w-14">PropXL</th>
-                        <th className="px-3 py-1.5 text-[10px] font-bold uppercase text-gray-500 text-center w-16">S</th>
-                        <th className="px-3 py-1.5 text-[10px] font-bold uppercase text-gray-500 text-center w-16">M</th>
-                        <th className="px-3 py-1.5 text-[10px] font-bold uppercase text-gray-500 text-center w-16">L</th>
-                        <th className="px-3 py-1.5 text-[10px] font-bold uppercase text-gray-500 text-center w-16">XL</th>
+                        <th className="px-3 py-1.5 text-[10px] font-bold uppercase text-blue-400 text-center w-16 border-l border-blue-100">S</th>
+                        <th className="px-3 py-1.5 text-[10px] font-bold uppercase text-blue-400 text-center w-16">M</th>
+                        <th className="px-3 py-1.5 text-[10px] font-bold uppercase text-blue-400 text-center w-16">L</th>
+                        <th className="px-3 py-1.5 text-[10px] font-bold uppercase text-blue-400 text-center w-16">XL</th>
+                        <th className="w-6" />
                         <th className="px-3 py-1.5 text-[10px] font-bold uppercase text-gray-500 text-right w-16">Total</th>
                         {form.colores.length > 1 && <th className="w-6" />}
                       </tr>
@@ -921,265 +970,343 @@ export function Cortes() {
                         });
                         return form.colores.map((det, idx) => {
                         const total = (parseInt(det.cantS)||0)+(parseInt(det.cantM)||0)+(parseInt(det.cantL)||0)+(parseInt(det.cantXL)||0);
-                        const setDet = (field: keyof ColorDetalle, recalc = false) =>
+                        const pc = det.colorId ? productoColores.find(x => x.productoId === form.productoId && x.colorId === det.colorId) : null;
+                        const gT = parseInt(det.tendidas) || 0;
+                        const gPS = parseInt(form.propS) || 0, gPM = parseInt(form.propM) || 0;
+                        const gPL = parseInt(form.propL) || 0, gPXL = parseInt(form.propXL) || 0;
+                        const esperadoS = gT * gPS, esperadoM = gT * gPM, esperadoL = gT * gPL, esperadoXL = gT * gPXL;
+                        const tienePropsCustom = det.colorId && (
+                          (parseInt(det.cantS)||0) !== esperadoS ||
+                          (parseInt(det.cantM)||0) !== esperadoM ||
+                          (parseInt(det.cantL)||0) !== esperadoL ||
+                          (parseInt(det.cantXL)||0) !== esperadoXL
+                        ) && gT > 0 && (gPS + gPM + gPL + gPXL) > 0;
+                        // Si tendidas > 0: dividir; si no, usar las cantidades como proporción base (÷1)
+                        const divisor = gT > 0 ? gT : 1;
+                        const propsPorTendida = det.colorId ? {
+                          propS: Math.round((parseInt(det.cantS)||0) / divisor),
+                          propM: Math.round((parseInt(det.cantM)||0) / divisor),
+                          propL: Math.round((parseInt(det.cantL)||0) / divisor),
+                          propXL: Math.round((parseInt(det.cantXL)||0) / divisor),
+                        } : null;
+                        // Mostrar 💾 solo cuando hay cantidades reales y difieren de lo guardado en productoColores
+                        const tieneCantidades = (parseInt(det.cantS)||0) + (parseInt(det.cantM)||0) + (parseInt(det.cantL)||0) + (parseInt(det.cantXL)||0) > 0;
+                        const isDirty = det.colorId && tieneCantidades && propsPorTendida && (
+                          propsPorTendida.propS !== (pc?.propS ?? 0) ||
+                          propsPorTendida.propM !== (pc?.propM ?? 0) ||
+                          propsPorTendida.propL !== (pc?.propL ?? 0) ||
+                          propsPorTendida.propXL !== (pc?.propXL ?? 0)
+                        );
+                        const setDet = (field: keyof ColorDetalle) =>
                           (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
                             setForm(f => {
                               const next = [...f.colores];
                               const updated = { ...next[idx], [field]: e.target.value };
-                              // Autocalcula cantidades cuando cambia tendidas o proporciones
-                              if (recalc || field === 'tendidas' || field === 'propS' || field === 'propM' || field === 'propL' || field === 'propXL') {
-                                const t = parseInt(field === 'tendidas' ? e.target.value : updated.tendidas) || 0;
-                                const pS = parseInt(field === 'propS' ? e.target.value : updated.propS) || 0;
-                                const pM = parseInt(field === 'propM' ? e.target.value : updated.propM) || 0;
-                                const pL = parseInt(field === 'propL' ? e.target.value : updated.propL) || 0;
-                                const pXL = parseInt(field === 'propXL' ? e.target.value : updated.propXL) || 0;
-                                if (t > 0 && (pS + pM + pL + pXL) > 0) {
-                                  updated.cantS = String(pS * t);
-                                  updated.cantM = String(pM * t);
-                                  updated.cantL = String(pL * t);
-                                  updated.cantXL = String(pXL * t);
+                              next[idx] = updated;
+
+                              // Si cambia tendidas: usar props de productoColores para esa tonalidad, o props globales como fallback
+                              if (field === 'tendidas') {
+                                const t = parseInt(e.target.value) || 0;
+                                if (t > 0) {
+                                  const colorId = next[idx].colorId;
+                                  const pcRow = colorId ? productoColores.find(x => x.productoId === f.productoId && x.colorId === colorId) : null;
+                                  const pS  = pcRow ? pcRow.propS  : (parseInt(f.propS)  || 0);
+                                  const pM  = pcRow ? pcRow.propM  : (parseInt(f.propM)  || 0);
+                                  const pL  = pcRow ? pcRow.propL  : (parseInt(f.propL)  || 0);
+                                  const pXL = pcRow ? pcRow.propXL : (parseInt(f.propXL) || 0);
+                                  if (pS + pM + pL + pXL > 0) {
+                                    next[idx] = { ...next[idx], tendidas: e.target.value, cantS: String(pS * t), cantM: String(pM * t), cantL: String(pL * t), cantXL: String(pXL * t) };
+                                  }
+                                  // Si es el primer color, derivar props globales y propagar a los demás
+                                  if (idx === 0) {
+                                    const pS0  = pcRow ? pcRow.propS  : (parseInt(f.propS)  || 0);
+                                    const pM0  = pcRow ? pcRow.propM  : (parseInt(f.propM)  || 0);
+                                    const pL0  = pcRow ? pcRow.propL  : (parseInt(f.propL)  || 0);
+                                    const pXL0 = pcRow ? pcRow.propXL : (parseInt(f.propXL) || 0);
+                                    if (pS0 + pM0 + pL0 + pXL0 > 0) {
+                                      for (let i = 1; i < next.length; i++) {
+                                        const ti = parseInt(next[i].tendidas) || 0;
+                                        if (ti > 0) {
+                                          next[i] = { ...next[i], cantS: String(pS0 * ti), cantM: String(pM0 * ti), cantL: String(pL0 * ti), cantXL: String(pXL0 * ti) };
+                                        }
+                                      }
+                                      return { ...f, colores: next, propS: String(pS0), propM: String(pM0), propL: String(pL0), propXL: String(pXL0) };
+                                    }
+                                  }
                                 }
                               }
-                              next[idx] = updated;
+
+                              // Si es el primer color y cambia cantidades → actualizar props globales y propagar
+                              if (idx === 0 && (field === 'cantS' || field === 'cantM' || field === 'cantL' || field === 'cantXL')) {
+                                const t0 = parseInt(next[0].tendidas) || 0;
+                                const cS  = field === 'cantS'  ? (parseInt(e.target.value) || 0) : (parseInt(next[0].cantS)  || 0);
+                                const cM  = field === 'cantM'  ? (parseInt(e.target.value) || 0) : (parseInt(next[0].cantM)  || 0);
+                                const cL  = field === 'cantL'  ? (parseInt(e.target.value) || 0) : (parseInt(next[0].cantL)  || 0);
+                                const cXL = field === 'cantXL' ? (parseInt(e.target.value) || 0) : (parseInt(next[0].cantXL) || 0);
+                                if (t0 > 0) {
+                                  const pS  = Math.round(cS  / t0);
+                                  const pM  = Math.round(cM  / t0);
+                                  const pL  = Math.round(cL  / t0);
+                                  const pXL = Math.round(cXL / t0);
+                                  for (let i = 1; i < next.length; i++) {
+                                    const ti = parseInt(next[i].tendidas) || 0;
+                                    if (ti > 0 && (pS + pM + pL + pXL) > 0) {
+                                      next[i] = { ...next[i], cantS: String(pS * ti), cantM: String(pM * ti), cantL: String(pL * ti), cantXL: String(pXL * ti) };
+                                    }
+                                  }
+                                  return { ...f, colores: next, propS: String(pS), propM: String(pM), propL: String(pL), propXL: String(pXL) };
+                                }
+                              }
+
                               return { ...f, colores: next };
                             });
                           };
                         return (
-                          <tr key={idx} className="hover:bg-gray-50">
-                            {form.colores.length > 1 && (
-                              <td className="px-2 py-1 text-[10px] font-mono font-bold text-gray-400 text-center">
-                                {String.fromCharCode(65 + idx)}
-                              </td>
-                            )}
-                            {/* Dropdown 1: nombre base del color */}
-                            <td className="px-2 py-1 min-w-[110px] w-28">
-                              <select
-                                value={det.colorBase}
-                                onChange={e => {
-                                  const base = e.target.value;
-                                  // Al cambiar la base, resetear tonalidad y colorId
-                                  const opciones = coloresAgrupados.get(base) ?? [];
-                                  // Si solo hay una tonalidad (o el color no tiene número), seleccionar automáticamente
-                                  const unica = opciones.length === 1 ? opciones[0] : null;
-                                  const newColorId = unica ? unica.id : '';
-                                  const newTon = unica?.tonalidad ?? '';
-                                  setForm(f => {
-                                    const next = [...f.colores];
-                                    next[idx] = { ...next[idx], colorBase: base, tonalidad: newTon, colorId: newColorId };
-                                    return { ...f, colores: next };
-                                  });
-                                }}
-                                className="input-base text-xs py-1 w-full"
-                                required={idx === 0}
-                              >
-                                <option value="">Color…</option>
-                                {nombresBase.map(b => (
-                                  <option key={b} value={b}>{capWords(b)}</option>
-                                ))}
-                              </select>
-                            </td>
-                            {/* Dropdown 2: tonalidad + botón para agregar nueva */}
-                            <td className="px-2 py-1 min-w-[80px] w-20">
-                              {(() => {
-                                const opciones = coloresAgrupados.get(det.colorBase) ?? [];
-                                const conTonalidad = opciones.filter(o => o.tonalidad !== null);
-                                return (
-                                  <div className="flex items-center gap-1">
-                                    {(!det.colorBase || conTonalidad.length === 0) ? (
-                                      <span className="text-xs text-gray-400 px-1 flex-1">—</span>
-                                    ) : (
-                                      <select
-                                        value={det.tonalidad}
-                                        onChange={e => {
-                                          const ton = e.target.value;
-                                          const opcion = conTonalidad.find(o => o.tonalidad === ton);
-                                          const colorId = opcion?.id ?? '';
-                                          // Resolver props usando el closure (form siempre fresco aquí)
-                                          const productoId = form.productoId;
-                                          let propsOverride: Partial<ColorDetalle> | null = null;
-                                          if (colorId) {
-                                            // Buscar props específicos por producto+color, o solo por color si no hay producto
-                                            const pcLocal = productoId
-                                              ? productoColores.find(x => x.productoId === productoId && x.colorId === colorId)
-                                              : productoColores.find(x => x.colorId === colorId);
-                                            const prodProps = productoId ? productoMap.get(productoId) : null;
-                                            const pS  = pcLocal?.propS  ?? prodProps?.propS  ?? 0;
-                                            const pM  = pcLocal?.propM  ?? prodProps?.propM  ?? 0;
-                                            const pL  = pcLocal?.propL  ?? prodProps?.propL  ?? 0;
-                                            const pXL = pcLocal?.propXL ?? prodProps?.propXL ?? 0;
-                                            if (pS > 0 || pM > 0 || pL > 0 || pXL > 0) {
-                                              propsOverride = { propS: String(pS), propM: String(pM), propL: String(pL), propXL: String(pXL) };
-                                            }
-                                          }
-                                          setForm(f => {
-                                            const next = [...f.colores];
-                                            const t = parseInt(next[idx].tendidas) || 0;
-                                            next[idx] = {
-                                              ...next[idx],
-                                              tonalidad: ton,
-                                              colorId,
-                                              ...(propsOverride ?? {}),
-                                              ...(propsOverride && t > 0 ? {
-                                                cantS: String(parseInt(propsOverride.propS!) * t),
-                                                cantM: String(parseInt(propsOverride.propM!) * t),
-                                                cantL: String(parseInt(propsOverride.propL!) * t),
-                                                cantXL: String(parseInt(propsOverride.propXL!) * t),
-                                              } : {}),
-                                            };
-                                            return { ...f, colores: next };
-                                          });
-                                        }}
-                                        className="input-base text-xs py-1 flex-1 min-w-0"
-                                        required={idx === 0}
-                                      >
-                                        <option value="">Ton…</option>
-                                        {conTonalidad.map(o => (
-                                          <option key={o.id} value={o.tonalidad!}>{o.tonalidad}</option>
-                                        ))}
-                                      </select>
-                                    )}
-                                    {det.colorBase && (
-                                      <button
-                                        type="button"
-                                        onClick={() => setTonModal({ idx, colorBase: det.colorBase })}
-                                        className="text-[10px] font-bold text-blue-600 hover:text-white hover:bg-blue-500 border border-blue-300 hover:border-blue-500 w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
-                                        title={`Agregar nueva tonalidad de "${det.colorBase}"`}
-                                      >+</button>
-                                    )}
-                                  </div>
-                                );
-                              })()}
-                              {/* Mini-modal tonalidad */}
-                              {tonModal?.idx === idx && (() => {
-                                const variantes = colores.filter(c => {
-                                  const m = c.nombre.match(/^(.+?)\s+(\d+)$/);
-                                  return m && m[1].toLowerCase() === tonModal.colorBase.toLowerCase();
-                                });
-                                const maxTon = variantes.reduce((max, c) => {
-                                  const m = c.nombre.match(/(\d+)$/);
-                                  return m ? Math.max(max, parseInt(m[1])) : max;
-                                }, 0);
-                                const nuevaNum = maxTon + 1;
-                                const nuevoNombre = `${tonModal.colorBase} ${nuevaNum}`;
-                                const baseColor = colores.find(c => c.nombre.toLowerCase() === tonModal.colorBase.toLowerCase()) ?? variantes[0];
-                                const tieneProducto = !!form.productoId;
-                                return (
-                                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setTonModal(null)}>
-                                    <div className="bg-white shadow-2xl p-6 w-80 border border-gray-200" onClick={e => e.stopPropagation()}>
-                                      <p className="text-sm font-black uppercase tracking-widest text-gray-800 mb-1">
-                                        Nueva tonalidad
-                                      </p>
-                                      <p className="text-xs text-gray-500 mb-4">
-                                        Se creará <strong className="text-blue-600">"{capWords(nuevoNombre)}"</strong> con la misma categoría que la base.
-                                      </p>
-                                      {tieneProducto && (
-                                        <div className="mb-4">
-                                          <p className="text-[10px] font-bold uppercase tracking-widest text-blue-500 mb-2">Props para esta tonalidad</p>
-                                          <div className="grid grid-cols-4 gap-2">
-                                            {(['S','M','L','XL'] as const).map(t => (
-                                              <div key={t} className="flex flex-col items-center gap-1">
-                                                <label className="text-[10px] font-bold text-gray-400 uppercase">{t}</label>
-                                                <input
-                                                  type="number" min={0} step={1}
-                                                  value={tonProps[`prop${t}` as keyof typeof tonProps]}
-                                                  onChange={e => setTonProps(p => ({ ...p, [`prop${t}`]: e.target.value }))}
-                                                  className="input-base text-xs py-1 text-center w-full"
-                                                  placeholder="0"
-                                                />
-                                              </div>
-                                            ))}
-                                          </div>
-                                          <p className="text-[10px] text-gray-400 mt-1">Dejar en 0 para usar los props del producto</p>
-                                        </div>
-                                      )}
-                                      <div className="flex gap-2 justify-end">
-                                        <button type="button" onClick={() => { setTonModal(null); setTonProps({ propS: '', propM: '', propL: '', propXL: '' }); }} className="px-3 py-1.5 text-xs text-gray-600 border border-gray-300 hover:bg-gray-50">
-                                          Cancelar
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            const colorId = newId();
-                                            const pS  = parseInt(tonProps.propS)  || 0;
-                                            const pM  = parseInt(tonProps.propM)  || 0;
-                                            const pL  = parseInt(tonProps.propL)  || 0;
-                                            const pXL = parseInt(tonProps.propXL) || 0;
-                                            const pcData = (tieneProducto && (pS > 0 || pM > 0 || pL > 0 || pXL > 0))
-                                              ? { id: newId(), productoId: form.productoId, propS: pS, propM: pM, propL: pL, propXL: pXL }
-                                              : null;
-                                            addColorConProductoColor(
-                                              { id: colorId, nombre: nuevoNombre, categoria: baseColor?.categoria ?? 'OSCURO', prioridad: baseColor?.prioridad ?? 99, notas: '' },
-                                              pcData
-                                            );
-                                            addToast(`Color "${capWords(nuevoNombre)}" creado — selecciónalo en el dropdown`, 'success');
-                                            setTonModal(null);
-                                            setTonProps({ propS: '', propM: '', propL: '', propXL: '' });
-                                          }}
-                                          className="px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700"
-                                        >
-                                          Crear Ton. {nuevaNum}
-                                        </button>
-                                      </div>
-                                    </div>
-                                  </div>
-                                );
-                              })()}
-                            </td>
-                            <td className="px-2 py-1">
-                              <input type="number" min={0} step={0.1} value={det.kgUsados} onChange={setDet('kgUsados')} className="input-base text-xs py-1 text-right w-full min-w-[52px]" placeholder="0" />
-                            </td>
-                            {rollosSpan[idx] > 0 && (
-                              <td className="px-2 py-1" rowSpan={rollosSpan[idx]}>
-                                <input
-                                  type="number" min={0} step={0.5}
-                                  value={det.rollosUsados}
+                          <React.Fragment key={idx}>
+                            <tr className="hover:bg-gray-50 border-t border-gray-200">
+                              {form.colores.length > 1 && (
+                                <td className="px-2 py-1 text-[10px] font-mono font-bold text-gray-400 text-center align-middle">
+                                  {String.fromCharCode(65 + idx)}
+                                </td>
+                              )}
+                              {/* Dropdown 1: nombre base del color */}
+                              <td className="px-2 py-1 min-w-[110px] w-28">
+                                <select
+                                  value={det.colorBase}
                                   onChange={e => {
-                                    const val = e.target.value;
+                                    const base = e.target.value;
+                                    const opciones = coloresAgrupados.get(base) ?? [];
+                                    const unica = opciones.length === 1 ? opciones[0] : null;
+                                    const newColorId = unica ? unica.id : '';
+                                    const newTon = unica?.tonalidad ?? '';
                                     setForm(f => {
                                       const next = [...f.colores];
-                                      // Propagar el valor a todas las filas del mismo colorBase
-                                      for (let i = idx; i < idx + rollosSpan[idx]; i++) {
-                                        next[i] = { ...next[i], rollosUsados: val };
-                                      }
+                                      const t = parseInt(next[idx].tendidas) || 0;
+                                      const pcGuardado = newColorId ? productoColores.find(x => x.productoId === f.productoId && x.colorId === newColorId) : null;
+                                      const pS  = pcGuardado ? pcGuardado.propS  : (parseInt(f.propS)  || 0);
+                                      const pM  = pcGuardado ? pcGuardado.propM  : (parseInt(f.propM)  || 0);
+                                      const pL  = pcGuardado ? pcGuardado.propL  : (parseInt(f.propL)  || 0);
+                                      const pXL = pcGuardado ? pcGuardado.propXL : (parseInt(f.propXL) || 0);
+                                      const cantidades = (pS + pM + pL + pXL) > 0 ? {
+                                        cantS:  String(t > 0 ? pS  * t : pS),
+                                        cantM:  String(t > 0 ? pM  * t : pM),
+                                        cantL:  String(t > 0 ? pL  * t : pL),
+                                        cantXL: String(t > 0 ? pXL * t : pXL),
+                                      } : {};
+                                      next[idx] = { ...next[idx], colorBase: base, tonalidad: newTon, colorId: newColorId, ...cantidades };
                                       return { ...f, colores: next };
                                     });
                                   }}
-                                  className={`input-base text-xs py-1 text-right w-full min-w-[52px] ${form.telaId && !parseFloat(det.rollosUsados) ? 'border-orange-400 bg-orange-50' : ''}`}
-                                  placeholder={form.telaId ? 'Requerido' : '0'}
-                                  required={!!form.telaId}
-                                />
+                                  className="input-base text-xs py-1 w-full"
+                                  required={idx === 0}
+                                >
+                                  <option value="">Color…</option>
+                                  {nombresBase.map(b => (
+                                    <option key={b} value={b}>{capWords(b)}</option>
+                                  ))}
+                                </select>
                               </td>
-                            )}
-                            <td className="px-2 py-1">
-                              <input type="number" min={0} value={det.tendidas} onChange={setDet('tendidas')} className="input-base text-xs py-1 text-center w-full min-w-[52px]" placeholder="0" />
-                            </td>
-                            {(['propS','propM','propL','propXL'] as const).map(field => (
-                              <td key={field} className="px-1 py-1">
-                                <input type="number" min={0} value={det[field]} onChange={setDet(field)} className="input-base text-xs py-1 text-center w-full min-w-[44px] bg-blue-50 border-blue-200" placeholder="0" />
+                              {/* Dropdown 2: tonalidad */}
+                              <td className="px-2 py-1 min-w-[80px] w-20">
+                                {(() => {
+                                  const opciones = coloresAgrupados.get(det.colorBase) ?? [];
+                                  const conTonalidad = opciones.filter(o => o.tonalidad !== null);
+                                  return (
+                                    <div className="flex items-center gap-1">
+                                      {(!det.colorBase || conTonalidad.length === 0) ? (
+                                        <span className="text-xs text-gray-400 px-1 flex-1">—</span>
+                                      ) : (
+                                        <select
+                                          value={det.tonalidad}
+                                          onChange={e => {
+                                            const ton = e.target.value;
+                                            const opcion = conTonalidad.find(o => o.tonalidad === ton);
+                                            const colorId = opcion?.id ?? '';
+                                            setForm(f => {
+                                              const next = [...f.colores];
+                                              const t = parseInt(next[idx].tendidas) || 0;
+                                              // Si ya hay props guardadas para esta tonalidad, usarlas; si no, usar props globales
+                                              const pcGuardado = colorId ? productoColores.find(x => x.productoId === f.productoId && x.colorId === colorId) : null;
+                                              const pS  = pcGuardado ? pcGuardado.propS  : (parseInt(f.propS)  || 0);
+                                              const pM  = pcGuardado ? pcGuardado.propM  : (parseInt(f.propM)  || 0);
+                                              const pL  = pcGuardado ? pcGuardado.propL  : (parseInt(f.propL)  || 0);
+                                              const pXL = pcGuardado ? pcGuardado.propXL : (parseInt(f.propXL) || 0);
+                                              const cantidades = (pS + pM + pL + pXL) > 0 ? {
+                                                cantS:  String(t > 0 ? pS  * t : pS),
+                                                cantM:  String(t > 0 ? pM  * t : pM),
+                                                cantL:  String(t > 0 ? pL  * t : pL),
+                                                cantXL: String(t > 0 ? pXL * t : pXL),
+                                              } : {};
+                                              next[idx] = { ...next[idx], tonalidad: ton, colorId, ...cantidades };
+                                              return { ...f, colores: next };
+                                            });
+                                          }}
+                                          className="input-base text-xs py-1 flex-1 min-w-0"
+                                          required={idx === 0}
+                                        >
+                                          <option value="">Ton…</option>
+                                          {conTonalidad.map(o => (
+                                            <option key={o.id} value={o.tonalidad!}>{o.tonalidad}</option>
+                                          ))}
+                                        </select>
+                                      )}
+                                      {det.colorBase && (
+                                        <button
+                                          type="button"
+                                          onClick={() => setTonModal({ idx, colorBase: det.colorBase })}
+                                          className="text-[10px] font-bold text-blue-600 hover:text-white hover:bg-blue-500 border border-blue-300 hover:border-blue-500 w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
+                                          title={`Agregar nueva tonalidad de "${det.colorBase}"`}
+                                        >+</button>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
+                                {/* Mini-modal tonalidad */}
+                                {tonModal?.idx === idx && (() => {
+                                  const variantes = colores.filter(c => {
+                                    const m = c.nombre.match(/^(.+?)\s+(\d+)$/);
+                                    return m && m[1].toLowerCase() === tonModal.colorBase.toLowerCase();
+                                  });
+                                  const maxTon = variantes.reduce((max, c) => {
+                                    const m = c.nombre.match(/(\d+)$/);
+                                    return m ? Math.max(max, parseInt(m[1])) : max;
+                                  }, 0);
+                                  const nuevaNum = maxTon + 1;
+                                  const nuevoNombre = `${tonModal.colorBase} ${nuevaNum}`;
+                                  const baseColor = colores.find(c => c.nombre.toLowerCase() === tonModal.colorBase.toLowerCase()) ?? variantes[0];
+                                  const tieneProducto = !!form.productoId;
+                                  return (
+                                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setTonModal(null)}>
+                                      <div className="bg-white shadow-2xl p-6 w-80 border border-gray-200" onClick={e => e.stopPropagation()}>
+                                        <p className="text-sm font-black uppercase tracking-widest text-gray-800 mb-1">Nueva tonalidad</p>
+                                        <p className="text-xs text-gray-500 mb-4">
+                                          Se creará <strong className="text-blue-600">"{capWords(nuevoNombre)}"</strong> con la misma categoría que la base.
+                                        </p>
+                                        {tieneProducto && (
+                                          <div className="mb-4">
+                                            <p className="text-[10px] font-bold uppercase tracking-widest text-blue-500 mb-2">Props para esta tonalidad</p>
+                                            <div className="grid grid-cols-4 gap-2">
+                                              {(['S','M','L','XL'] as const).map(t => (
+                                                <div key={t} className="flex flex-col items-center gap-1">
+                                                  <label className="text-[10px] font-bold text-gray-400 uppercase">{t}</label>
+                                                  <input
+                                                    type="number" min={0} step={1}
+                                                    value={tonProps[`prop${t}` as keyof typeof tonProps]}
+                                                    onChange={e => setTonProps(p => ({ ...p, [`prop${t}`]: e.target.value }))}
+                                                    className="input-base text-xs py-1 text-center w-full"
+                                                    placeholder="0"
+                                                  />
+                                                </div>
+                                              ))}
+                                            </div>
+                                            <p className="text-[10px] text-gray-400 mt-1">Dejar en 0 para usar los props del producto</p>
+                                          </div>
+                                        )}
+                                        <div className="flex gap-2 justify-end">
+                                          <button type="button" onClick={() => { setTonModal(null); setTonProps({ propS: '', propM: '', propL: '', propXL: '' }); }} className="px-3 py-1.5 text-xs text-gray-600 border border-gray-300 hover:bg-gray-50">
+                                            Cancelar
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const colorId = newId();
+                                              const pS  = parseInt(tonProps.propS)  || 0;
+                                              const pM  = parseInt(tonProps.propM)  || 0;
+                                              const pL  = parseInt(tonProps.propL)  || 0;
+                                              const pXL = parseInt(tonProps.propXL) || 0;
+                                              const pcData = (tieneProducto && (pS > 0 || pM > 0 || pL > 0 || pXL > 0))
+                                                ? { id: newId(), productoId: form.productoId, propS: pS, propM: pM, propL: pL, propXL: pXL }
+                                                : null;
+                                              addColorConProductoColor(
+                                                { id: colorId, nombre: nuevoNombre, categoria: baseColor?.categoria ?? 'OSCURO', prioridad: baseColor?.prioridad ?? 99, notas: '' },
+                                                pcData
+                                              );
+                                              addToast(`Color "${capWords(nuevoNombre)}" creado — selecciónalo en el dropdown`, 'success');
+                                              setTonModal(null);
+                                              setTonProps({ propS: '', propM: '', propL: '', propXL: '' });
+                                            }}
+                                            className="px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700"
+                                          >
+                                            Crear Ton. {nuevaNum}
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })()}
                               </td>
-                            ))}
-                            {(['cantS','cantM','cantL','cantXL'] as const).map(f => (
-                              <td key={f} className="px-2 py-1">
-                                <input type="number" min={0} value={det[f]} onChange={setDet(f)} className="input-base text-xs py-1 text-center w-full min-w-[48px]" />
-                              </td>
-                            ))}
-                            <td className="px-2 py-1 text-right font-mono font-bold text-gray-700 whitespace-nowrap">{total}</td>
-                            {form.colores.length > 1 && (
                               <td className="px-2 py-1">
-                                <button type="button" onClick={() => setForm(f => ({ ...f, colores: f.colores.filter((_, i) => i !== idx) }))} className="text-gray-300 hover:text-red-500">
-                                  <X className="h-3.5 w-3.5" />
-                                </button>
+                                <input type="number" min={0} step={0.1} value={det.kgUsados} onChange={setDet('kgUsados')} className="input-base text-xs py-1 text-right w-full min-w-[52px]" placeholder="0" />
                               </td>
-                            )}
-                          </tr>
+                              {rollosSpan[idx] > 0 && (
+                                <td className="px-2 py-1" rowSpan={rollosSpan[idx]}>
+                                  <input
+                                    type="number" min={0} step={0.5}
+                                    value={det.rollosUsados}
+                                    onChange={e => {
+                                      const val = e.target.value;
+                                      setForm(f => {
+                                        const next = [...f.colores];
+                                        for (let i = idx; i < idx + rollosSpan[idx]; i++) {
+                                          next[i] = { ...next[i], rollosUsados: val };
+                                        }
+                                        return { ...f, colores: next };
+                                      });
+                                    }}
+                                    className={`input-base text-xs py-1 text-right w-full min-w-[52px] ${form.telaId && !parseFloat(det.rollosUsados) ? 'border-orange-400 bg-orange-50' : ''}`}
+                                    placeholder={form.telaId ? 'Requerido' : '0'}
+                                    required={!!form.telaId}
+                                  />
+                                </td>
+                              )}
+                              <td className="px-2 py-1">
+                                <input type="number" min={0} value={det.tendidas} onChange={setDet('tendidas')} className="input-base text-xs py-1 text-center w-full min-w-[52px]" placeholder="0" />
+                              </td>
+                              {/* Cantidades calculadas */}
+                              {(['cantS','cantM','cantL','cantXL'] as const).map(f => (
+                                <td key={f} className={`px-2 py-1 border-l ${tienePropsCustom ? 'border-yellow-200 bg-yellow-50/30' : 'border-blue-50'}`}>
+                                  <input type="number" min={0} value={det[f]} onChange={setDet(f)} className={`input-base text-xs py-1 text-center w-full min-w-[48px] ${tienePropsCustom ? 'border-yellow-300' : ''}`} />
+                                </td>
+                              ))}
+                              <td className="px-1 py-1 w-6 text-center">
+                                {isDirty && (
+                                  <button
+                                    type="button"
+                                    title="Guardar proporciones de esta tonalidad en catálogo"
+                                    onClick={() => {
+                                      if (!propsPorTendida || !det.colorId) return;
+                                      if (pc) {
+                                        updateProductoColor(pc.id, propsPorTendida);
+                                      } else {
+                                        addProductoColor({ id: newId(), productoId: form.productoId, colorId: det.colorId, ...propsPorTendida });
+                                      }
+                                      addToast(`Props tonalidad guardados (${det.colorBase || det.colorId})`, 'success');
+                                    }}
+                                    className="p-0.5 rounded bg-orange-100 text-orange-600 hover:bg-orange-500 hover:text-white transition-colors"
+                                  >
+                                    <Save className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
+                              </td>
+                              <td className="px-2 py-1 text-right font-mono font-bold text-gray-700 whitespace-nowrap">{total}</td>
+                              {form.colores.length > 1 && (
+                                <td className="px-2 py-1 align-middle">
+                                  <button type="button" onClick={() => setForm(f => ({ ...f, colores: f.colores.filter((_, i) => i !== idx) }))} className="text-gray-300 hover:text-red-500">
+                                    <X className="h-3.5 w-3.5" />
+                                  </button>
+                                </td>
+                              )}
+                            </tr>
+                          </React.Fragment>
                         );
                         });
                       })()}
                     </tbody>
-                    <tfoot className="border-t border-gray-200 bg-gray-50">
+                    <tfoot className="border-t-2 border-gray-200 bg-gray-50">
                       <tr>
                         {form.colores.length > 1 && <td />}
                         <td className="px-2 py-1 text-[10px] font-bold uppercase text-gray-500">Total</td>
+                        <td />
                         <td className="px-2 py-1 text-right font-mono font-black text-gray-800">
                           {form.colores.reduce((s, d) => s + (parseFloat(d.kgUsados)||0), 0).toFixed(1)}
                         </td>
@@ -1190,10 +1317,11 @@ export function Cortes() {
                           {form.colores.reduce((s, d) => s + (parseInt(d.tendidas)||0), 0)}
                         </td>
                         {(['cantS','cantM','cantL','cantXL'] as const).map(f => (
-                          <td key={f} className="px-2 py-1 text-center font-mono font-black text-gray-800">
+                          <td key={f} className="px-2 py-1 text-center font-mono font-black text-gray-800 border-l border-blue-100">
                             {form.colores.reduce((s, d) => s + (parseInt(d[f])||0), 0)}
                           </td>
                         ))}
+                        <td />
                         <td className="px-2 py-1 text-right font-mono font-black text-gray-800">
                           {form.colores.reduce((s, d) => s + (parseInt(d.cantS)||0)+(parseInt(d.cantM)||0)+(parseInt(d.cantL)||0)+(parseInt(d.cantXL)||0), 0)}
                         </td>
