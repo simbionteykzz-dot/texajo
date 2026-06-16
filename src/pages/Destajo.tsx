@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { motion } from 'motion/react';
 import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
-import { Download, Plus, X, FileText, Receipt, Users, BarChart2, AlertTriangle, ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
+import { Download, Plus, X, FileText, Receipt, Users, BarChart2, AlertTriangle, ChevronDown, ChevronRight, Trash2, Scissors } from 'lucide-react';
 import { BoletaLinea, TipoDescuentoBoleta } from '../types';
 import { ModuleInfoBox } from '../components/ModuleInfoBox';
 import { exportRowsToXlsx, exportTableToPdf } from '../lib/export';
@@ -34,7 +34,7 @@ export function Destajo() {
   } = useAppContext();
   const { addToast } = useToast();
 
-  const [activeTab, setActiveTab] = useState<'boleta' | 'resumen' | 'general'>('boleta');
+  const [activeTab, setActiveTab] = useState<'boleta' | 'resumen' | 'general' | 'porcorte'>('boleta');
 
   // ── Tab: Mi Boleta ──
   const [selectedOperario, setSelectedOperario] = useState('');
@@ -65,6 +65,12 @@ export function Destajo() {
   const [gPeriodo, setGPeriodo] = useState('');
   const [gEstado, setGEstado] = useState<'' | 'PENDIENTE' | 'PAGADO'>('');
   const [gCorteId, setGCorteId] = useState('');
+
+  // ── Tab: Por Corte ──
+  const [pcCorteId, setPcCorteId] = useState('');
+  const [pcOperacion, setPcOperacion] = useState('');
+  const [pcOperarioId, setPcOperarioId] = useState('');
+  const [pcEstado, setPcEstado] = useState<'' | 'PENDIENTE' | 'PAGADO'>('');
 
   // Modal multi-operario: cada sección tiene su propio array de líneas draft
   type DraftLinea = { id: string; corteId: string; tarifaId: string; cantPrendas: string };
@@ -163,6 +169,127 @@ export function Destajo() {
   });
 
   const totalGeneral = lineasGenerales.reduce((s, b) => s + b.importe, 0);
+
+  const TALLA_ORDER: Record<string, number> = { XS: 0, S: 1, M: 2, L: 3, XL: 4, XXL: 5, XXXL: 6 };
+  const tallaCmp = (a: string, b: string) =>
+    (TALLA_ORDER[a] ?? 99) - (TALLA_ORDER[b] ?? 99) || a.localeCompare(b);
+
+  // ── Tab: Por Corte — operarios asignados con sus operaciones confirmadas ──
+  const pcCorte = useMemo(() => cortes.find(c => c.id === pcCorteId) ?? null, [cortes, pcCorteId]);
+
+  // Operaciones disponibles para el corte seleccionado (desde tarifas del producto)
+  const pcOperaciones = useMemo(() => {
+    if (!pcCorte) return [];
+    return tarifasOperaciones
+      .filter(t => t.productoId === pcCorte.productoId)
+      .sort((a, b) => a.orden - b.orden);
+  }, [pcCorte, tarifasOperaciones]);
+
+  // Filas de seguimiento del corte filtradas por operación si aplica
+  type PcFila = {
+    operarioId: string;
+    operacion: string;
+    orden: number;
+    tarifaId: string;
+    tarifa: number;
+    colorId: string;
+    talla: string;
+    cantidad: number;
+  };
+
+  const pcFilas = useMemo((): PcFila[] => {
+    if (!pcCorteId) return [];
+    const result: PcFila[] = [];
+    const filasCorte = seguimientoFilas.filter(f => f.corteId === pcCorteId);
+    for (const fila of filasCorte) {
+      for (const asig of fila.asignaciones) {
+        if (!asig.confirmado) continue;
+        const tarifa = tarifasOperaciones.find(t => t.id === asig.tarifaId);
+        if (!tarifa) continue;
+        if (pcOperacion && tarifa.operacion !== pcOperacion) continue;
+        const opIds = asig.operarioIds?.filter(Boolean).length
+          ? asig.operarioIds!.filter(Boolean)
+          : asig.operarioId ? [asig.operarioId] : [];
+        for (const opId of opIds) {
+          result.push({
+            operarioId: opId,
+            operacion: tarifa.operacion,
+            orden: tarifa.orden,
+            tarifaId: tarifa.id,
+            tarifa: tarifa.tarifa,
+            colorId: fila.colorId,
+            talla: fila.talla,
+            cantidad: opIds.length > 1 ? Math.round(fila.cantidad / opIds.length) : fila.cantidad,
+          });
+        }
+      }
+    }
+    return result;
+  }, [pcCorteId, seguimientoFilas, tarifasOperaciones, pcOperacion]);
+
+  // Agrupar por operario → operaciones → colores/tallas
+  type PcOperarioRow = {
+    operarioId: string;
+    operaciones: {
+      operacion: string;
+      orden: number;
+      tarifaId: string;
+      tarifa: number;
+      totalPrendas: number;
+      totalImporte: number;
+      detalle: { colorId: string; talla: string; cantidad: number }[];
+    }[];
+    totalPrendas: number;
+    totalImporte: number;
+  };
+
+  const pcResumen = useMemo((): PcOperarioRow[] => {
+    const byOp = new Map<string, PcOperarioRow>();
+    for (const f of pcFilas) {
+      if (!byOp.has(f.operarioId)) {
+        byOp.set(f.operarioId, { operarioId: f.operarioId, operaciones: [], totalPrendas: 0, totalImporte: 0 });
+      }
+      const opRow = byOp.get(f.operarioId)!;
+      let opEntry = opRow.operaciones.find(o => o.tarifaId === f.tarifaId);
+      if (!opEntry) {
+        opEntry = { operacion: f.operacion, orden: f.orden, tarifaId: f.tarifaId, tarifa: f.tarifa, totalPrendas: 0, totalImporte: 0, detalle: [] };
+        opRow.operaciones.push(opEntry);
+      }
+      opEntry.detalle.push({ colorId: f.colorId, talla: f.talla, cantidad: f.cantidad });
+      opEntry.totalPrendas += f.cantidad;
+      opEntry.totalImporte += f.cantidad * f.tarifa;
+      opRow.totalPrendas += f.cantidad;
+      opRow.totalImporte += f.cantidad * f.tarifa;
+    }
+    return Array.from(byOp.values()).sort((a, b) => {
+      const na = operarioMap.get(a.operarioId)?.nombre ?? '';
+      const nb = operarioMap.get(b.operarioId)?.nombre ?? '';
+      return na.localeCompare(nb);
+    }).map(r => ({
+      ...r,
+      operaciones: r.operaciones.sort((a, b) => a.orden - b.orden).map(op => ({
+        ...op,
+        detalle: [...op.detalle].sort((a, b) => {
+          const ca = colorMap.get(a.colorId) ?? a.colorId;
+          const cb = colorMap.get(b.colorId) ?? b.colorId;
+          return ca.localeCompare(cb) || tallaCmp(a.talla, b.talla);
+        }),
+      })),
+    }));
+  }, [pcFilas, operarioMap, colorMap, tallaCmp]);
+
+  const pcResumenFiltrado = useMemo(() => {
+    let result = pcOperarioId ? pcResumen.filter(r => r.operarioId === pcOperarioId) : pcResumen;
+    if (pcEstado) {
+      result = result.filter(r => {
+        const lineasOp = boletaLineas.filter(b => b.operarioId === r.operarioId && b.corteId === pcCorteId);
+        if (lineasOp.length === 0) return pcEstado === 'PENDIENTE';
+        const tienePendiente = lineasOp.some(b => b.estadoPago === 'PENDIENTE');
+        return pcEstado === 'PENDIENTE' ? tienePendiente : !tienePendiente;
+      });
+    }
+    return result;
+  }, [pcResumen, pcOperarioId, pcEstado, boletaLineas, pcCorteId]);
 
   // Resumen por operario en un período dado (o rango libre)
   const resumenPorOperario = useResumenPorOperario(boletaLineas, {
@@ -498,6 +625,7 @@ export function Destajo() {
             { key: 'boleta', label: 'Mi Boleta', icon: Receipt },
             { key: 'resumen', label: 'Resumen', icon: BarChart2 },
             { key: 'general', label: 'Vista General', icon: Users },
+            { key: 'porcorte', label: 'Por Corte', icon: Scissors },
           ] as const).map(({ key, label, icon: Icon }) => (
             <button
               key={key}
@@ -986,6 +1114,302 @@ export function Destajo() {
                   </tfoot>
                 </table>
               </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══════════════ TAB: POR CORTE ══════════════ */}
+      {activeTab === 'porcorte' && (
+        <div className="space-y-6">
+          {/* Filtros */}
+          <div className="flex flex-wrap gap-4 bg-white border border-[#DDD8CF] p-4">
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Corte</label>
+              <select
+                value={pcCorteId}
+                onChange={e => { setPcCorteId(e.target.value); setPcOperacion(''); setPcOperarioId(''); setPcEstado(''); }}
+                className="input-base w-56"
+              >
+                <option value="">Seleccionar corte…</option>
+                {cortes.filter(c => c.estado !== 'ANULADO').map(c => (
+                  <option key={c.id} value={c.id}>{c.nCorte} — {productoMap.get(c.productoId)?.nombre}</option>
+                ))}
+              </select>
+            </div>
+            {pcCorteId && (
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Operación</label>
+                <select
+                  value={pcOperacion}
+                  onChange={e => setPcOperacion(e.target.value)}
+                  className="input-base w-52"
+                >
+                  <option value="">Todas</option>
+                  {pcOperaciones.map(t => (
+                    <option key={t.id} value={t.operacion}>{t.orden}. {t.operacion}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {pcCorteId && pcResumen.length > 0 && (
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Operario</label>
+                <select
+                  value={pcOperarioId}
+                  onChange={e => setPcOperarioId(e.target.value)}
+                  className="input-base w-52"
+                >
+                  <option value="">Todos</option>
+                  {pcResumen.map(r => {
+                    const op = operarioMap.get(r.operarioId);
+                    return (
+                      <option key={r.operarioId} value={r.operarioId}>
+                        {op?.nombre ?? r.operarioId}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+            )}
+            {pcCorteId && pcResumen.length > 0 && (
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Estado pago</label>
+                <select
+                  value={pcEstado}
+                  onChange={e => setPcEstado(e.target.value as typeof pcEstado)}
+                  className="input-base w-36"
+                >
+                  <option value="">Todos</option>
+                  <option value="PENDIENTE">Pendiente</option>
+                  <option value="PAGADO">Pagado</option>
+                </select>
+              </div>
+            )}
+            {(pcOperacion || pcOperarioId || pcEstado) && (
+              <div className="flex items-end">
+                <button
+                  onClick={() => { setPcOperacion(''); setPcOperarioId(''); setPcEstado(''); }}
+                  className="text-[10px] font-bold uppercase text-gray-400 hover:text-red-500 flex items-center gap-1"
+                >
+                  <X className="h-3 w-3" /> Limpiar filtros
+                </button>
+              </div>
+            )}
+          </div>
+
+          {!pcCorteId ? (
+            <p className="text-sm text-gray-400 italic">Selecciona un corte para ver los operarios asignados.</p>
+          ) : pcResumen.length === 0 ? (
+            <p className="text-sm text-gray-400 italic">Sin operarios asignados con operaciones confirmadas en este corte{pcOperacion ? ` para "${pcOperacion}"` : ''}.</p>
+          ) : (
+            <div className="space-y-4">
+              {/* Encabezado del corte */}
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                    Corte {pcCorte?.nCorte} — {productoMap.get(pcCorte!.productoId)?.nombre}
+                  </span>
+                  <span className="text-[10px] text-gray-300">·</span>
+                  <span className="text-[10px] text-gray-400">
+                    {pcResumenFiltrado.length} operario{pcResumenFiltrado.length !== 1 ? 's' : ''}
+                    {pcOperarioId ? '' : ` de ${pcResumen.length}`}
+                  </span>
+                  <span className="text-[10px] text-gray-300">·</span>
+                  <span className="text-[10px] font-bold text-[#1a1a1a]">
+                    {pcResumenFiltrado.reduce((s, r) => s + r.totalPrendas, 0).toLocaleString()} prendas · S/ {pcResumenFiltrado.reduce((s, r) => s + r.totalImporte, 0).toFixed(2)}
+                  </span>
+                </div>
+                <button
+                  onClick={() => {
+                    const rows: Record<string, unknown>[] = [];
+                    for (const opRow of pcResumenFiltrado) {
+                      const op = operarioMap.get(opRow.operarioId);
+                      for (const opEntry of opRow.operaciones) {
+                        // Agrupar detalle por color (igual que en pantalla)
+                        const byColor = new Map<string, typeof opEntry.detalle>();
+                        for (const d of opEntry.detalle) {
+                          if (!byColor.has(d.colorId)) byColor.set(d.colorId, []);
+                          byColor.get(d.colorId)!.push(d);
+                        }
+                        byColor.forEach((items, colorId) => {
+                          const tallasStr = items.map(d => `${d.talla} ${d.cantidad}`).join('  ');
+                          const totalColor = items.reduce((s, d) => s + d.cantidad, 0);
+                          rows.push({
+                            Operario: op?.nombre ?? opRow.operarioId,
+                            Codigo: op?.codigo ?? '',
+                            Operacion: `${opEntry.orden}. ${opEntry.operacion}`,
+                            Color: colorMap.get(colorId) ?? colorId,
+                            Tallas: tallasStr,
+                            Prendas: totalColor,
+                            Tarifa: `S/ ${opEntry.tarifa.toFixed(3)}`,
+                            Importe: `S/ ${(totalColor * opEntry.tarifa).toFixed(2)}`,
+                          });
+                        });
+                      }
+                    }
+                    const pcTotalBruto = pcResumenFiltrado.reduce((s, r) => s + r.totalImporte, 0);
+                    const pcTotalPrendas = pcResumenFiltrado.reduce((s, r) => s + r.totalPrendas, 0);
+                    const pcDescuento1 = pcOperarioId ? pcTotalBruto * 0.01 : 0;
+                    const pcTotalNeto = pcTotalBruto - pcDescuento1;
+                    const footerRows: Record<string, unknown>[] = [
+                      { Operario: 'TOTAL BRUTO', Codigo: '', Operacion: '', Color: '', Tallas: '', Prendas: pcTotalPrendas, Tarifa: '', Importe: `S/ ${pcTotalBruto.toFixed(2)}` },
+                      ...(pcOperarioId ? [
+                        { Operario: 'DESC. MERMA 1%', Codigo: '', Operacion: '', Color: '', Tallas: '', Prendas: '', Tarifa: '', Importe: `− S/ ${pcDescuento1.toFixed(2)}` },
+                        { Operario: 'NETO A PAGAR', Codigo: '', Operacion: '', Color: '', Tallas: '', Prendas: '', Tarifa: '', Importe: `S/ ${pcTotalNeto.toFixed(2)}` },
+                      ] : []),
+                    ];
+                    exportTableToPdf({
+                      title: `Destajo — Corte ${pcCorte!.nCorte}`,
+                      subtitle: `${productoMap.get(pcCorte!.productoId)?.nombre ?? ''}${pcOperacion ? ` · Op: ${pcOperacion}` : ''} · ${new Date().toLocaleDateString('es-PE')}`,
+                      fileName: `destajo_corte_${pcCorte!.nCorte}${pcOperacion ? `_${pcOperacion.replace(/\s+/g, '_')}` : ''}`,
+                      rows,
+                      footerRows,
+                      columns: [
+                        { header: 'Operario', dataKey: 'Operario' },
+                        { header: 'Cód.', dataKey: 'Codigo' },
+                        { header: 'Operación', dataKey: 'Operacion' },
+                        { header: 'Color', dataKey: 'Color' },
+                        { header: 'Tallas', dataKey: 'Tallas' },
+                        { header: 'Prendas', dataKey: 'Prendas' },
+                        { header: 'Tarifa', dataKey: 'Tarifa' },
+                        { header: 'Importe', dataKey: 'Importe' },
+                      ],
+                      rightCols: ['Prendas', 'Tarifa', 'Importe'],
+                      centerCols: ['Codigo'],
+                      orientation: 'landscape',
+                    });
+                    addToast('PDF exportado', 'success');
+                  }}
+                  className="btn-secondary flex items-center gap-1.5 text-xs"
+                >
+                  <FileText className="h-3.5 w-3.5" /> Exportar PDF
+                </button>
+              </div>
+
+              {pcResumenFiltrado.map(opRow => {
+                const op = operarioMap.get(opRow.operarioId);
+                const lineasOp = boletaLineas.filter(b => b.operarioId === opRow.operarioId && b.corteId === pcCorteId);
+                const tienePendiente = lineasOp.length === 0 || lineasOp.some(b => b.estadoPago === 'PENDIENTE');
+                return (
+                  <div key={opRow.operarioId} className="bg-white border border-[#DDD8CF]">
+                    {/* Cabecera operario */}
+                    <div className="flex items-center justify-between bg-[#1C1915] px-4 py-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-black uppercase tracking-wide text-[#F5F2EA]">
+                          {op?.nombre ?? opRow.operarioId}
+                        </span>
+                        {op?.codigo && (
+                          <span className="text-[10px] font-mono text-[#6B6058]">{op.codigo}</span>
+                        )}
+                        <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${tienePendiente ? 'bg-yellow-500/20 text-yellow-300' : 'bg-green-500/20 text-green-300'}`}>
+                          {tienePendiente ? 'PENDIENTE' : 'PAGADO'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-4 text-[10px] font-mono">
+                        <span className="text-[#6B6058]">{opRow.totalPrendas.toLocaleString()} prendas</span>
+                        <span className="font-bold text-[#B66F35]">S/ {opRow.totalImporte.toFixed(2)}</span>
+                      </div>
+                    </div>
+
+                    {/* Tabla operaciones */}
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-[#DDD8CF] bg-[#F5F2EA]">
+                            <th className="text-left px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-500">Operación</th>
+                            <th className="text-right px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-500">Tarifa</th>
+                            <th className="text-right px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-500">Prendas</th>
+                            <th className="text-right px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-500">Importe</th>
+                            <th className="text-left px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-500">Detalle (color / talla)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {opRow.operaciones.map(opEntry => (
+                            <tr key={opEntry.tarifaId} className="hover:bg-gray-50">
+                              <td className="px-3 py-2 font-medium text-gray-700">
+                                <span className="text-[10px] font-mono text-gray-400 mr-1.5">{opEntry.orden}.</span>
+                                {opEntry.operacion}
+                              </td>
+                              <td className="px-3 py-2 font-mono text-right text-gray-500">S/ {opEntry.tarifa.toFixed(3)}</td>
+                              <td className="px-3 py-2 font-mono font-bold text-right">{opEntry.totalPrendas.toLocaleString()}</td>
+                              <td className="px-3 py-2 font-mono font-black text-right text-[#173A25]">S/ {opEntry.totalImporte.toFixed(2)}</td>
+                              <td className="px-3 py-2">
+                                <div className="space-y-1">
+                                  {(() => {
+                                    const byColor = new Map<string, typeof opEntry.detalle>();
+                                    for (const d of opEntry.detalle) {
+                                      if (!byColor.has(d.colorId)) byColor.set(d.colorId, []);
+                                      byColor.get(d.colorId)!.push(d);
+                                    }
+                                    return [...byColor.entries()].map(([colorId, items]) => (
+                                      <div key={colorId} className="flex items-center gap-1.5">
+                                        <span className="text-[10px] text-gray-500 w-28 truncate shrink-0">{colorMap.get(colorId) ?? colorId}</span>
+                                        <div className="flex gap-1 flex-wrap">
+                                          {items.map((d, i) => (
+                                            <span key={i} className="inline-flex items-center gap-0.5 bg-gray-100 border border-gray-200 px-1.5 py-0.5 text-[10px] font-mono rounded">
+                                              <span className="font-bold text-gray-700">{d.talla}</span>
+                                              <span className="text-gray-400">{d.cantidad}</span>
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    ));
+                                  })()}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr className="border-t border-[#DDD8CF] bg-[#F5F2EA]">
+                            <td colSpan={2} className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                              Total operario
+                            </td>
+                            <td className="px-3 py-1.5 font-mono font-black text-right">{opRow.totalPrendas.toLocaleString()}</td>
+                            <td className="px-3 py-1.5 font-mono font-black text-right text-[#B66F35]">S/ {opRow.totalImporte.toFixed(2)}</td>
+                            <td />
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Total general del corte */}
+              {(() => {
+                const pcTotalPrendas = pcResumenFiltrado.reduce((s, r) => s + r.totalPrendas, 0);
+                const pcTotalBruto = pcResumenFiltrado.reduce((s, r) => s + r.totalImporte, 0);
+                const pcDescuento1 = pcOperarioId ? pcTotalBruto * 0.01 : 0;
+                const pcTotalNeto = pcTotalBruto - pcDescuento1;
+                return (
+                  <div className="flex justify-end">
+                    <div className="bg-white border border-[#DDD8CF] px-5 py-3 flex items-center gap-8">
+                      <div className="text-center">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Total Prendas</p>
+                        <p className="text-lg font-black font-mono">{pcTotalPrendas.toLocaleString()}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Bruto Destajo</p>
+                        <p className="text-lg font-black font-mono text-[#173A25]">S/ {pcTotalBruto.toFixed(2)}</p>
+                      </div>
+                      {pcOperarioId && (
+                        <>
+                          <div className="text-center">
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-red-400">Desc. Merma 1%</p>
+                            <p className="text-lg font-black font-mono text-red-600">− S/ {pcDescuento1.toFixed(2)}</p>
+                          </div>
+                          <div className="text-center border-l border-[#DDD8CF] pl-8">
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Neto a Pagar</p>
+                            <p className="text-xl font-black font-mono text-[#B66F35]">S/ {pcTotalNeto.toFixed(2)}</p>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
         </div>

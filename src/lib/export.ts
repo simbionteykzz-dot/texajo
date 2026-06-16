@@ -91,6 +91,8 @@ export interface PdfTableOptions {
   rightCols?: string[];
   /** Columnas que se alinean al centro */
   centerCols?: string[];
+  /** Filas de pie de tabla (se muestran con fondo crema y negrita) */
+  footerRows?: Record<string, unknown>[];
 }
 
 export function exportTableToPdf({
@@ -102,6 +104,7 @@ export function exportTableToPdf({
   orientation = 'landscape',
   rightCols = [],
   centerCols = [],
+  footerRows,
 }: PdfTableOptions) {
   const doc = new jsPDF({ orientation, unit: 'mm', format: 'a4' });
   const startY = addHeader(doc, title, subtitle);
@@ -116,6 +119,9 @@ export function exportTableToPdf({
     startY,
     head: [columns.map(c => c.header)],
     body: rows.map(r => columns.map(c => r[c.dataKey] ?? '')),
+    foot: footerRows && footerRows.length > 0
+      ? footerRows.map(r => columns.map(c => r[c.dataKey] ?? ''))
+      : undefined,
     theme: 'grid',
     headStyles: {
       fillColor: BRAND_DARK,
@@ -131,6 +137,13 @@ export function exportTableToPdf({
     },
     alternateRowStyles: {
       fillColor: BRAND_LIGHT,
+    },
+    footStyles: {
+      fillColor: BRAND_LIGHT,
+      fontStyle: 'bold',
+      fontSize: 7,
+      cellPadding: 2,
+      textColor: [26, 26, 26],
     },
     columnStyles: colStyles,
     margin: { top: startY, left: 10, right: 10, bottom: 12 },
