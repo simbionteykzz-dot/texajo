@@ -638,7 +638,7 @@ export function ProduccionConfeccion() {
         cantidad: f.cantidad,
         operariosPorOp: tarifas.map(t => {
           const a = f.asignaciones.find(a => a.tarifaId === t.id);
-          if (!a || !a.operarioId) return '';
+          if (!a || !a.operarioId || !a.confirmado) return '';
           const op = operarioMap.get(a.operarioId);
           if (!op) return '';
           const nombre = op.nombre ?? op.codigo;
