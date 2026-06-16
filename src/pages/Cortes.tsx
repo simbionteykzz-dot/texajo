@@ -311,6 +311,11 @@ export function Cortes() {
       addToast('Completa nCorte, cliente, producto y al menos un color', 'error');
       return;
     }
+    const colorIdsDuplicados = coloresValidos.filter((c, i) => coloresValidos.findIndex(x => x.colorId === c.colorId) !== i);
+    if (colorIdsDuplicados.length > 0) {
+      addToast('Hay colores/tonalidades duplicados. Cada fila debe tener una tonalidad distinta.', 'error');
+      return;
+    }
     if (!/^\d+[A-Za-z]?$/.test(form.nCorte.trim()) || parseInt(form.nCorte) <= 0) {
       addToast('N° Corte debe ser un número, con letra opcional al final (ej: 100 ó 100A)', 'error');
       return;
