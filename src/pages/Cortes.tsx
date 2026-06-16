@@ -14,7 +14,7 @@ import { useStockActualTelas, useColoresAgrupados } from '../hooks/useCorteOpera
 const totalRollosSinDuplicar = (colores: { colorBase: string; rollosUsados: string }[]) =>
   colores.reduce((sum, det, i) => {
     const base = det.colorBase;
-    if (base && i > 0 && colores[i - 1].colorBase === base) return sum; // fila secundaria del grupo
+    if (base && i > 0 && colores[i - 1].colorBase === base) return sum;
     return sum + (parseFloat(det.rollosUsados) || 0);
   }, 0);
 
@@ -168,11 +168,24 @@ export function Cortes() {
   // Crea filas de seguimiento automáticamente para un corte completado
   const crearFilasSeguimiento = (corte: Corte) => {
     const tarifas = tarifasOperaciones.filter(t => t.productoId === corte.productoId).sort((a, b) => a.orden - b.orden);
-    const detalles = corte.coloresDetalle && corte.coloresDetalle.length > 0
+    const rawDetalles = corte.coloresDetalle && corte.coloresDetalle.length > 0
       ? corte.coloresDetalle
       : [{ colorId: corte.colorId, cantS: corte.cantS, cantM: corte.cantM, cantL: corte.cantL, cantXL: corte.cantXL } as CorteColorDetalle];
 
-    for (const det of detalles) {
+    // Agrupar por colorId sumando cantidades (puede haber varios rollos del mismo color)
+    const porColor = new Map<string, { cantS: number; cantM: number; cantL: number; cantXL: number }>();
+    for (const det of rawDetalles) {
+      if (!det.colorId) continue;
+      const prev = porColor.get(det.colorId) ?? { cantS: 0, cantM: 0, cantL: 0, cantXL: 0 };
+      porColor.set(det.colorId, {
+        cantS:  prev.cantS  + (det.cantS  ?? 0),
+        cantM:  prev.cantM  + (det.cantM  ?? 0),
+        cantL:  prev.cantL  + (det.cantL  ?? 0),
+        cantXL: prev.cantXL + (det.cantXL ?? 0),
+      });
+    }
+
+    for (const [colorId, det] of porColor) {
       const tallasMap: Array<{ talla: 'S' | 'M' | 'L' | 'XL'; cantidad: number }> = [
         { talla: 'S', cantidad: det.cantS },
         { talla: 'M', cantidad: det.cantM },
@@ -181,7 +194,7 @@ export function Cortes() {
       ];
       for (const { talla, cantidad } of tallasMap) {
         if (cantidad <= 0) continue;
-        const yaExiste = seguimientoFilas.some(f => f.corteId === corte.id && f.talla === talla && f.colorId === det.colorId);
+        const yaExiste = seguimientoFilas.some(f => f.corteId === corte.id && f.talla === talla && f.colorId === colorId);
         if (yaExiste) continue;
         const asignaciones: SeguimientoAsignacion[] = tarifas.map(t => ({
           tarifaId: t.id, operacion: t.operacion, orden: t.orden, operarioId: '', pago: 0,
@@ -192,7 +205,7 @@ export function Cortes() {
           nCorte: corte.nCorte,
           productoId: corte.productoId,
           fecha: corte.fecha,
-          colorId: det.colorId,
+          colorId,
           talla,
           cantidad,
           asignaciones,
@@ -311,11 +324,7 @@ export function Cortes() {
       addToast('Completa nCorte, cliente, producto y al menos un color', 'error');
       return;
     }
-    const colorIdsDuplicados = coloresValidos.filter((c, i) => coloresValidos.findIndex(x => x.colorId === c.colorId) !== i);
-    if (colorIdsDuplicados.length > 0) {
-      addToast('Hay colores/tonalidades duplicados. Cada fila debe tener una tonalidad distinta.', 'error');
-      return;
-    }
+
     if (!/^\d+[A-Za-z]?$/.test(form.nCorte.trim()) || parseInt(form.nCorte) <= 0) {
       addToast('N° Corte debe ser un número, con letra opcional al final (ej: 100 ó 100A)', 'error');
       return;
@@ -962,13 +971,11 @@ export function Cortes() {
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {(() => {
-                        // Para cada idx: cuántas filas consecutivas comparten el mismo colorBase
+                        // Agrupar rollos por colorBase (todas las tonalidades del mismo color base comparten rollos)
                         const rollosSpan: number[] = form.colores.map((_, i) => {
                           const base = form.colores[i].colorBase;
                           if (!base) return 1;
-                          // Solo es "primera del grupo" si la fila anterior tiene distinto base
-                          if (i > 0 && form.colores[i - 1].colorBase === base) return 0; // ocultar
-                          // Contar cuántas filas siguientes tienen el mismo base
+                          if (i > 0 && form.colores[i - 1].colorBase === base) return 0;
                           let span = 1;
                           while (i + span < form.colores.length && form.colores[i + span].colorBase === base) span++;
                           return span;

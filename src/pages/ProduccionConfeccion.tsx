@@ -71,7 +71,7 @@ export function ProduccionConfeccion() {
     seguimientoFilas, cortes, productos, colores, operarios, tarifasOperaciones,
     boletaLineas, clientes,
     addSeguimientoFila, updateSeguimientoFila, deleteSeguimientoFila,
-    addBoletaLinea, updateBoletaLinea, deleteBoletaLinea,
+    addBoletaLinea, addBoletaLineas, updateBoletaLinea, deleteBoletaLinea,
   } = useAppContext();
   const { addToast } = useToast();
   const [activeTab, setActiveTab] = useState<'seguimiento' | 'porProducto'>('seguimiento');
@@ -86,7 +86,8 @@ export function ProduccionConfeccion() {
 
   // Modal asignación operarios: { corteId, colorId } abierto + ops temporales { [tarifaId]: operarioId }
   const [modalColor, setModalColor] = useState<{ corteId: string; colorId: string } | null>(null);
-  const [modalOps, setModalOps] = useState<Record<string, string[]>>({});
+  // modalOps[tarifaId][talla] = operarioId[]  — permite operarios distintos por talla
+  const [modalOps, setModalOps] = useState<Record<string, Record<string, string[]>>>({});
   // Modal confirmar avance: { corteId, colorId, talla } + ops confirmadas { [tarifaId]: boolean }
   const [modalAvance, setModalAvance] = useState<{ corteId: string; colorId: string; talla: string } | null>(null);
   const [avanceOps, setAvanceOps] = useState<Record<string, boolean>>({});
@@ -97,30 +98,31 @@ export function ProduccionConfeccion() {
   const [modalHex, setModalHex] = useState<string>('#9E9E9E');
   // Fuente del PDF — persiste en la sesión
   const pdfFont: PdfFont = 'oswald';
-  // Cantidades por operario en el modal global: { [tarifaId]: number[] }
-  const [modalOpsQty, setModalOpsQty] = useState<Record<string, number[]>>({});
+  // Cantidades por operario en el modal global: { [tarifaId][talla]: number[] }
+  const [modalOpsQty, setModalOpsQty] = useState<Record<string, Record<string, number[]>>>({});
 
   const abrirModalAsignarColor = (corteId: string, colorId: string) => {
-    const primerFila = seguimientoFilas.find(f => f.corteId === corteId && f.colorId === colorId);
     const filasDelColor = seguimientoFilas.filter(f => f.corteId === corteId && f.colorId === colorId);
-    const totalPrendasInit = filasDelColor.reduce((s, f) => s + f.cantidad, 0);
-    const ops: Record<string, string[]> = {};
-    const qty: Record<string, number[]> = {};
-    primerFila?.asignaciones.forEach(a => {
-      const ids = a.operarioIds?.length ? a.operarioIds : (a.operarioId ? [a.operarioId] : ['']);
-      ops[a.tarifaId] = ids;
-      const validIds = ids.filter(Boolean);
-      if (validIds.length > 1) {
-        const base = Math.floor(totalPrendasInit / validIds.length);
-        const resto = totalPrendasInit - base * validIds.length;
-        qty[a.tarifaId] = ids.map((id, i) => id ? (base + (i === 0 ? resto : 0)) : 0);
-      } else {
-        qty[a.tarifaId] = ids.map(id => id ? totalPrendasInit : 0);
-      }
-    });
+    const ops: Record<string, Record<string, string[]>> = {};
+    const qty: Record<string, Record<string, number[]>> = {};
+    for (const fila of filasDelColor) {
+      fila.asignaciones.forEach(a => {
+        if (!ops[a.tarifaId]) ops[a.tarifaId] = {};
+        if (!qty[a.tarifaId]) qty[a.tarifaId] = {};
+        const ids = a.operarioIds?.length ? a.operarioIds : (a.operarioId ? [a.operarioId] : ['']);
+        ops[a.tarifaId][fila.talla] = ids;
+        const validIds = ids.filter(Boolean);
+        if (validIds.length > 1) {
+          const base = Math.floor(fila.cantidad / validIds.length);
+          const resto = fila.cantidad - base * validIds.length;
+          qty[a.tarifaId][fila.talla] = ids.map((id, i) => id ? (base + (i === 0 ? resto : 0)) : 0);
+        } else {
+          qty[a.tarifaId][fila.talla] = ids.map(id => id ? fila.cantidad : 0);
+        }
+      });
+    }
     setModalOps(ops);
     setModalOpsQty(qty);
-    // Inicializar hex: override guardado → nombre del color → default
     const hexInicial = colorHexOverrides[colorId] ?? colorHexFromName(colorMap.get(colorId) ?? '');
     setModalHex(hexInicial);
     setModalColor({ corteId, colorId });
@@ -132,57 +134,83 @@ export function ProduccionConfeccion() {
     const filasDelColor = seguimientoFilas.filter(f => f.corteId === corteId && f.colorId === colorId);
     if (!filasDelColor.length) return;
     const tarifasCorte = tarifasDelCorte(corteId);
+    const periodo = filasDelColor[0].fecha.slice(0, 7);
 
-    // Construir versión actualizada de las filas con operarioIds
-    const filasActualizadas: SeguimientoFila[] = seguimientoFilas.map(fila => {
-      if (fila.corteId !== corteId || fila.colorId !== colorId) return fila;
+    // 1. Construir las filas actualizadas en memoria (con los operarios del modal)
+    const filasActualizadas: SeguimientoFila[] = filasDelColor.map(fila => {
       const base: SeguimientoAsignacion[] = fila.asignaciones.length > 0
         ? fila.asignaciones
         : tarifasCorte.map(t => ({ tarifaId: t.id, operacion: t.operacion, orden: t.orden, operarioId: '', pago: 0 }));
       const asignaciones: SeguimientoAsignacion[] = base.map(a => {
-        if (!(a.tarifaId in modalOps)) return a;
-        const ids = (modalOps[a.tarifaId] ?? []).filter(Boolean);
+        const tallaOps = modalOps[a.tarifaId];
+        if (!tallaOps) return a;
+        const ids = (tallaOps[fila.talla] ?? []).filter(Boolean);
         const tarifa = tarifasOperaciones.find(t => t.id === a.tarifaId);
         const pago = ids.length && tarifa ? fila.cantidad * tarifa.tarifa : 0;
         return { ...a, operarioId: ids[0] ?? '', operarioIds: ids, pago };
       });
-      return { ...fila, asignaciones };
-    });
-
-    for (const fila of filasDelColor) {
-      const filaAct = filasActualizadas.find(f => f.id === fila.id)!;
-      const { asignaciones } = filaAct;
       const totalPago = asignaciones.reduce((s, a) => s + a.pago, 0);
       const confirmedCount = asignaciones.filter(a => a.confirmado).length;
       const pctAvance = asignaciones.length > 0 ? Math.round((confirmedCount / asignaciones.length) * 100) : 0;
       const estado = pctAvance === 100 ? 'LISTO' : fila.estado;
-      updateSeguimientoFila(fila.id, { asignaciones, totalPago, pctAvance, estado });
-    }
+      return { ...fila, asignaciones, totalPago, pctAvance, estado };
+    });
 
-    // Boletas: upsert/eliminar por operario
-    const periodo = filasDelColor[0].fecha.slice(0, 7);
-    const primerFilaPrevia = seguimientoFilas.find(f => f.corteId === corteId && f.colorId === colorId);
-    const asignacionesPrevias = primerFilaPrevia?.asignaciones ?? [];
-
+    // 2. Reconstruir boletas de las tallas YA confirmadas con los nuevos operarios
+    const boletasAEliminar = boletaLineas.filter(
+      b => b.corteId === corteId && b.periodo === periodo && b.colorId === colorId
+    );
+    const nuevasBoletas: BoletaLinea[] = [];
     for (const t of tarifasCorte) {
-      const idsNuevos = (modalOps[t.id] ?? []).filter(Boolean);
-      const idsPrevios = asignacionesPrevias.find(a => a.tarifaId === t.id)?.operarioIds
-        ?? (asignacionesPrevias.find(a => a.tarifaId === t.id)?.operarioId ? [asignacionesPrevias.find(a => a.tarifaId === t.id)!.operarioId] : []);
+      const filasConfirmadas = filasActualizadas.filter(f =>
+        f.asignaciones.some(a => a.tarifaId === t.id && a.confirmado === true)
+      );
+      if (filasConfirmadas.length === 0) continue;
 
-      // El modal global solo actualiza asignaciones — no crea boletas.
-      // Solo limpia boletas de operarios que fueron removidos de la lista.
-      for (const opPrevio of idsPrevios) {
-        if (!idsNuevos.includes(opPrevio)) {
-          const linea = boletaLineas.find(
-            b => b.operarioId === opPrevio && b.corteId === corteId &&
-                 b.tarifaId === t.id && b.periodo === periodo && b.colorId === colorId
-          );
-          if (linea) deleteBoletaLinea(linea.id);
+      const cantPorOperario = new Map<string, number>();
+      for (const fila of filasConfirmadas) {
+        const asig = fila.asignaciones.find(a => a.tarifaId === t.id);
+        if (!asig) continue;
+        const ids = asig.operarioIds?.length ? asig.operarioIds : (asig.operarioId ? [asig.operarioId] : []);
+        if (ids.length === 0) continue;
+        if (ids.length === 1) {
+          cantPorOperario.set(ids[0], (cantPorOperario.get(ids[0]) ?? 0) + fila.cantidad);
+        } else {
+          const base = Math.floor(fila.cantidad / ids.length);
+          const resto = fila.cantidad - base * ids.length;
+          ids.forEach((id, i) => {
+            cantPorOperario.set(id, (cantPorOperario.get(id) ?? 0) + base + (i === 0 ? resto : 0));
+          });
         }
+      }
+
+      const tarifa = tarifasOperaciones.find(tt => tt.id === t.id);
+      if (!tarifa) continue;
+      const ref = filasDelColor[0];
+      for (const [opId, cantTotal] of cantPorOperario) {
+        if (cantTotal === 0) continue;
+        nuevasBoletas.push({
+          id: newId(), operarioId: opId, corteId, nCorte: ref.nCorte,
+          productoId: ref.productoId, colorId, tarifaId: t.id,
+          operacion: tarifa.operacion, orden: tarifa.orden, tarifa: tarifa.tarifa,
+          cantPrendas: cantTotal, importe: cantTotal * tarifa.tarifa,
+          periodo, estadoPago: 'PENDIENTE',
+        });
       }
     }
 
-    // Guardar el hex elegido para este color
+    // 3. Persistir todo: actualizar filas, reconstruir boletas de confirmadas
+    for (const fila of filasActualizadas) {
+      updateSeguimientoFila(fila.id, {
+        asignaciones: fila.asignaciones,
+        totalPago: fila.totalPago,
+        pctAvance: fila.pctAvance,
+        estado: fila.estado,
+      });
+    }
+    boletasAEliminar.forEach(b => deleteBoletaLinea(b.id));
+    if (nuevasBoletas.length > 0) addBoletaLineas(nuevasBoletas);
+
     setColorHexOverrides(prev => ({ ...prev, [modalColor.colorId]: modalHex }));
     setModalColor(null);
     addToast('Operarios guardados', 'success');
@@ -217,7 +245,7 @@ export function ProduccionConfeccion() {
     const pctAvance = totalOps > 0 ? Math.round((confirmadas / totalOps) * 100) : 0;
     const estado = pctAvance === 100 ? 'LISTO' : pctAvance > 0 ? 'EN_PROCESO' : 'PENDIENTE';
 
-    // Persistir operarios por talla en asignaciones
+    // Construir asignaciones actualizadas para esta talla
     const asignaciones = fila.asignaciones.map(a => {
       const ops = avanceOpsIds[a.tarifaId] ?? [];
       const ids = ops.map(o => o.operarioId).filter(Boolean);
@@ -231,71 +259,64 @@ export function ProduccionConfeccion() {
     updateSeguimientoFila(fila.id, { asignaciones, pctAvance, estado });
 
     const periodo = fila.fecha.slice(0, 7);
-    const filasActualizadas: SeguimientoFila[] = seguimientoFilas.map(f =>
-      f.id === fila.id ? { ...f, asignaciones, pctAvance, estado } : f
+
+    // Snapshot de todas las filas del color con esta talla ya actualizada
+    const todasLasFilasColor: SeguimientoFila[] = seguimientoFilas
+      .filter(f => f.corteId === corteId && f.colorId === colorId)
+      .map(f => f.id === fila.id ? { ...f, asignaciones, pctAvance, estado } : f);
+
+    // Reconstruir boletas completas del color desde cero usando el snapshot actualizado
+    const boletasViejas = boletaLineas.filter(
+      b => b.corteId === corteId && b.colorId === colorId && b.periodo === periodo
     );
 
-    // Por cada tarifa: recalcular la boleta sumando SOLO las tallas confirmadas para esa tarifa en este color
+    const nuevasBoletas: BoletaLinea[] = [];
     for (const t of tarifasCorte) {
-      // Eliminar siempre las boletas previas de esta tarifa+color para reconstruir desde cero
-      boletaLineas
-        .filter(b => b.corteId === corteId && b.tarifaId === t.id && b.periodo === periodo && b.colorId === colorId)
-        .forEach(b => deleteBoletaLinea(b.id));
-
-      // Recolectar todas las tallas confirmadas para esta tarifa en este color (incluyendo la talla recién guardada)
-      const filasColorConfirmadas = filasActualizadas.filter(f =>
-        f.corteId === corteId &&
-        f.colorId === colorId &&
+      const filasConfirmadas = todasLasFilasColor.filter(f =>
         f.asignaciones.some(a => a.tarifaId === t.id && a.confirmado === true)
       );
+      if (filasConfirmadas.length === 0) continue;
 
-      if (filasColorConfirmadas.length === 0) continue;
-
-      // Agrupar cantidades por operario (sumando sus tallas confirmadas)
       const cantPorOperario = new Map<string, number>();
-      for (const filaConf of filasColorConfirmadas) {
+      for (const filaConf of filasConfirmadas) {
         const asig = filaConf.asignaciones.find(a => a.tarifaId === t.id);
         if (!asig) continue;
-        const idsOps = asig.operarioIds?.length ? asig.operarioIds : (asig.operarioId ? [asig.operarioId] : []);
-        if (idsOps.length === 0) continue;
-        if (idsOps.length === 1) {
-          // Un solo operario: toda la cantidad de esta talla
-          const opId = idsOps[0];
-          cantPorOperario.set(opId, (cantPorOperario.get(opId) ?? 0) + filaConf.cantidad);
+        // Para la talla actual usar avanceOpsIds (cantidades exactas del modal)
+        if (filaConf.id === fila.id && asig.operarioIds && asig.operarioIds.length > 1) {
+          for (const op of (avanceOpsIds[t.id] ?? []).filter(o => o.operarioId && o.cantidad > 0)) {
+            cantPorOperario.set(op.operarioId, (cantPorOperario.get(op.operarioId) ?? 0) + op.cantidad);
+          }
         } else {
-          // Múltiples operarios: distribuir proporcionalmente según avanceOpsIds si es la talla actual,
-          // o equitativamente para tallas ya confirmadas previamente
-          const esTallaActual = filaConf.id === fila.id;
-          if (esTallaActual) {
-            for (const op of (avanceOpsIds[t.id] ?? []).filter(o => o.operarioId && o.cantidad > 0)) {
-              cantPorOperario.set(op.operarioId, (cantPorOperario.get(op.operarioId) ?? 0) + op.cantidad);
-            }
+          const ids = asig.operarioIds?.length ? asig.operarioIds : (asig.operarioId ? [asig.operarioId] : []);
+          if (ids.length === 0) continue;
+          if (ids.length === 1) {
+            cantPorOperario.set(ids[0], (cantPorOperario.get(ids[0]) ?? 0) + filaConf.cantidad);
           } else {
-            const base = Math.floor(filaConf.cantidad / idsOps.length);
-            const resto = filaConf.cantidad - base * idsOps.length;
-            idsOps.forEach((opId, i) => {
-              cantPorOperario.set(opId, (cantPorOperario.get(opId) ?? 0) + base + (i === 0 ? resto : 0));
+            const base = Math.floor(filaConf.cantidad / ids.length);
+            const resto = filaConf.cantidad - base * ids.length;
+            ids.forEach((id, i) => {
+              cantPorOperario.set(id, (cantPorOperario.get(id) ?? 0) + base + (i === 0 ? resto : 0));
             });
           }
         }
       }
 
-      // Crear una boleta por operario con la suma acumulada de sus tallas confirmadas
+      const tarifa = tarifasOperaciones.find(tt => tt.id === t.id);
+      if (!tarifa) continue;
       for (const [opId, cantTotal] of cantPorOperario) {
         if (cantTotal === 0) continue;
-        const tarifa = tarifasOperaciones.find(tt => tt.id === t.id);
-        if (!tarifa) continue;
-        const referenciaFila = filasActualizadas.find(f => f.corteId === corteId && f.colorId === colorId);
-        if (!referenciaFila) continue;
-        addBoletaLinea({
-          id: newId(), operarioId: opId, corteId, nCorte: referenciaFila.nCorte,
-          productoId: referenciaFila.productoId, colorId, tarifaId: t.id,
+        nuevasBoletas.push({
+          id: newId(), operarioId: opId, corteId, nCorte: fila.nCorte,
+          productoId: fila.productoId, colorId, tarifaId: t.id,
           operacion: tarifa.operacion, orden: tarifa.orden, tarifa: tarifa.tarifa,
           cantPrendas: cantTotal, importe: cantTotal * tarifa.tarifa,
           periodo, estadoPago: 'PENDIENTE',
         });
       }
     }
+
+    boletasViejas.forEach(b => deleteBoletaLinea(b.id));
+    if (nuevasBoletas.length > 0) addBoletaLineas(nuevasBoletas);
 
     setModalAvance(null);
     addToast(estado === 'LISTO' ? `Talla ${talla} marcada como LISTO` : `Talla ${talla}: avance ${pctAvance}%`, 'success');
@@ -308,13 +329,15 @@ export function ProduccionConfeccion() {
     if (filasColor.length === 0) return;
     const periodo = filasColor[0].fecha.slice(0, 7);
 
-    for (const t of tarifasCorte) {
-      // Eliminar todas las boletas existentes de esta tarifa+color
-      boletaLineas
-        .filter(b => b.corteId === corteId && b.tarifaId === t.id && b.periodo === periodo && b.colorId === colorId)
-        .forEach(b => deleteBoletaLinea(b.id));
+    // Eliminar TODAS las boletas de este corte+color de una vez
+    const boletasViejas = boletaLineas.filter(
+      b => b.corteId === corteId && b.colorId === colorId && b.periodo === periodo
+    );
+    boletasViejas.forEach(b => deleteBoletaLinea(b.id));
 
-      // Solo incluir tallas que tienen esa operación confirmada
+    // Construir nuevas boletas agrupando por operario
+    const nuevasBoletas: BoletaLinea[] = [];
+    for (const t of tarifasCorte) {
       const filasConfirmadas = filasColor.filter(f =>
         f.asignaciones.some(a => a.tarifaId === t.id && a.confirmado === true)
       );
@@ -324,33 +347,34 @@ export function ProduccionConfeccion() {
       for (const filaConf of filasConfirmadas) {
         const asig = filaConf.asignaciones.find(a => a.tarifaId === t.id);
         if (!asig) continue;
-        const idsOps = asig.operarioIds?.length ? asig.operarioIds : (asig.operarioId ? [asig.operarioId] : []);
-        if (idsOps.length === 0) continue;
-        if (idsOps.length === 1) {
-          cantPorOperario.set(idsOps[0], (cantPorOperario.get(idsOps[0]) ?? 0) + filaConf.cantidad);
+        const ids = asig.operarioIds?.length ? asig.operarioIds : (asig.operarioId ? [asig.operarioId] : []);
+        if (ids.length === 0) continue;
+        if (ids.length === 1) {
+          cantPorOperario.set(ids[0], (cantPorOperario.get(ids[0]) ?? 0) + filaConf.cantidad);
         } else {
-          const base = Math.floor(filaConf.cantidad / idsOps.length);
-          const resto = filaConf.cantidad - base * idsOps.length;
-          idsOps.forEach((opId, i) => {
-            cantPorOperario.set(opId, (cantPorOperario.get(opId) ?? 0) + base + (i === 0 ? resto : 0));
+          const base = Math.floor(filaConf.cantidad / ids.length);
+          const resto = filaConf.cantidad - base * ids.length;
+          ids.forEach((id, i) => {
+            cantPorOperario.set(id, (cantPorOperario.get(id) ?? 0) + base + (i === 0 ? resto : 0));
           });
         }
       }
 
+      const tarifa = tarifasOperaciones.find(tt => tt.id === t.id);
+      if (!tarifa) continue;
       for (const [opId, cantTotal] of cantPorOperario) {
         if (cantTotal === 0) continue;
-        const tarifa = tarifasOperaciones.find(tt => tt.id === t.id);
-        if (!tarifa) continue;
-        const referenciaFila = filasColor[0];
-        addBoletaLinea({
-          id: newId(), operarioId: opId, corteId, nCorte: referenciaFila.nCorte,
-          productoId: referenciaFila.productoId, colorId, tarifaId: t.id,
+        nuevasBoletas.push({
+          id: newId(), operarioId: opId, corteId, nCorte: filasColor[0].nCorte,
+          productoId: filasColor[0].productoId, colorId, tarifaId: t.id,
           operacion: tarifa.operacion, orden: tarifa.orden, tarifa: tarifa.tarifa,
           cantPrendas: cantTotal, importe: cantTotal * tarifa.tarifa,
           periodo, estadoPago: 'PENDIENTE',
         });
       }
     }
+
+    if (nuevasBoletas.length > 0) addBoletaLineas(nuevasBoletas);
     addToast('Boletas recalculadas', 'success');
   };
 
@@ -1447,102 +1471,83 @@ export function ProduccionConfeccion() {
                   <span className="text-[10px] text-gray-500 font-mono">{modalHex}</span>
                 </div>
               </div>
-              <div className="px-5 py-3 space-y-3 max-h-64 overflow-y-auto">
+              <div className="px-5 py-3 space-y-3 max-h-[60vh] overflow-y-auto">
                 {tarifasModal.map(t => {
-                  const ids = modalOps[t.id] ?? [''];
-                  const qtys = modalOpsQty[t.id] ?? ids.map(() => totalPrendas);
-                  const totalAsignado = ids.reduce((s, id, i) => s + (id ? (qtys[i] || 0) : 0), 0);
-                  const descuadre = ids.filter(Boolean).length > 1 && totalAsignado !== totalPrendas;
+                  const tallasOrden = ['S','M','L','XL'] as const;
+                  const tallasPresentes = tallasOrden.filter(ta => filasDelColor.some(f => f.talla === ta));
+                  // Operario "global" de esta operación = el de la primera talla presente
+                  const primeraT = tallasPresentes[0] ?? '';
+                  const globalId = modalOps[t.id]?.[primeraT]?.[0] ?? '';
+                  // ¿Hay tallas con operario distinto al global?
+                  const hayExcepcion = tallasPresentes.some(ta => {
+                    const opTalla = modalOps[t.id]?.[ta]?.[0] ?? '';
+                    return opTalla && opTalla !== globalId;
+                  });
+
+                  const aplicarGlobalATallas = (opId: string) => {
+                    setModalOps(prev => {
+                      const tallaMap: Record<string, string[]> = {};
+                      tallasPresentes.forEach(ta => { tallaMap[ta] = [opId]; });
+                      return { ...prev, [t.id]: tallaMap };
+                    });
+                    setModalOpsQty(prev => {
+                      const tallaMap: Record<string, number[]> = {};
+                      filasDelColor.forEach(f => { tallaMap[f.talla] = [f.cantidad]; });
+                      return { ...prev, [t.id]: tallaMap };
+                    });
+                  };
+
                   return (
-                    <div key={t.id} className="space-y-1">
+                    <div key={t.id} className="space-y-1.5 border border-gray-100 rounded p-2">
+                      {/* Fila principal: operación + selector global */}
                       <div className="flex items-center gap-2">
-                        <span className="text-[11px] font-mono text-gray-400 w-5 text-right flex-shrink-0">{t.orden}.</span>
-                        <span className="text-[11px] font-bold text-gray-700 flex-1 truncate">{t.operacion}</span>
-                        {descuadre && (
-                          <span className="text-[9px] text-amber-600 font-bold whitespace-nowrap">{totalAsignado}/{totalPrendas}</span>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const newIds = [...(ids), ''];
-                            const newCount = newIds.filter(Boolean).length + 1;
-                            const base = Math.floor(totalPrendas / newCount);
-                            const resto = totalPrendas - base * newCount;
-                            const newQtys = newIds.map((id, i) => id ? (base + (i === 0 ? resto : 0)) : 0);
-                            newQtys[newIds.length - 1] = base;
-                            // redistribuir todos
-                            const validCount = newIds.length;
-                            const b2 = Math.floor(totalPrendas / validCount);
-                            const r2 = totalPrendas - b2 * validCount;
-                            setModalOps(prev => ({ ...prev, [t.id]: newIds }));
-                            setModalOpsQty(prev => ({ ...prev, [t.id]: newIds.map((_, i) => b2 + (i === 0 ? r2 : 0)) }));
-                          }}
-                          className="text-[10px] text-blue-500 hover:text-blue-700 px-1 flex-shrink-0"
-                          title="Agregar segundo operario"
-                        >+ op</button>
+                        <span className="text-[10px] font-mono text-gray-400 w-5 text-right flex-shrink-0">{t.orden}.</span>
+                        <span className="text-[11px] font-bold text-gray-700 w-28 truncate flex-shrink-0">{t.operacion}</span>
+                        <select
+                          value={hayExcepcion ? '' : globalId}
+                          onChange={e => aplicarGlobalATallas(e.target.value)}
+                          className="text-[11px] border border-gray-200 bg-white px-2 py-0.5 rounded flex-1 min-w-0"
+                        >
+                          <option value="">{hayExcepcion ? '— mixto —' : '— sin asignar —'}</option>
+                          {operarios.filter(o => o.estado === 'ACTIVO').map(o => (
+                            <option key={o.id} value={o.id}>{o.nombre ?? o.codigo}</option>
+                          ))}
+                        </select>
                       </div>
-                      {ids.map((opId, idx) => (
-                        <div key={idx} className="flex items-center gap-1 pl-7">
-                          <select
-                            value={opId}
-                            onChange={e => setModalOps(prev => {
-                              const next = [...(prev[t.id] ?? [''])];
-                              next[idx] = e.target.value;
-                              return { ...prev, [t.id]: next };
-                            })}
-                            className="text-[11px] border border-gray-200 bg-white px-2 py-1 rounded flex-1"
-                          >
-                            <option value="">— sin asignar —</option>
-                            {operarios.filter(o => o.estado === 'ACTIVO').map(o => (
-                              <option key={o.id} value={o.id}>{o.nombre ?? o.codigo}</option>
-                            ))}
-                          </select>
-                          {ids.length > 1 && (
-                            <>
-                              <input
-                                type="number"
-                                min={0}
-                                max={totalPrendas}
-                                value={qtys[idx] ?? 0}
+                      {/* Filas por talla — siempre visibles para poder personalizar */}
+                      <div className="pl-7 space-y-1">
+                        {tallasPresentes.map(ta => {
+                          const fila = filasDelColor.find(f => f.talla === ta)!;
+                          const opId = modalOps[t.id]?.[ta]?.[0] ?? '';
+                          const esDiferente = opId && opId !== globalId;
+                          return (
+                            <div key={ta} className="flex items-center gap-1.5">
+                              <span className={`text-[10px] font-black w-5 ${esDiferente ? 'text-blue-600' : 'text-gray-400'}`}>{ta}</span>
+                              <span className="text-[10px] text-gray-400 font-mono w-8 text-right">{fila.cantidad}p</span>
+                              <select
+                                value={opId}
                                 onChange={e => {
-                                  const val = Math.min(parseInt(e.target.value) || 0, totalPrendas);
-                                  setModalOpsQty(prev => {
-                                    const list = [...(prev[t.id] ?? ids.map(() => 0))];
-                                    list[idx] = val;
-                                    const otros = list.length - 1;
-                                    if (otros > 0) {
-                                      const resto = Math.max(totalPrendas - val, 0);
-                                      const base = Math.floor(resto / otros);
-                                      const mod = resto - base * otros;
-                                      let primerOtro = true;
-                                      for (let i = 0; i < list.length; i++) {
-                                        if (i === idx) continue;
-                                        list[i] = base + (primerOtro ? mod : 0);
-                                        primerOtro = false;
-                                      }
-                                    }
-                                    return { ...prev, [t.id]: list };
-                                  });
+                                  const newOpId = e.target.value;
+                                  setModalOps(prev => ({
+                                    ...prev,
+                                    [t.id]: { ...(prev[t.id] ?? {}), [ta]: [newOpId] },
+                                  }));
+                                  setModalOpsQty(prev => ({
+                                    ...prev,
+                                    [t.id]: { ...(prev[t.id] ?? {}), [ta]: [fila.cantidad] },
+                                  }));
                                 }}
-                                className="w-14 text-[10px] border border-gray-200 rounded px-1.5 py-0.5 text-right font-mono"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const newIds = (ids).filter((_, i) => i !== idx);
-                                  const nextIds = newIds.length ? newIds : [''];
-                                  const validCount = nextIds.filter(Boolean).length;
-                                  const base = validCount > 0 ? Math.floor(totalPrendas / validCount) : totalPrendas;
-                                  const resto = validCount > 0 ? totalPrendas - base * validCount : 0;
-                                  setModalOps(prev => ({ ...prev, [t.id]: nextIds }));
-                                  setModalOpsQty(prev => ({ ...prev, [t.id]: nextIds.map((id, i) => id ? (base + (i === 0 ? resto : 0)) : 0) }));
-                                }}
-                                className="text-gray-300 hover:text-red-500 flex-shrink-0"
-                              ><X className="h-3 w-3" /></button>
-                            </>
-                          )}
-                        </div>
-                      ))}
+                                className={`text-[11px] border rounded px-2 py-0.5 flex-1 min-w-0 ${esDiferente ? 'border-blue-300 bg-blue-50' : 'border-gray-200 bg-white'}`}
+                              >
+                                <option value="">— sin asignar —</option>
+                                {operarios.filter(o => o.estado === 'ACTIVO').map(o => (
+                                  <option key={o.id} value={o.id}>{o.nombre ?? o.codigo}</option>
+                                ))}
+                              </select>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   );
                 })}

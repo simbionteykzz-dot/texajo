@@ -123,17 +123,26 @@ export function Destajo() {
     estado: bEstado,
   });
 
-  // totalBruto recalculado usando cantPrendas real por operario desde seguimientoFilas
+  // totalBruto usando cantPrendas real por operario (solo tallas asignadas a este operario)
   const totalBruto = useMemo(() => lineasFiltradas.reduce((sum, b) => {
-    if (b.talla) return sum + b.importe; // sub-líneas por talla: ya tienen el valor correcto
-    const filasSeg = seguimientoFilas.filter(
-      f => f.corteId === b.corteId && (!b.colorId || f.colorId === b.colorId) && f.asignaciones.some(a => a.tarifaId === b.tarifaId && a.confirmado === true)
-    );
+    if (b.talla) return sum + b.importe;
+    const filasSeg = seguimientoFilas.filter(f => {
+      if (f.corteId !== b.corteId) return false;
+      if (b.colorId && f.colorId !== b.colorId) return false;
+      const asig = f.asignaciones.find(a => a.tarifaId === b.tarifaId && a.confirmado === true);
+      if (!asig) return false;
+      const ids = asig.operarioIds?.filter(Boolean).length
+        ? asig.operarioIds!.filter(Boolean)
+        : (asig.operarioId ? [asig.operarioId] : []);
+      return ids.includes(b.operarioId);
+    });
     if (filasSeg.length === 0) return sum + b.importe;
     const cantReal = filasSeg.reduce((s, fila) => {
       const asig = fila.asignaciones.find(a => a.tarifaId === b.tarifaId && a.confirmado === true);
-      const nOps = asig?.operarioIds?.filter(Boolean).length ?? (asig?.operarioId ? 1 : 1);
-      return s + (nOps > 1 ? Math.round(fila.cantidad / nOps) : fila.cantidad);
+      const ids = asig?.operarioIds?.filter(Boolean).length
+        ? asig!.operarioIds!.filter(Boolean)
+        : (asig?.operarioId ? [asig.operarioId] : []);
+      return s + (ids.length > 1 ? Math.round(fila.cantidad / ids.length) : fila.cantidad);
     }, 0);
     return sum + cantReal * b.tarifa;
   }, 0), [lineasFiltradas, seguimientoFilas]);
@@ -706,10 +715,17 @@ export function Destajo() {
                     <tbody>
                       {lineasDetalle.map((b, i) => {
                         const isExpanded = expandedLineaId === b.id;
-                        // Tallas disponibles de seguimientoFilas para este corte+color
-                        const tallasFilas = seguimientoFilas.filter(
-                          f => f.corteId === b.corteId && (!b.colorId || f.colorId === b.colorId) && f.asignaciones.some(a => a.tarifaId === b.tarifaId && a.confirmado === true)
-                        );
+                        // Tallas de este operario para este corte+color+tarifa
+                        const tallasFilas = seguimientoFilas.filter(f => {
+                          if (f.corteId !== b.corteId) return false;
+                          if (b.colorId && f.colorId !== b.colorId) return false;
+                          const asig = f.asignaciones.find(a => a.tarifaId === b.tarifaId && a.confirmado === true);
+                          if (!asig) return false;
+                          const ids = asig.operarioIds?.filter(Boolean).length
+                            ? asig.operarioIds!.filter(Boolean)
+                            : (asig.operarioId ? [asig.operarioId] : []);
+                          return ids.includes(b.operarioId);
+                        });
                         const tieneTallas = tallasFilas.length >= 1 && !b.talla;
 
                         return (
@@ -758,8 +774,10 @@ export function Destajo() {
                               );
                               const yaPagada = subLinea?.estadoPago === 'PAGADO';
                               const asig = fila.asignaciones.find(a => a.tarifaId === b.tarifaId && a.confirmado === true);
-                              const nOps = asig?.operarioIds?.filter(Boolean).length ?? (asig?.operarioId ? 1 : 1);
-                              const cantOperario = nOps > 1 ? Math.round(fila.cantidad / nOps) : fila.cantidad;
+                              const ids = asig?.operarioIds?.filter(Boolean).length
+                                ? asig!.operarioIds!.filter(Boolean)
+                                : (asig?.operarioId ? [asig.operarioId] : []);
+                              const cantOperario = ids.length > 1 ? Math.round(fila.cantidad / ids.length) : fila.cantidad;
                               return (
                                 <tr key={`${b.id}-${fila.talla}`} className="bg-blue-50 border-l-4 border-blue-200">
                                   <td />
@@ -1118,17 +1136,29 @@ export function Destajo() {
                     );
 
                     const isExp = expandedLineaId === b.id;
-                    // Tallas del corte+color desde seguimientoFilas (sin depender de asignaciones)
-                    const tallasDisp = seguimientoFilas.filter(
-                      f => f.corteId === b.corteId && (!b.colorId || f.colorId === b.colorId) && f.asignaciones.some(a => a.tarifaId === b.tarifaId && a.confirmado === true)
-                    );
+                    // Tallas asignadas a este operario para este corte+color+tarifa
+                    const tallasDisp = seguimientoFilas.filter(f => {
+                      if (f.corteId !== b.corteId) return false;
+                      if (b.colorId && f.colorId !== b.colorId) return false;
+                      const asig = f.asignaciones.find(a => a.tarifaId === b.tarifaId && a.confirmado === true);
+                      if (!asig) return false;
+                      const ids = asig.operarioIds?.filter(Boolean).length
+                        ? asig.operarioIds!.filter(Boolean)
+                        : (asig.operarioId ? [asig.operarioId] : []);
+                      return ids.includes(b.operarioId);
+                    });
                     const tieneTallas = tallasDisp.length >= 1;
-                    // Calcular cantPrendas real para el operario sumando cantOperario por talla
+                    // Calcular cantPrendas real sumando solo las tallas asignadas a este operario
                     const cantPrendasReal = tieneTallas
                       ? tallasDisp.reduce((sum, fila) => {
                           const asig = fila.asignaciones.find(a => a.tarifaId === b.tarifaId && a.confirmado === true);
-                          const nOps = asig?.operarioIds?.filter(Boolean).length ?? (asig?.operarioId ? 1 : 1);
-                          return sum + (nOps > 1 ? Math.round(fila.cantidad / nOps) : fila.cantidad);
+                          if (!asig) return sum;
+                          const ids = asig.operarioIds?.filter(Boolean).length
+                            ? asig.operarioIds!.filter(Boolean)
+                            : (asig.operarioId ? [asig.operarioId] : []);
+                          if (!ids.includes(b.operarioId)) return sum;
+                          if (ids.length === 1) return sum + fila.cantidad;
+                          return sum + Math.round(fila.cantidad / ids.length);
                         }, 0)
                       : b.cantPrendas;
                     const importeReal = cantPrendasReal * b.tarifa;
@@ -1212,8 +1242,10 @@ export function Destajo() {
                           );
                           const yaPagada = subLinea?.estadoPago === 'PAGADO';
                           const asig = fila.asignaciones.find(a => a.tarifaId === b.tarifaId && a.confirmado === true);
-                          const nOps = asig?.operarioIds?.filter(Boolean).length ?? (asig?.operarioId ? 1 : 1);
-                          const cantOperario = nOps > 1 ? Math.round(fila.cantidad / nOps) : fila.cantidad;
+                          const ids2 = asig?.operarioIds?.filter(Boolean).length
+                            ? asig!.operarioIds!.filter(Boolean)
+                            : (asig?.operarioId ? [asig.operarioId] : []);
+                          const cantOperario = ids2.length > 1 ? Math.round(fila.cantidad / ids2.length) : fila.cantidad;
                           return (
                             <tr key={`${b.id}-${fila.talla}`} className="bg-amber-50 border-l-4 border-amber-300">
                               <td className="px-3 py-1.5 font-mono text-gray-400 text-[10px]">↳ {b.nCorte}</td>
