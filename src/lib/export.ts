@@ -616,206 +616,223 @@ export async function exportHojaSeguimientoPdf(data: HojaSeguimientoData, font: 
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   const pageW = doc.internal.pageSize.getWidth(); // 297 mm
   const pageH = doc.internal.pageSize.getHeight(); // 210 mm
-  const L = 5, R = pageW - 5;
+  const L = 6, R = pageW - 6;
   const usableW = R - L;
 
-  await registerFont(doc, font);
-  doc.setFont(font, 'normal');
-  doc.setDrawColor(...BLK);
-  doc.setLineWidth(0.3);
+  // Usar helvetica para estética más suave y redondeada
+  doc.setFont('helvetica', 'normal');
+  doc.setDrawColor(200, 200, 200);
+  doc.setLineWidth(0.2);
 
-  // ── CABECERA ────────────────────────────────────────────────────────────────
-  // Fila 1: [N°58 amarillo] [vacío] [PRODUCTO amarillo centrado] [vacío] [F.CORTE gris] [02-jun amarillo]
-  // Fila 2: [Cliente: OverShark amarillo suave] [resto vacío/blanco]
-  const hdrY  = 4;
-  const hdr1H = 8;
-  const hdr2H = 6;
+  // Paleta refinada
+  const AMBER:    [number,number,number] = [251, 191,  36];
+  const AMBER_LT: [number,number,number] = [254, 243, 199];
+  const SLATE:    [number,number,number] = [ 71,  85, 105];
+  const SLATE_LT: [number,number,number] = [241, 245, 249];
+  const WHITE:    [number,number,number] = [255, 255, 255];
+  const INK:      [number,number,number] = [ 30,  41,  59];
+  const GRAY_ROW: [number,number,number] = [248, 250, 252];
 
-  // Anchos fijos
-  const nCorteW = 20;   // caja N°
-  const fLabelW = 20;   // "F.CORTE" gris
-  const fechaW  = 30;   // valor fecha amarillo
-  // Producto: caja de ancho fijo centrada en el espacio medio
-  const midStart = L + nCorteW;
-  const midEnd   = R - fLabelW - fechaW;
-  const midW     = midEnd - midStart;
-  const prodW    = Math.min(90, midW * 0.65); // caja producto ~65% del espacio medio
-  const prodX    = midStart + (midW - prodW) / 2;
-
-  const fechaLabel = new Date(data.fecha + 'T00:00:00')
-    .toLocaleDateString('es-PE', { day: '2-digit', month: 'short' })
-    .replace('.', '');
-
-  // Fila 1 fondo blanco completo (para que vacíos sean blancos)
-  doc.setFillColor(255, 255, 255);
-  doc.rect(L, hdrY, usableW, hdr1H, 'F');
-
-  // Caja N° (amarillo, borde)
-  doc.setFillColor(...YELLOW_HDR);
-  doc.rect(L, hdrY, nCorteW, hdr1H, 'FD');
-  doc.setFont(font, 'bold');
-  doc.setFontSize(5.5);
-  doc.setTextColor(...BLK);
-  doc.text('N°', L + 1.5, hdrY + 3);
-  doc.setFontSize(13);
-  doc.text(String(data.nCorte), L + nCorteW / 2, hdrY + 7, { align: 'center' });
-
-  // Caja PRODUCTO (amarillo, centrada en el espacio medio)
-  doc.setFillColor(...YELLOW_HDR);
-  doc.rect(prodX, hdrY, prodW, hdr1H, 'FD');
-  doc.setFont(font, 'bold');
-  doc.setFontSize(10);
-  doc.setTextColor(...BLK);
-  doc.text(String(data.producto).toUpperCase(), prodX + prodW / 2, hdrY + 5.5, { align: 'center' });
-
-  // Caja F.CORTE (gris)
-  doc.setFillColor(200, 200, 200);
-  doc.rect(R - fLabelW - fechaW, hdrY, fLabelW, hdr1H, 'FD');
-  doc.setFont(font, 'bold');
-  doc.setFontSize(6);
-  doc.setTextColor(...BLK);
-  doc.text('F.CORTE', R - fLabelW - fechaW + fLabelW / 2, hdrY + 5.5, { align: 'center' });
-
-  // Caja fecha (amarillo grande)
-  doc.setFillColor(...YELLOW_HDR);
-  doc.rect(R - fechaW, hdrY, fechaW, hdr1H, 'FD');
-  doc.setFont(font, 'bold');
-  doc.setFontSize(11);
-  doc.setTextColor(...BLK);
-  doc.text(fechaLabel, R - fechaW / 2, hdrY + 6, { align: 'center' });
-
-  // Fila 2: solo caja Cliente (amarillo suave), resto blanco
-  doc.setFillColor(255, 255, 255);
-  doc.rect(L, hdrY + hdr1H, usableW, hdr2H, 'F');
-  doc.setFillColor(...YELLOW_SOFT);
-  doc.rect(L, hdrY + hdr1H, nCorteW + 30, hdr2H, 'FD');
-  doc.setFont(font, 'bold');
-  doc.setFontSize(5.5);
-  doc.setTextColor(...BLK);
-  doc.text('Cliente:', L + 1.5, hdrY + hdr1H + 4);
-  doc.setFont(font, 'normal');
-  doc.setFontSize(6.5);
-  doc.text(String(data.cliente), L + 14, hdrY + hdr1H + 4.5);
-
-  const tableY = hdrY + hdr1H + hdr2H + 1;
-
-  // ── TABLA manual con rowspan por color ─────────────────────────────────────
-  // Columnas: § (span) | COLOR | T | CANT | ops... | MERMA | ENTREGADO
-  const spanW = 5, colorW = 22, tallaW = 7, cantW = 9;
-  const trailW = 13 + 16; // MERMA + ENTREGADO
-  const nOps = data.operaciones.length;
-  const opW = Math.max(10, (usableW - spanW - colorW - tallaW - cantW - trailW) / Math.max(nOps, 1));
-  const mermaW = 13, entregadoW = 16;
-
-  // Anchos por columna en orden
-  const cols = [spanW, colorW, tallaW, cantW, ...data.operaciones.map(() => opW), mermaW, entregadoW];
-  const totalW = cols.reduce((s, w) => s + w, 0);
-
-  // Calcular altura de fila para que todo quepa
-  const nDataRows = data.filas.length + 1; // +1 fila TOTAL
-  const tblHdrH = 7;
-  const availH = pageH - tableY - 5;
-  const rowH = Math.max(3.8, (availH - tblHdrH) / Math.max(nDataRows, 1));
-  const fontSize = rowH < 4.5 ? 5 : 5.5;
+  // ── Helper: celda con borde suave ────────────────────────────────────────
+  const rowH  = 6.5;
+  const tblHdrH = 8;
+  const fontSize = 6;
   const fontMm = fontSize * 0.352;
-  const pad = Math.max(0.3, (rowH - fontMm) / 2);
 
-  // Helper: dibujar celda
   const drawCell = (
     x: number, y2: number, w: number, h: number,
     text: string, opts: {
       fill?: [number,number,number],
       textColor?: [number,number,number],
       bold?: boolean,
+      italic?: boolean,
       align?: 'left'|'center'|'right',
       fs?: number,
+      border?: boolean,
     } = {}
   ) => {
-    if (opts.fill) {
-      doc.setFillColor(...opts.fill);
-      doc.rect(x, y2, w, h, 'FD');
+    const fill = opts.fill ?? WHITE;
+    doc.setFillColor(...fill);
+    doc.setDrawColor(210, 214, 220);
+    doc.setLineWidth(0.18);
+    if (opts.border === false) {
+      doc.rect(x, y2, w, h, 'F');
     } else {
-      doc.setFillColor(255, 255, 255);
       doc.rect(x, y2, w, h, 'FD');
     }
     if (text) {
-      doc.setFont(font, opts.bold ? 'bold' : 'normal');
+      const style = opts.bold ? 'bold' : opts.italic ? 'italic' : 'normal';
+      doc.setFont('helvetica', style);
       doc.setFontSize(opts.fs ?? fontSize);
-      doc.setTextColor(...(opts.textColor ?? BLK));
-      const tx = opts.align === 'right' ? x + w - 1
+      doc.setTextColor(...(opts.textColor ?? INK));
+      const tx = opts.align === 'right' ? x + w - 1.5
                : opts.align === 'center' ? x + w / 2
-               : x + 1;
+               : x + 2;
       doc.text(text, tx, y2 + h / 2 + fontMm / 2, { align: opts.align ?? 'left' });
     }
   };
 
-  // Encabezado tabla
-  let cx = L;
-  const hdrFill = YELLOW_HDR;
-  const hdrOpts = { fill: hdrFill, bold: true, align: 'center' as const, fs: 6 };
-  drawCell(cx, tableY, spanW, tblHdrH, '§', hdrOpts); cx += spanW;
-  drawCell(cx, tableY, colorW, tblHdrH, 'COLOR', hdrOpts); cx += colorW;
-  drawCell(cx, tableY, tallaW, tblHdrH, 'T', hdrOpts); cx += tallaW;
-  drawCell(cx, tableY, cantW, tblHdrH, 'CANT', hdrOpts); cx += cantW;
-  for (const op of data.operaciones) {
-    drawCell(cx, tableY, opW, tblHdrH, op, hdrOpts); cx += opW;
-  }
-  drawCell(cx, tableY, mermaW, tblHdrH, 'MERMA', hdrOpts); cx += mermaW;
-  drawCell(cx, tableY, entregadoW, tblHdrH, 'ENTREGADO', hdrOpts);
+  // ── Helper: dibujar cabecera en cualquier página ──────────────────────────
+  const hdrH = 14; // altura total cabecera (2 filas)
+  const drawPageHeader = (startY: number) => {
+    const hdr1H = 8.5, hdr2H = 5.5;
+    const nCorteW = 22, fLabelW = 18, fechaW = 28;
+    const midStart = L + nCorteW;
+    const midEnd   = R - fLabelW - fechaW;
+    const midW     = midEnd - midStart;
+    const prodW    = Math.min(100, midW * 0.7);
+    const prodX    = midStart + (midW - prodW) / 2;
 
-  // Agrupar filas por color para rowspan
+    const fechaLabel = new Date(data.fecha + 'T00:00:00')
+      .toLocaleDateString('es-PE', { day: '2-digit', month: 'short' })
+      .replace('.', '');
+
+    // Fondo blanco fila 1
+    doc.setFillColor(...WHITE);
+    doc.rect(L, startY, usableW, hdr1H, 'F');
+
+    // Caja N° — amber redondeada
+    doc.setFillColor(...AMBER);
+    doc.setDrawColor(209, 157, 20);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(L, startY, nCorteW, hdr1H, 2, 2, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(5);
+    doc.setTextColor(...INK);
+    doc.text('CORTE N°', L + nCorteW / 2, startY + 2.8, { align: 'center' });
+    doc.setFontSize(14);
+    doc.text(String(data.nCorte), L + nCorteW / 2, startY + 7.2, { align: 'center' });
+
+    // Caja PRODUCTO — amber redondeada
+    doc.setFillColor(...AMBER);
+    doc.setDrawColor(209, 157, 20);
+    doc.roundedRect(prodX, startY, prodW, hdr1H, 2, 2, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(...INK);
+    doc.text(String(data.producto).toUpperCase(), prodX + prodW / 2, startY + 5.8, { align: 'center' });
+
+    // Caja F.CORTE — slate suave
+    doc.setFillColor(...SLATE_LT);
+    doc.setDrawColor(200, 210, 220);
+    doc.roundedRect(R - fLabelW - fechaW, startY, fLabelW, hdr1H, 2, 2, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(5.5);
+    doc.setTextColor(...SLATE);
+    doc.text('F. CORTE', R - fLabelW - fechaW + fLabelW / 2, startY + 5.2, { align: 'center' });
+
+    // Caja fecha — amber
+    doc.setFillColor(...AMBER);
+    doc.setDrawColor(209, 157, 20);
+    doc.roundedRect(R - fechaW, startY, fechaW, hdr1H, 2, 2, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(...INK);
+    doc.text(fechaLabel, R - fechaW / 2, startY + 6, { align: 'center' });
+
+    // Fila 2: badge cliente
+    doc.setFillColor(...WHITE);
+    doc.rect(L, startY + hdr1H, usableW, hdr2H, 'F');
+    doc.setFillColor(...AMBER_LT);
+    doc.setDrawColor(251, 191, 36);
+    doc.setLineWidth(0.25);
+    doc.roundedRect(L, startY + hdr1H, nCorteW + 38, hdr2H, 1.5, 1.5, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(5);
+    doc.setTextColor(...SLATE);
+    doc.text('CLIENTE', L + 2, startY + hdr1H + 3.6);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    doc.setTextColor(...INK);
+    doc.text(String(data.cliente), L + 16, startY + hdr1H + 3.8);
+
+    return startY + hdr1H + hdr2H + 2;
+  };
+
+  // ── Columnas ─────────────────────────────────────────────────────────────
+  const spanW = 6, colorW = 24, tallaW = 8, cantW = 10;
+  const mermaW = 14, entregadoW = 18;
+  const nOps = data.operaciones.length;
+  const opW = Math.max(12, (usableW - spanW - colorW - tallaW - cantW - mermaW - entregadoW) / Math.max(nOps, 1));
+
+  const drawTableHeader = (ty: number) => {
+    let cx = L;
+    const ho = { fill: AMBER, bold: true, align: 'center' as const, fs: 6, textColor: INK };
+    drawCell(cx, ty, spanW, tblHdrH, '§', ho); cx += spanW;
+    drawCell(cx, ty, colorW, tblHdrH, 'COLOR', ho); cx += colorW;
+    drawCell(cx, ty, tallaW, tblHdrH, 'T', ho); cx += tallaW;
+    drawCell(cx, ty, cantW, tblHdrH, 'CANT', ho); cx += cantW;
+    for (const op of data.operaciones) {
+      drawCell(cx, ty, opW, tblHdrH, op, { ...ho, fs: 5.5 }); cx += opW;
+    }
+    drawCell(cx, ty, mermaW, tblHdrH, 'MERMA', ho); cx += mermaW;
+    drawCell(cx, ty, entregadoW, tblHdrH, 'ENTREGADO', ho);
+  };
+
+  // ── Agrupar filas por color ──────────────────────────────────────────────
   const grupos: { colorNombre: string; colorHex?: string; filas: typeof data.filas }[] = [];
   for (const f of data.filas) {
     const last = grupos[grupos.length - 1];
-    if (last && last.colorNombre === f.color) {
-      last.filas.push(f);
-    } else {
-      grupos.push({ colorNombre: f.color, colorHex: f.colorHex, filas: [f] });
-    }
+    if (last && last.colorNombre === f.color) last.filas.push(f);
+    else grupos.push({ colorNombre: f.color, colorHex: f.colorHex, filas: [f] });
   }
 
-  // Parsear hex a RGB
   const hexToRgb = (hex: string): [number,number,number] => {
     const h = hex.replace('#', '');
-    const r = parseInt(h.substring(0,2), 16);
-    const g = parseInt(h.substring(2,4), 16);
-    const b = parseInt(h.substring(4,6), 16);
-    return [r, g, b];
+    return [parseInt(h.substring(0,2),16), parseInt(h.substring(2,4),16), parseInt(h.substring(4,6),16)];
   };
-
-  // Determinar si color es oscuro (texto blanco)
   const isDark = (rgb: [number,number,number]) => (rgb[0]*299 + rgb[1]*587 + rgb[2]*114) / 1000 < 128;
 
-  let rowY = tableY + tblHdrH;
+  // ── Paginación ───────────────────────────────────────────────────────────
+  const bottomMargin = 6;
+  let pageY = drawPageHeader(4);
+  let tableStartY = pageY;
+  drawTableHeader(tableStartY);
+  let rowY = tableStartY + tblHdrH;
   let rowIdx = 0;
   let totalCant = 0;
 
+  const checkPageBreak = (neededH: number) => {
+    if (rowY + neededH > pageH - bottomMargin) {
+      doc.addPage();
+      pageY = drawPageHeader(4);
+      tableStartY = pageY;
+      drawTableHeader(tableStartY);
+      rowY = tableStartY + tblHdrH;
+      rowIdx = 0;
+    }
+  };
+
   for (const grupo of grupos) {
-    const colorRgb: [number,number,number] = grupo.colorHex ? hexToRgb(grupo.colorHex) : [220, 220, 220];
-    const textColor: [number,number,number] = isDark(colorRgb) ? [255,255,255] : BLK;
+    const colorRgb: [number,number,number] = grupo.colorHex ? hexToRgb(grupo.colorHex) : [180,190,200];
+    const textColor: [number,number,number] = isDark(colorRgb) ? WHITE : INK;
     const spanH = rowH * grupo.filas.length;
-
-    // Celda § (total prendas del color, abarca todas sus tallas)
     const totalGrupo = grupo.filas.reduce((s, f) => s + f.cantidad, 0);
-    drawCell(L, rowY, spanW, spanH, String(totalGrupo), {
-      fill: [240,240,240], bold: true, align: 'center', fs: 5,
-    });
 
-    // Celda COLOR (span del grupo, con color de fondo)
-    drawCell(L + spanW, rowY, colorW, spanH, grupo.colorNombre, {
-      fill: colorRgb, textColor, bold: true, align: 'center', fs: fontSize,
-    });
+    // Si todo el grupo no cabe en la página y es pequeño, saltar de página
+    if (grupo.filas.length <= 6 && rowY + spanH > pageH - bottomMargin) {
+      doc.addPage();
+      pageY = drawPageHeader(4);
+      tableStartY = pageY;
+      drawTableHeader(tableStartY);
+      rowY = tableStartY + tblHdrH;
+      rowIdx = 0;
+    }
 
-    for (const fila of grupo.filas) {
-      const altFill: [number,number,number] = rowIdx % 2 === 0 ? [255,255,255] : [248,248,248];
-      cx = L + spanW + colorW;
+    const groupStartY = rowY;
 
-      drawCell(cx, rowY, tallaW, rowH, fila.talla, { fill: altFill, align: 'center', bold: true }); cx += tallaW;
-      drawCell(cx, rowY, cantW, rowH, String(fila.cantidad), { fill: altFill, align: 'center' }); cx += cantW;
+    for (let fi = 0; fi < grupo.filas.length; fi++) {
+      checkPageBreak(rowH);
+      const fila = grupo.filas[fi];
+      const altFill: [number,number,number] = rowIdx % 2 === 0 ? WHITE : GRAY_ROW;
+      let cx = L + spanW + colorW;
+
+      // Columnas de la fila (talla, cant, ops, merma, entregado)
+      drawCell(cx, rowY, tallaW, rowH, fila.talla, { fill: altFill, align: 'center', bold: true, fs: 6.5 }); cx += tallaW;
+      drawCell(cx, rowY, cantW, rowH, String(fila.cantidad), { fill: altFill, align: 'center', fs: 6 }); cx += cantW;
       totalCant += fila.cantidad;
-
       for (const opNombre of fila.operariosPorOp) {
-        drawCell(cx, rowY, opW, rowH, opNombre, { fill: altFill, align: 'center' }); cx += opW;
+        drawCell(cx, rowY, opW, rowH, opNombre, { fill: altFill, align: 'center', fs: 5.5 }); cx += opW;
       }
       drawCell(cx, rowY, mermaW, rowH, '', { fill: altFill }); cx += mermaW;
       drawCell(cx, rowY, entregadoW, rowH, '', { fill: altFill });
@@ -823,17 +840,26 @@ export async function exportHojaSeguimientoPdf(data: HojaSeguimientoData, font: 
       rowY += rowH;
       rowIdx++;
     }
+
+    // Celda § y COLOR sobre el grupo completo (dibujadas después para no ser tapadas)
+    const actualSpanH = rowY - groupStartY;
+    drawCell(L, groupStartY, spanW, actualSpanH, String(totalGrupo), {
+      fill: SLATE_LT, bold: true, align: 'center', fs: 5.5, textColor: SLATE,
+    });
+    drawCell(L + spanW, groupStartY, colorW, actualSpanH, grupo.colorNombre, {
+      fill: colorRgb, textColor, bold: true, align: 'center', fs: fontSize,
+    });
   }
 
   // Fila TOTAL
-  cx = L;
-  const totalFill: [number,number,number] = [255, 230, 100];
-  drawCell(cx, rowY, spanW, rowH, '', { fill: totalFill }); cx += spanW;
-  drawCell(cx, rowY, colorW + tallaW, rowH, 'TOTAL', { fill: totalFill, bold: true, align: 'center', fs: 6 }); cx += colorW + tallaW;
-  drawCell(cx, rowY, cantW, rowH, String(totalCant), { fill: totalFill, bold: true, align: 'center', fs: 6 }); cx += cantW;
-  for (let i = 0; i < nOps; i++) { drawCell(cx, rowY, opW, rowH, '', { fill: totalFill }); cx += opW; }
-  drawCell(cx, rowY, mermaW, rowH, '', { fill: totalFill }); cx += mermaW;
-  drawCell(cx, rowY, entregadoW, rowH, '', { fill: totalFill });
+  checkPageBreak(rowH + 2);
+  let cx = L;
+  drawCell(cx, rowY, spanW, rowH, '', { fill: AMBER_LT }); cx += spanW;
+  drawCell(cx, rowY, colorW + tallaW, rowH, 'TOTAL', { fill: AMBER_LT, bold: true, align: 'center', fs: 7, textColor: INK }); cx += colorW + tallaW;
+  drawCell(cx, rowY, cantW, rowH, String(totalCant), { fill: AMBER, bold: true, align: 'center', fs: 7, textColor: INK }); cx += cantW;
+  for (let i = 0; i < nOps; i++) { drawCell(cx, rowY, opW, rowH, '', { fill: AMBER_LT }); cx += opW; }
+  drawCell(cx, rowY, mermaW, rowH, '', { fill: AMBER_LT }); cx += mermaW;
+  drawCell(cx, rowY, entregadoW, rowH, '', { fill: AMBER_LT });
 
   doc.save(`hoja_seguimiento_${data.nCorte}_${data.fecha}.pdf`);
 }
