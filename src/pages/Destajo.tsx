@@ -8,6 +8,7 @@ import { ModuleInfoBox } from '../components/ModuleInfoBox';
 import { exportRowsToXlsx, exportTableToPdf } from '../lib/export';
 import { BoletaOperario } from '../components/BoletaOperario';
 import { newId } from '../lib/storage';
+import { useEsAdmin } from '../lib/useEsAdmin';
 import {
   useBoletaLineas,
   useResumenPorOperario,
@@ -33,6 +34,7 @@ export function Destajo() {
     seguimientoFilas, updateSeguimientoFila,
   } = useAppContext();
   const { addToast } = useToast();
+  const esAdmin = useEsAdmin();
 
   const [activeTab, setActiveTab] = useState<'boleta' | 'resumen' | 'general' | 'porcorte'>('boleta');
 
@@ -305,11 +307,11 @@ export function Destajo() {
       .filter(b => {
         if (b.operarioId !== detalleOperarioId) return false;
         if (usaRango) {
-          if (rDesde && b.periodo < rDesde.slice(0, 7)) return false;
-          if (rHasta && b.periodo > rHasta.slice(0, 7)) return false;
+          if (rDesde && b.periodo.slice(0, 7) < rDesde.slice(0, 7)) return false;
+          if (rHasta && b.periodo.slice(0, 7) > rHasta.slice(0, 7)) return false;
           return true;
         }
-        return b.periodo === rPeriodo;
+        return b.periodo.slice(0, 7) === rPeriodo.slice(0, 7);
       })
       .sort((a, b) => String(a.nCorte).localeCompare(String(b.nCorte)) || a.orden - b.orden);
   }, [boletaLineas, detalleOperarioId, rPeriodo, rDesde, rHasta]);
@@ -607,14 +609,16 @@ export function Destajo() {
                     </tbody>
                   </table>
                 </div>
-                <div className="flex justify-end pt-1">
-                  <button
-                    onClick={eliminarHuerfanas}
-                    className="flex items-center gap-1.5 text-[11px] font-bold text-red-600 border border-red-200 bg-white hover:bg-red-50 px-3 py-1.5 rounded"
-                  >
-                    <Trash2 className="h-3 w-3" /> Eliminar todas
-                  </button>
-                </div>
+                {esAdmin && (
+                  <div className="flex justify-end pt-1">
+                    <button
+                      onClick={eliminarHuerfanas}
+                      className="flex items-center gap-1.5 text-[11px] font-bold text-red-600 border border-red-200 bg-white hover:bg-red-50 px-3 py-1.5 rounded"
+                    >
+                      <Trash2 className="h-3 w-3" /> Eliminar todas
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -706,11 +710,11 @@ export function Destajo() {
                                   .filter(b => {
                                     if (b.operarioId !== r.operarioId || b.estadoPago !== 'PENDIENTE') return false;
                                     if (usaRango) {
-                                      if (rDesde && b.periodo < rDesde.slice(0, 7)) return false;
-                                      if (rHasta && b.periodo > rHasta.slice(0, 7)) return false;
+                                      if (rDesde && b.periodo.slice(0, 7) < rDesde.slice(0, 7)) return false;
+                                      if (rHasta && b.periodo.slice(0, 7) > rHasta.slice(0, 7)) return false;
                                       return true;
                                     }
-                                    return b.periodo === rPeriodo;
+                                    return b.periodo.slice(0, 7) === rPeriodo.slice(0, 7);
                                   })
                                   .forEach(b => updateBoletaLinea(b.id, { estadoPago: 'PAGADO', fechaPago: hoy }));
                                 addToast(`${op?.nombre ?? r.operarioId} marcado como pagado`, 'success');

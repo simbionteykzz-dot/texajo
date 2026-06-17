@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
-import { useAuthUser } from '../lib/useAuthUser';
+import { useEsAdmin } from '../lib/useEsAdmin';
 import { Download, Plus, X, FileText, Trash2 } from 'lucide-react';
 import { TipoMovimientoTela, CategoriaColor } from '../types';
 import { ModuleInfoBox } from '../components/ModuleInfoBox';
@@ -35,8 +35,7 @@ type SegmentMode = 'ninguno' | 'tipo' | 'tela';
 export function InventarioTelas() {
   const { movimientosTela, telas, colores, clientes, proveedores, preciosTelas, config, cortes, addMovimientoTela, deleteMovimientoTela } = useAppContext();
   const { addToast } = useToast();
-  const authUser = useAuthUser();
-  const esAdmin = authUser?.rol === 'Administrador General' || authUser?.rol === 'Super Admin';
+  const esAdmin = useEsAdmin();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<MovForm>(emptyForm());
   const [filterTela, setFilterTela] = useState('');
@@ -508,7 +507,7 @@ export function InventarioTelas() {
                             <td className="whitespace-nowrap">{m.responsable}</td>
                             <td className="text-gray-500 max-w-[12rem] truncate">{m.notas}</td>
                             <td className="px-2">
-                              {confirmDelete === m.id ? (
+                              {esAdmin && (confirmDelete === m.id ? (
                                 <span className="flex items-center gap-1 whitespace-nowrap">
                                   <button onClick={() => { deleteMovimientoTela(m.id); setConfirmDelete(null); addToast('Movimiento eliminado', 'success'); }} className="text-[10px] font-bold text-red-600 hover:text-red-800 uppercase">Sí</button>
                                   <span className="text-gray-300">/</span>
@@ -518,7 +517,7 @@ export function InventarioTelas() {
                                 <button onClick={() => setConfirmDelete(m.id)} className="text-gray-300 hover:text-red-500 transition-colors">
                                   <Trash2 className="h-3.5 w-3.5" />
                                 </button>
-                              )}
+                              ))}
                             </td>
                           </tr>
                         ))}

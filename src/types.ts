@@ -227,6 +227,8 @@ export interface SeguimientoFila {
   pctAvance: number; // 0..100
   estado: string;
   totalPago: number;
+  fechaInicio?: string;   // fecha en que inicia la confección de este corte
+  fechaEntrega?: string;  // fecha comprometida de entrega
 }
 
 // ─── Destajo ───────────────────────────────────────────────────────────────

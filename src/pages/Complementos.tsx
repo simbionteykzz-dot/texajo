@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { motion } from 'motion/react';
 import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
+import { useEsAdmin } from '../lib/useEsAdmin';
 import { Download, Plus, X, FileText, Trash2 } from 'lucide-react';
 import { TipoComplemento, TipoMovimientoComplemento, MovimientoComplemento, TIPOS_COMPLEMENTO_LIST } from '../types';
 import { ModuleInfoBox } from '../components/ModuleInfoBox';
@@ -50,6 +51,7 @@ export function Complementos() {
     addMovimientoComplemento, deleteMovimientoComplemento,
   } = useAppContext();
   const { addToast } = useToast();
+  const esAdmin = useEsAdmin();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<MovCompForm>(emptyForm());
   const [filterTipo, setFilterTipo] = useState('');
@@ -313,7 +315,7 @@ export function Complementos() {
                     <td className="whitespace-nowrap">{m.responsable}</td>
                     <td className="text-gray-500 max-w-[10rem] truncate">{m.notas}</td>
                     <td className="px-2">
-                      {confirmDelete === m.id ? (
+                      {esAdmin && (confirmDelete === m.id ? (
                         <span className="flex items-center gap-1 whitespace-nowrap">
                           <button onClick={() => { deleteMovimientoComplemento(m.id); setConfirmDelete(null); addToast('Movimiento eliminado', 'success'); }} className="text-[10px] font-bold text-red-600 hover:text-red-800 uppercase">Sí</button>
                           <span className="text-gray-300">/</span>
@@ -323,7 +325,7 @@ export function Complementos() {
                         <button onClick={() => setConfirmDelete(m.id)} className="text-gray-300 hover:text-red-500 transition-colors">
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
-                      )}
+                      ))}
                     </td>
                   </tr>
                 ))}

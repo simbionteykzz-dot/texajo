@@ -9,6 +9,7 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import { exportRowsToXlsx, exportReportesCorte } from '../lib/export';
 import { newId } from '../lib/storage';
 import { useStockActualTelas, useColoresAgrupados } from '../hooks/useCorteOperaciones';
+import { useEsAdmin } from '../lib/useEsAdmin';
 
 // Suma rollos sin contar duplicados del mismo colorBase (la celda está agrupada por rowSpan)
 const totalRollosSinDuplicar = (colores: { colorBase: string; rollosUsados: string }[]) =>
@@ -73,6 +74,7 @@ export function Cortes() {
   } = useAppContext();
 
   const { addToast } = useToast();
+  const esAdmin = useEsAdmin();
   const [showForm, setShowForm] = useState(false);
   const [filterEstado, setFilterEstado] = useState('');
   const [filterCliente, setFilterCliente] = useState('');
@@ -81,6 +83,9 @@ export function Cortes() {
   const [completandoId, setCompletandoId] = useState<string | null>(null);
   const [mostrarTodosProductos, setMostrarTodosProductos] = useState(true);
   const [expandedCortes, setExpandedCortes] = useState<Set<string>>(new Set());
+  const [expandedOps, setExpandedOps] = useState<Set<string>>(new Set());
+  const toggleOps = (key: string) =>
+    setExpandedOps(prev => { const s = new Set(prev); s.has(key) ? s.delete(key) : s.add(key); return s; });
   const toggleExpand = (id: string) =>
     setExpandedCortes(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
   // Mini-modal para agregar tonalidad desde el formulario de corte
@@ -530,23 +535,23 @@ export function Cortes() {
           <table className="min-w-full text-xs border-collapse">
             <thead>
               <tr className="border-b-2 border-gray-300 bg-gray-50">
-                <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500 whitespace-nowrap">N° Corte</th>
-                <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500 whitespace-nowrap">Fecha</th>
-                <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500 whitespace-nowrap">Cliente</th>
-                <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500 whitespace-nowrap">Producto</th>
-                <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500 whitespace-nowrap">Color</th>
-                <th className="px-3 py-2 text-center text-[10px] font-bold uppercase tracking-widest text-gray-500">S</th>
-                <th className="px-3 py-2 text-center text-[10px] font-bold uppercase tracking-widest text-gray-500">M</th>
-                <th className="px-3 py-2 text-center text-[10px] font-bold uppercase tracking-widest text-gray-500">L</th>
-                <th className="px-3 py-2 text-center text-[10px] font-bold uppercase tracking-widest text-gray-500">XL</th>
-                <th className="px-3 py-2 text-right text-[10px] font-bold uppercase tracking-widest text-gray-500">Total</th>
-                <th className="px-3 py-2 text-right text-[10px] font-bold uppercase tracking-widest text-gray-500">Kg</th>
-                <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500 min-w-[120px]">Avance</th>
-                <th className="px-3 py-2 text-right text-[10px] font-bold uppercase tracking-widest text-gray-500">Costo MO</th>
-                <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500">Estado</th>
-                <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500">Pago Cli.</th>
-                <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500">Planilla</th>
-                <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500">Acciones</th>
+                <th className="px-2 py-1 text-left text-[9px] font-bold uppercase tracking-widest text-gray-500 whitespace-nowrap">N° Corte</th>
+                <th className="px-2 py-1 text-left text-[9px] font-bold uppercase tracking-widest text-gray-500 whitespace-nowrap">Fecha</th>
+                <th className="px-2 py-1 text-left text-[9px] font-bold uppercase tracking-widest text-gray-500 whitespace-nowrap">Cliente</th>
+                <th className="px-2 py-1 text-left text-[9px] font-bold uppercase tracking-widest text-gray-500 whitespace-nowrap">Producto</th>
+                <th className="px-2 py-1 text-left text-[9px] font-bold uppercase tracking-widest text-gray-500 whitespace-nowrap">Color</th>
+                <th className="px-2 py-1 text-center text-[9px] font-bold uppercase tracking-widest text-gray-500">S</th>
+                <th className="px-2 py-1 text-center text-[9px] font-bold uppercase tracking-widest text-gray-500">M</th>
+                <th className="px-2 py-1 text-center text-[9px] font-bold uppercase tracking-widest text-gray-500">L</th>
+                <th className="px-2 py-1 text-center text-[9px] font-bold uppercase tracking-widest text-gray-500">XL</th>
+                <th className="px-2 py-1 text-right text-[9px] font-bold uppercase tracking-widest text-gray-500">Total</th>
+                <th className="px-2 py-1 text-right text-[9px] font-bold uppercase tracking-widest text-gray-500">Kg</th>
+                <th className="px-2 py-1 text-left text-[9px] font-bold uppercase tracking-widest text-gray-500 min-w-[90px]">Avance</th>
+                {esAdmin && <th className="px-2 py-1 text-right text-[9px] font-bold uppercase tracking-widest text-gray-500">Costo MO</th>}
+                <th className="px-2 py-1 text-left text-[9px] font-bold uppercase tracking-widest text-gray-500">Estado</th>
+                <th className="px-2 py-1 text-left text-[9px] font-bold uppercase tracking-widest text-gray-500">Pago Cli.</th>
+                <th className="px-2 py-1 text-left text-[9px] font-bold uppercase tracking-widest text-gray-500">Planilla</th>
+                <th className="px-2 py-1 text-left text-[9px] font-bold uppercase tracking-widest text-gray-500">Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -569,6 +574,7 @@ export function Cortes() {
                 const expanded = expandedCortes.has(c.id);
                 const tieneColores = filas.length > 1;
                 const bgCorte = corteIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50/60';
+                const totalColumnas = esAdmin ? 16 : 15; // sin Costo MO si no es admin
                 const borderTop = 'border-t-2 border-gray-300';
 
                 // Avance global del corte (promedio de todos los colores)
@@ -587,29 +593,27 @@ export function Cortes() {
                     {/* ── Fila principal (siempre visible) ── */}
                     <tr
                       className={`${borderTop} ${bgCorte} hover:bg-amber-50/50 transition-colors cursor-pointer select-none`}
-                      onClick={() => tieneColores && toggleExpand(c.id)}
+                      onClick={() => toggleExpand(c.id)}
                     >
                       {/* Chevron + N° Corte */}
-                      <td className="px-3 py-2 font-mono font-black text-gray-800 border-r border-gray-200 border-l-4 border-l-[#B66F35] whitespace-nowrap">
-                        <span className="flex items-center gap-1.5">
-                          {tieneColores
-                            ? (expanded
-                                ? <ChevronDown className="h-3.5 w-3.5 text-[#B66F35] flex-shrink-0" />
-                                : <ChevronRight className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />)
-                            : <span className="w-3.5 flex-shrink-0" />
+                      <td className="px-2 py-1 font-mono font-black text-xs text-gray-800 border-r border-gray-200 border-l-4 border-l-[#B66F35] whitespace-nowrap">
+                        <span className="flex items-center gap-1">
+                          {expanded
+                            ? <ChevronDown className="h-3 w-3 text-[#B66F35] flex-shrink-0" />
+                            : <ChevronRight className="h-3 w-3 text-gray-400 flex-shrink-0" />
                           }
                           {c.nCorte}
                         </span>
                       </td>
-                      <td className="px-3 py-2 font-mono whitespace-nowrap border-r border-gray-100">{c.fecha}</td>
-                      <td className="px-3 py-2 whitespace-nowrap border-r border-gray-100">{clienteMap.get(c.clienteId) ?? c.clienteId}</td>
-                      <td className="px-3 py-2 whitespace-nowrap border-r border-gray-100">{productoMap.get(c.productoId)?.nombre ?? c.productoId}</td>
+                      <td className="px-2 py-1 text-xs font-mono whitespace-nowrap border-r border-gray-100">{c.fecha}</td>
+                      <td className="px-2 py-1 text-xs whitespace-nowrap border-r border-gray-100">{clienteMap.get(c.clienteId) ?? c.clienteId}</td>
+                      <td className="px-2 py-1 text-xs whitespace-nowrap border-r border-gray-100">{productoMap.get(c.productoId)?.nombre ?? c.productoId}</td>
                       {/* Colores: resumen collapsed o primer color si solo hay 1 */}
-                      <td className="px-3 py-2 border-r border-gray-100">
+                      <td className="px-2 py-1 border-r border-gray-100">
                         {tieneColores && !expanded ? (
                           <span className="text-[10px] text-gray-500 italic">{resumenColores}</span>
                         ) : !tieneColores ? (
-                          <span className="font-medium text-gray-700">
+                          <span className="text-xs font-medium text-gray-700">
                             {colorMap.get(filas[0].colorId) ?? filas[0].colorId}
                             {filas[0].tonalidad && <span className="ml-1 text-[10px] font-mono text-gray-400">Tn-{filas[0].tonalidad}</span>}
                           </span>
@@ -617,17 +621,17 @@ export function Cortes() {
                           <span className="text-[10px] text-[#B66F35] font-bold">{filas.length} colores</span>
                         )}
                       </td>
-                      <td className="px-3 py-2 text-center font-mono">{c.cantS > 0 ? c.cantS : <span className="text-gray-300">—</span>}</td>
-                      <td className="px-3 py-2 text-center font-mono">{c.cantM > 0 ? c.cantM : <span className="text-gray-300">—</span>}</td>
-                      <td className="px-3 py-2 text-center font-mono">{c.cantL > 0 ? c.cantL : <span className="text-gray-300">—</span>}</td>
-                      <td className="px-3 py-2 text-center font-mono">{c.cantXL > 0 ? c.cantXL : <span className="text-gray-300">—</span>}</td>
-                      <td className="px-3 py-2 text-right font-mono font-bold">{c.totalPrendas}</td>
-                      <td className="px-3 py-2 text-right font-mono text-gray-500">{c.kgUsados > 0 ? c.kgUsados.toFixed(1) : '—'}</td>
+                      <td className="px-2 py-1 text-xs text-center font-mono">{c.cantS > 0 ? c.cantS : <span className="text-gray-300">—</span>}</td>
+                      <td className="px-2 py-1 text-xs text-center font-mono">{c.cantM > 0 ? c.cantM : <span className="text-gray-300">—</span>}</td>
+                      <td className="px-2 py-1 text-xs text-center font-mono">{c.cantL > 0 ? c.cantL : <span className="text-gray-300">—</span>}</td>
+                      <td className="px-2 py-1 text-xs text-center font-mono">{c.cantXL > 0 ? c.cantXL : <span className="text-gray-300">—</span>}</td>
+                      <td className="px-2 py-1 text-xs text-right font-mono font-bold">{c.totalPrendas}</td>
+                      <td className="px-2 py-1 text-xs text-right font-mono text-gray-500">{c.kgUsados > 0 ? c.kgUsados.toFixed(1) : '—'}</td>
                       {/* Avance global */}
-                      <td className="px-3 py-2 min-w-[110px]">
+                      <td className="px-2 py-1 min-w-[90px]">
                         {pctGlobal !== null ? (
-                          <div className="flex items-center gap-1.5">
-                            <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                          <div className="flex items-center gap-1">
+                            <div className="flex-1 h-1 bg-gray-200 rounded-full overflow-hidden">
                               <div
                                 className={`h-full transition-all ${pctGlobal === 100 ? 'bg-green-500' : pctGlobal >= 50 ? 'bg-blue-400' : 'bg-yellow-400'}`}
                                 style={{ width: `${pctGlobal}%` }}
@@ -635,18 +639,20 @@ export function Cortes() {
                             </div>
                             <span className={`text-[10px] font-bold font-mono tabular-nums ${pctGlobal === 100 ? 'text-green-600' : 'text-gray-600'}`}>{pctGlobal}%</span>
                           </div>
-                        ) : <span className="text-[10px] text-gray-300 italic">Sin seguimiento</span>}
+                        ) : <span className="text-[10px] text-gray-300 italic">—</span>}
                       </td>
-                      <td className="px-3 py-2 font-mono text-right border-l border-gray-100">
-                        {c.costoMoCorte > 0 ? `S/ ${c.costoMoCorte.toFixed(2)}` : '—'}
-                      </td>
-                      <td className="px-3 py-2 border-l border-gray-100">
+                      {esAdmin && (
+                        <td className="px-2 py-1 text-xs font-mono text-right border-l border-gray-100">
+                          {c.costoMoCorte > 0 ? `S/ ${c.costoMoCorte.toFixed(2)}` : '—'}
+                        </td>
+                      )}
+                      <td className="px-2 py-1 border-l border-gray-100">
                         <span className="flex items-center gap-1">
                           {ESTADO_ICON[c.estado]}
                           <span className="text-[10px] font-bold uppercase">{c.estado.replace('_', ' ')}</span>
                         </span>
                       </td>
-                      <td className="px-3 py-2 border-l border-gray-100" onClick={e => e.stopPropagation()}>
+                      <td className="px-2 py-1 border-l border-gray-100" onClick={e => e.stopPropagation()}>
                         <select
                           value={c.pagoCliente}
                           onChange={e => updateCorte(c.id, { pagoCliente: e.target.value as 'PENDIENTE' | 'COBRADO' })}
@@ -656,7 +662,7 @@ export function Cortes() {
                           <option value="COBRADO">Cobrado</option>
                         </select>
                       </td>
-                      <td className="px-3 py-2 border-l border-gray-100" onClick={e => e.stopPropagation()}>
+                      <td className="px-2 py-1 border-l border-gray-100" onClick={e => e.stopPropagation()}>
                         <select
                           value={c.pagoPlanilla}
                           onChange={e => updateCorte(c.id, { pagoPlanilla: e.target.value as 'PENDIENTE' | 'PAGADO' })}
@@ -666,8 +672,8 @@ export function Cortes() {
                           <option value="PAGADO">Pagado</option>
                         </select>
                       </td>
-                      <td className="px-3 py-2 border-l border-gray-100" onClick={e => e.stopPropagation()}>
-                        <div className="flex flex-col gap-1">
+                      <td className="px-2 py-1 border-l border-gray-100" onClick={e => e.stopPropagation()}>
+                        <div className="flex flex-col gap-0.5">
                           {c.estado === 'EN_PROCESO' && (
                             <button
                               disabled={completandoId === c.id}
@@ -692,15 +698,106 @@ export function Cortes() {
                               className="text-[10px] font-bold uppercase text-red-500 hover:text-red-700 whitespace-nowrap"
                             >Anular</button>
                           )}
-                          <button onClick={() => setConfirmDelete(c.id)} className="text-gray-300 hover:text-red-500 transition-colors">
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                          {esAdmin && (
+                            <button onClick={() => setConfirmDelete(c.id)} className="text-gray-300 hover:text-red-500 transition-colors">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
 
+                    {/* ── Fila de detalles físicos + métricas del corte ── */}
+                    {expanded && (() => {
+                      const metrosTotales = c.tendidas > 0 && c.mtsPorTendida > 0 ? c.tendidas * c.mtsPorTendida : null;
+                      const prendasPorKg = c.kgUsados > 0 && c.totalPrendas > 0 ? c.totalPrendas / c.kgUsados : null;
+                      const kgPorPrenda = c.totalPrendas > 0 && c.kgUsados > 0 ? c.kgUsados / c.totalPrendas : null;
+                      const prendasPorMetro = metrosTotales && metrosTotales > 0 ? c.totalPrendas / metrosTotales : null;
+                      const kgPorMetro = metrosTotales && metrosTotales > 0 ? c.kgUsados / metrosTotales : null;
+                      const metrosPorRollo = c.rollosUsados > 0 && metrosTotales ? metrosTotales / c.rollosUsados : null;
+                      const prendasPorRollo = c.rollosUsados > 0 && c.totalPrendas > 0 ? c.totalPrendas / c.rollosUsados : null;
+                      const m2PorPrenda = metrosTotales && c.ancho > 0 && c.totalPrendas > 0
+                        ? (metrosTotales * c.ancho) / c.totalPrendas : null;
+                      return (
+                        <tr className="border-t border-dashed border-gray-200 bg-[#FDFCF8]">
+                          <td colSpan={totalColumnas} className="px-4 py-3 border-l-4 border-l-[#B66F35]/20">
+                            <div className="flex flex-col gap-2.5">
+
+                              {/* Fila 1: datos físicos base */}
+                              <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
+                                <span className="text-[9px] font-bold uppercase tracking-widest text-gray-400 w-full">Datos físicos</span>
+                                {[
+                                  { label: 'Rollos', val: c.rollosUsados },
+                                  { label: 'Tendidas', val: c.tendidas },
+                                  { label: 'Mts/tendida', val: c.mtsPorTendida > 0 ? c.mtsPorTendida : null },
+                                  { label: 'Metros totales', val: metrosTotales ? metrosTotales.toFixed(1) + ' m' : null },
+                                  { label: 'Ancho', val: c.ancho > 0 ? c.ancho + ' m' : null },
+                                  { label: 'KG usados', val: c.kgUsados > 0 ? c.kgUsados.toFixed(2) + ' kg' : null },
+                                ].map(({ label, val }) => val != null && (
+                                  <div key={label} className="flex items-center gap-1">
+                                    <span className="text-[9px] uppercase tracking-wide text-gray-400 font-bold">{label}</span>
+                                    <span className="font-mono font-bold text-gray-800 text-[12px]">{val}</span>
+                                  </div>
+                                ))}
+                              </div>
+
+                              {/* Fila 2: métricas de rendimiento */}
+                              <div className="flex flex-wrap items-stretch gap-2">
+                                <span className="text-[9px] font-bold uppercase tracking-widest text-gray-400 w-full">Rendimiento de tela</span>
+                                {[
+                                  { label: 'Prendas / kg', val: prendasPorKg, fmt: (v: number) => v.toFixed(2), color: 'emerald', hint: 'prendas salen de 1 kg' },
+                                  { label: 'Kg / prenda', val: kgPorPrenda, fmt: (v: number) => v.toFixed(4) + ' kg', color: 'emerald', hint: 'tela consume cada prenda' },
+                                  { label: 'Prendas / metro', val: prendasPorMetro, fmt: (v: number) => v.toFixed(3), color: 'blue', hint: 'prendas por metro corrido' },
+                                  { label: 'Kg / metro', val: kgPorMetro, fmt: (v: number) => v.toFixed(4) + ' kg', color: 'blue', hint: 'gramaje real del tejido' },
+                                  { label: 'Metros / rollo', val: metrosPorRollo, fmt: (v: number) => v.toFixed(1) + ' m', color: 'violet', hint: 'longitud promedio por rollo' },
+                                  { label: 'Prendas / rollo', val: prendasPorRollo, fmt: (v: number) => v.toFixed(1), color: 'violet', hint: 'producción por rollo' },
+                                  { label: 'm² / prenda', val: m2PorPrenda, fmt: (v: number) => v.toFixed(4) + ' m²', color: 'amber', hint: 'área de tela por prenda' },
+                                ].filter(m => m.val !== null).map(({ label, val, fmt, color, hint }) => {
+                                  const colorMap2: Record<string, string> = {
+                                    emerald: 'bg-emerald-50 border-emerald-200 text-emerald-800',
+                                    blue: 'bg-blue-50 border-blue-200 text-blue-800',
+                                    violet: 'bg-violet-50 border-violet-200 text-violet-800',
+                                    amber: 'bg-amber-50 border-amber-200 text-amber-800',
+                                  };
+                                  const labelColor: Record<string, string> = {
+                                    emerald: 'text-emerald-500',
+                                    blue: 'text-blue-500',
+                                    violet: 'text-violet-500',
+                                    amber: 'text-amber-600',
+                                  };
+                                  return (
+                                    <div key={label} className={`flex flex-col items-center justify-center px-3 py-1.5 rounded border min-w-[110px] ${colorMap2[color]}`}>
+                                      <span className={`text-[9px] font-bold uppercase tracking-wider ${labelColor[color]}`}>{label}</span>
+                                      <span className="font-mono font-black text-[14px] mt-0.5">{fmt(val!)}</span>
+                                      <span className="text-[8px] text-gray-400 italic mt-0.5">{hint}</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              {/* Fila 3: personal + estado */}
+                              <div className="flex flex-wrap items-center gap-x-5 gap-y-1 pt-0.5 border-t border-gray-100">
+                                {c.cortador && <div className="flex items-center gap-1"><span className="text-[9px] uppercase tracking-wide text-gray-400 font-bold">Cortador</span><span className="text-gray-700 text-[11px]">{c.cortador}</span></div>}
+                                {c.ayudante && <div className="flex items-center gap-1"><span className="text-[9px] uppercase tracking-wide text-gray-400 font-bold">Ayudante</span><span className="text-gray-700 text-[11px]">{c.ayudante}</span></div>}
+                                {c.tendedor && <div className="flex items-center gap-1"><span className="text-[9px] uppercase tracking-wide text-gray-400 font-bold">Tendedor</span><span className="text-gray-700 text-[11px]">{c.tendedor}</span></div>}
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[9px] uppercase tracking-wide text-gray-400 font-bold">Revisión</span>
+                                  <span className={`text-[10px] font-bold ${c.revision === 'VERIFICADO' ? 'text-green-600' : 'text-yellow-600'}`}>{c.revision}</span>
+                                </div>
+                                {c.traslado && <span className="text-[10px] font-bold text-blue-600">TRASLADO</span>}
+                                {c.notas && <div className="flex items-center gap-1"><span className="text-[9px] uppercase tracking-wide text-gray-400 font-bold">Notas</span><span className="text-gray-600 italic text-[11px]">{c.notas}</span></div>}
+                              </div>
+
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })()}
+
                     {/* ── Filas de colores (solo si expandido y tiene más de 1) ── */}
-                    {expanded && filas.map((fila, fi) => {
+                    {expanded && tieneColores && filas.map((fila, fi) => {
+                      const opsKey = `${c.id}-${fila.colorId}`;
+                      const opsExpanded = expandedOps.has(opsKey);
                       const filasSegs = seguimientoFilas.filter(sf => sf.corteId === c.id && sf.colorId === fila.colorId);
                       const pctColor = filasSegs.length > 0
                         ? Math.round(filasSegs.reduce((s, sf) => s + (sf.pctAvance ?? 0), 0) / filasSegs.length)
@@ -709,51 +806,143 @@ export function Cortes() {
                       for (const sf of filasSegs) {
                         for (const asig of (sf.asignaciones ?? [])) {
                           const prev = opMap.get(asig.operacion) ?? { orden: asig.orden, total: 0, completadas: 0 };
-                          opMap.set(asig.operacion, { orden: asig.orden, total: prev.total + 1, completadas: prev.completadas + (sf.pctAvance >= 100 ? 1 : 0) });
+                          opMap.set(asig.operacion, { orden: asig.orden, total: prev.total + 1, completadas: prev.completadas + (asig.confirmado ? 1 : 0) });
                         }
                       }
                       const fases = [...opMap.entries()].sort((a, b) => a[1].orden - b[1].orden).map(([op, v]) => ({ op, pct: Math.round((v.completadas / v.total) * 100) }));
+                      const opActual = fases.find(f => f.pct < 100);
+
+                      // Para el desplegable: operaciones × tallas con operario y estado
+                      const TALLAS = ['S', 'M', 'L', 'XL'] as const;
+                      type OpDetalle = { talla: string; cantidad: number; operario: string; confirmado: boolean };
+                      const opDetalles = new Map<string, { orden: number; filas: OpDetalle[] }>();
+                      for (const sf of filasSegs) {
+                        for (const asig of (sf.asignaciones ?? [])) {
+                          const entry = opDetalles.get(asig.operacion) ?? { orden: asig.orden, filas: [] };
+                          const nombres = (asig.operarioIds?.filter(Boolean).length ? asig.operarioIds! : asig.operarioId ? [asig.operarioId] : [])
+                            .map(id => operarios.find(o => o.id === id)?.nombre ?? id).join(', ');
+                          entry.filas.push({ talla: sf.talla, cantidad: sf.cantidad, operario: nombres, confirmado: !!asig.confirmado });
+                          opDetalles.set(asig.operacion, entry);
+                        }
+                      }
+                      const opDetallesSorted = [...opDetalles.entries()].sort((a, b) => a[1].orden - b[1].orden);
+
                       return (
-                        <tr key={`${c.id}-det-${fi}`} className="border-t border-gray-200/60 bg-amber-50/20">
-                          {/* indent */}
-                          <td className="pl-8 pr-3 py-1.5 border-l-4 border-l-[#B66F35]/30" colSpan={1} />
-                          <td colSpan={3} />
-                          <td className="px-3 py-1.5 whitespace-nowrap text-gray-600 border-r border-gray-100">
-                            <span className="flex items-center gap-1 pl-2">
-                              <span className="w-1.5 h-1.5 rounded-full bg-[#B66F35]/50 flex-shrink-0" />
-                              {colorMap.get(fila.colorId) ?? fila.colorId}
-                              {fila.tonalidad && <span className="ml-1 text-[10px] font-mono text-gray-400">Tn-{fila.tonalidad}</span>}
-                            </span>
-                          </td>
-                          <td className="px-3 py-1.5 text-center font-mono text-gray-600">{fila.cantS > 0 ? fila.cantS : <span className="text-gray-300">—</span>}</td>
-                          <td className="px-3 py-1.5 text-center font-mono text-gray-600">{fila.cantM > 0 ? fila.cantM : <span className="text-gray-300">—</span>}</td>
-                          <td className="px-3 py-1.5 text-center font-mono text-gray-600">{fila.cantL > 0 ? fila.cantL : <span className="text-gray-300">—</span>}</td>
-                          <td className="px-3 py-1.5 text-center font-mono text-gray-600">{fila.cantXL > 0 ? fila.cantXL : <span className="text-gray-300">—</span>}</td>
-                          <td className="px-3 py-1.5 text-right font-mono font-bold text-gray-700">{fila.totalColor}</td>
-                          <td className="px-3 py-1.5 text-right font-mono text-gray-500">{fila.kgUsados > 0 ? fila.kgUsados.toFixed(1) : '—'}</td>
-                          <td className="px-3 py-1.5">
-                            {pctColor !== null ? (
-                              <div className="flex flex-col gap-0.5 min-w-[110px]">
-                                <div className="flex items-center gap-1.5">
-                                  <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                                    <div className={`h-full transition-all ${pctColor === 100 ? 'bg-green-500' : pctColor >= 50 ? 'bg-blue-400' : 'bg-yellow-400'}`} style={{ width: `${pctColor}%` }} />
+                        <React.Fragment key={`${c.id}-det-${fi}`}>
+                          <tr className="border-t border-gray-200/60 bg-amber-50/20">
+                            {/* indent + chevron ops */}
+                            <td className="py-1.5 border-l-4 border-l-[#B66F35]/30 pl-2" colSpan={1}>
+                              {filasSegs.length > 0 && (
+                                <button onClick={() => toggleOps(opsKey)} className="p-0.5 rounded hover:bg-amber-100 transition-colors">
+                                  {opsExpanded
+                                    ? <ChevronDown className="h-3 w-3 text-[#B66F35]" />
+                                    : <ChevronRight className="h-3 w-3 text-gray-400" />}
+                                </button>
+                              )}
+                            </td>
+                            <td colSpan={3} />
+                            <td className="px-3 py-1.5 whitespace-nowrap text-gray-600 border-r border-gray-100">
+                              <span className="flex items-center gap-1 pl-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-[#B66F35]/50 flex-shrink-0" />
+                                {colorMap.get(fila.colorId) ?? fila.colorId}
+                                {fila.tonalidad && <span className="ml-1 text-[10px] font-mono text-gray-400">Tn-{fila.tonalidad}</span>}
+                              </span>
+                            </td>
+                            <td className="px-3 py-1.5 text-center font-mono text-gray-600">{fila.cantS > 0 ? fila.cantS : <span className="text-gray-300">—</span>}</td>
+                            <td className="px-3 py-1.5 text-center font-mono text-gray-600">{fila.cantM > 0 ? fila.cantM : <span className="text-gray-300">—</span>}</td>
+                            <td className="px-3 py-1.5 text-center font-mono text-gray-600">{fila.cantL > 0 ? fila.cantL : <span className="text-gray-300">—</span>}</td>
+                            <td className="px-3 py-1.5 text-center font-mono text-gray-600">{fila.cantXL > 0 ? fila.cantXL : <span className="text-gray-300">—</span>}</td>
+                            <td className="px-3 py-1.5 text-right font-mono font-bold text-gray-700">{fila.totalColor}</td>
+                            <td className="px-3 py-1.5 text-right font-mono text-gray-500">{fila.kgUsados > 0 ? fila.kgUsados.toFixed(1) : '—'}</td>
+                            <td className="px-3 py-1.5">
+                              {pctColor !== null ? (
+                                <div className="flex flex-col gap-0.5 min-w-[110px]">
+                                  <div className="flex items-center gap-1.5">
+                                    <div className="flex-1 h-1 bg-gray-200 rounded-full overflow-hidden">
+                                      <div className={`h-full transition-all ${pctColor === 100 ? 'bg-green-500' : pctColor >= 50 ? 'bg-blue-400' : 'bg-yellow-400'}`} style={{ width: `${pctColor}%` }} />
+                                    </div>
+                                    <span className={`text-[10px] font-bold font-mono tabular-nums ${pctColor === 100 ? 'text-green-600' : 'text-gray-600'}`}>{pctColor}%</span>
                                   </div>
-                                  <span className={`text-[10px] font-bold font-mono tabular-nums ${pctColor === 100 ? 'text-green-600' : 'text-gray-600'}`}>{pctColor}%</span>
+                                  {opActual && (
+                                    <div className="flex items-center gap-1 mt-0.5">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse flex-shrink-0" />
+                                      <span className="text-[10px] font-bold text-blue-700">{opActual.op}</span>
+                                      <span className="text-[9px] text-blue-400 font-mono">{opActual.pct}%</span>
+                                    </div>
+                                  )}
+                                  {!opActual && fases.length > 0 && (
+                                    <span className="text-[9px] text-green-600 font-bold mt-0.5">✓ Todas completas</span>
+                                  )}
                                 </div>
-                                {fases.length > 0 && (
-                                  <div className="flex flex-wrap gap-x-2">
-                                    {fases.map(f => (
-                                      <span key={f.op} className={`text-[9px] font-mono ${f.pct === 100 ? 'text-green-600' : 'text-gray-400'}`}>
-                                        {f.op.length > 8 ? f.op.slice(0, 8) + '…' : f.op} {f.pct}%
-                                      </span>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            ) : <span className="text-[10px] text-gray-300 italic">Sin seguimiento</span>}
-                          </td>
-                          <td colSpan={5} />
-                        </tr>
+                              ) : <span className="text-[10px] text-gray-300 italic">Sin seguimiento</span>}
+                            </td>
+                            <td colSpan={5} />
+                          </tr>
+
+                          {/* ── Desplegable operaciones × tallas ── */}
+                          {opsExpanded && opDetallesSorted.length > 0 && (
+                            <tr className="bg-gray-50/80 border-t border-dashed border-gray-200">
+                              <td colSpan={totalColumnas} className="px-0 py-0 border-l-4 border-l-[#B66F35]/10">
+                                <div className="ml-10 mr-4 my-1.5">
+                                  <table className="w-full text-[10px] border-collapse">
+                                    <thead>
+                                      <tr className="border-b border-gray-200">
+                                        <th className="py-1 px-2 text-left text-[9px] uppercase tracking-wide text-gray-400 font-bold w-8">#</th>
+                                        <th className="py-1 px-2 text-left text-[9px] uppercase tracking-wide text-gray-400 font-bold">Operación</th>
+                                        {TALLAS.map(t => <th key={t} className="py-1 px-2 text-center text-[9px] uppercase tracking-wide text-gray-400 font-bold w-14">{t}</th>)}
+                                        <th className="py-1 px-2 text-left text-[9px] uppercase tracking-wide text-gray-400 font-bold">Operario</th>
+                                        <th className="py-1 px-2 text-center text-[9px] uppercase tracking-wide text-gray-400 font-bold w-16">Estado</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {opDetallesSorted.map(([op, { orden, filas: opFilas }], oi) => {
+                                        const tallaMap = new Map(opFilas.map(f => [f.talla, f]));
+                                        const confirmadas = opFilas.filter(f => f.confirmado).map(f => f.talla);
+                                        const todasConfirmadas = TALLAS.filter(t => tallaMap.has(t)).every(t => tallaMap.get(t)!.confirmado);
+                                        const operarioNombre = opFilas[0]?.operario ?? '—';
+                                        return (
+                                          <tr key={op} className={`border-b border-gray-100 ${todasConfirmadas ? 'opacity-60' : ''}`}>
+                                            <td className="py-1 px-2 font-mono text-gray-400">{orden}</td>
+                                            <td className="py-1 px-2 font-bold text-gray-700">
+                                              <span className="flex items-center gap-1">
+                                                {!todasConfirmadas && opActual?.op === op && (
+                                                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse flex-shrink-0" />
+                                                )}
+                                                {todasConfirmadas && <span className="text-green-500 text-[9px]">✓</span>}
+                                                {op}
+                                              </span>
+                                            </td>
+                                            {TALLAS.map(t => {
+                                              const sf = tallaMap.get(t);
+                                              if (!sf) return <td key={t} className="py-1 px-2 text-center text-gray-200">—</td>;
+                                              return (
+                                                <td key={t} className="py-1 px-2 text-center">
+                                                  <span className={`inline-flex items-center justify-center w-10 rounded text-[9px] font-mono font-bold py-0.5
+                                                    ${sf.confirmado ? 'bg-green-100 text-green-700' : 'bg-yellow-50 text-yellow-700'}`}>
+                                                    {sf.cantidad}
+                                                  </span>
+                                                </td>
+                                              );
+                                            })}
+                                            <td className="py-1 px-2 text-gray-600 whitespace-nowrap">{operarioNombre}</td>
+                                            <td className="py-1 px-2 text-center">
+                                              {todasConfirmadas
+                                                ? <span className="text-[9px] font-bold text-green-600">Confirmado</span>
+                                                : confirmadas.length > 0
+                                                  ? <span className="text-[9px] text-yellow-600 font-bold">{confirmadas.join(', ')} ✓</span>
+                                                  : <span className="text-[9px] text-gray-400">Pendiente</span>
+                                              }
+                                            </td>
+                                          </tr>
+                                        );
+                                      })}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       );
                     })}
                   </React.Fragment>

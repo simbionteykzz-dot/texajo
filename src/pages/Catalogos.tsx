@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
+import { useEsAdmin } from '../lib/useEsAdmin';
 import { Plus, X, Trash2, ChevronRight, ChevronDown, Upload } from 'lucide-react';
 import { CategoriaColor, Operario, TipoComplemento, RecetaComplemento, ProductoColor, TIPOS_COMPLEMENTO_LIST } from '../types';
 import { ModuleInfoBox } from '../components/ModuleInfoBox';
@@ -46,6 +47,7 @@ export function Catalogos() {
     productoColores, addProductoColor, updateProductoColor, deleteProductoColor,
   } = useAppContext();
   const { addToast } = useToast();
+  const esAdmin = useEsAdmin();
   const [tab, setTab] = useState<Tab>('productos');
 
   // --- Telas ---
@@ -385,8 +387,10 @@ export function Catalogos() {
                               className="w-48 input-base text-xs py-0.5" />
                           </td>
                           <td>
-                            <button onClick={() => setConfirmDel({ mensaje: `¿Eliminar producto "${p.nombre}"?`, detalle: 'Se eliminarán sus tarifas asociadas.', accion: () => deleteProducto(p.id) })}
-                              className="text-red-400 hover:text-red-700 p-1"><Trash2 className="h-3 w-3" /></button>
+                            {esAdmin && (
+                              <button onClick={() => setConfirmDel({ mensaje: `¿Eliminar producto "${p.nombre}"?`, detalle: 'Se eliminarán sus tarifas asociadas.', accion: () => deleteProducto(p.id) })}
+                                className="text-red-400 hover:text-red-700 p-1"><Trash2 className="h-3 w-3" /></button>
+                            )}
                           </td>
                         </tr>
 
@@ -601,8 +605,10 @@ export function Catalogos() {
                           className="w-48 input-base text-xs py-0.5" />
                       </td>
                       <td>
-                        <button onClick={() => { if (confirm(`¿Eliminar tela "${t.nombre}"?`)) deleteTela(t.id); }}
-                          className="text-red-400 hover:text-red-700 p-1"><Trash2 className="h-3 w-3" /></button>
+                        {esAdmin && (
+                          <button onClick={() => { if (confirm(`¿Eliminar tela "${t.nombre}"?`)) deleteTela(t.id); }}
+                            className="text-red-400 hover:text-red-700 p-1"><Trash2 className="h-3 w-3" /></button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -678,8 +684,10 @@ export function Catalogos() {
                           className="text-[10px] font-bold text-blue-600 hover:text-blue-800 border border-blue-300 hover:border-blue-500 px-1.5 py-0.5 rounded whitespace-nowrap"
                           title={`Agregar nueva tonalidad de "${base}"`}
                         >+ Ton.</button>
-                        <button onClick={() => setConfirmDel({ mensaje: `¿Eliminar color "${c.nombre}"?`, accion: () => deleteColor(c.id) })}
-                          className="text-red-400 hover:text-red-700 p-1"><Trash2 className="h-3 w-3" /></button>
+                        {esAdmin && (
+                          <button onClick={() => setConfirmDel({ mensaje: `¿Eliminar color "${c.nombre}"?`, accion: () => deleteColor(c.id) })}
+                            className="text-red-400 hover:text-red-700 p-1"><Trash2 className="h-3 w-3" /></button>
+                        )}
                       </td>
                     </tr>
                   );})}
@@ -748,12 +756,14 @@ export function Catalogos() {
                           >
                             Editar
                           </button>
-                          <button
-                            onClick={() => setConfirmDeleteOp(o.id)}
-                            className="text-gray-400 hover:text-red-600"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                          {esAdmin && (
+                            <button
+                              onClick={() => setConfirmDeleteOp(o.id)}
+                              className="text-gray-400 hover:text-red-600"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -882,8 +892,10 @@ export function Catalogos() {
                             className="w-40 input-base text-xs py-0.5" />
                         </td>
                         <td>
-                          <button onClick={() => setConfirmDel({ mensaje: `¿Eliminar tarifa "${t.operacion}"?`, accion: () => deleteTarifaOperacion(t.id) })}
-                            className="text-red-400 hover:text-red-700 p-1"><Trash2 className="h-3 w-3" /></button>
+                          {esAdmin && (
+                            <button onClick={() => setConfirmDel({ mensaje: `¿Eliminar tarifa "${t.operacion}"?`, accion: () => deleteTarifaOperacion(t.id) })}
+                              className="text-red-400 hover:text-red-700 p-1"><Trash2 className="h-3 w-3" /></button>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -1133,10 +1145,12 @@ export function Catalogos() {
                           className="w-24 input-base text-right text-xs py-0.5" />
                       </td>
                       <td>
-                        <button onClick={() => deletePrecioTejeduria(pt.id)}
-                          className="text-red-400 hover:text-red-700 p-1">
-                          <X className="h-3 w-3" />
-                        </button>
+                        {esAdmin && (
+                          <button onClick={() => deletePrecioTejeduria(pt.id)}
+                            className="text-red-400 hover:text-red-700 p-1">
+                            <X className="h-3 w-3" />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -1245,10 +1259,12 @@ export function Catalogos() {
                             {total}
                           </td>
                           <td>
-                            <button
-                              onClick={() => setConfirmDel({ mensaje: `¿Eliminar props de "${prod} / ${col}"?`, accion: () => deleteProductoColor(pc.id) })}
-                              className="text-red-400 hover:text-red-700 p-1"
-                            ><Trash2 className="h-3 w-3" /></button>
+                            {esAdmin && (
+                              <button
+                                onClick={() => setConfirmDel({ mensaje: `¿Eliminar props de "${prod} / ${col}"?`, accion: () => deleteProductoColor(pc.id) })}
+                                className="text-red-400 hover:text-red-700 p-1"
+                              ><Trash2 className="h-3 w-3" /></button>
+                            )}
                           </td>
                         </tr>
                       );

@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { motion } from 'motion/react';
 import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
+import { useEsAdmin } from '../lib/useEsAdmin';
 import { Download, Plus, X, ChevronDown, ChevronRight, FileText, Trash2 } from 'lucide-react';
 import { ProgramaZurzam, ProgramaDetalle, CompraHilo, EstadoPrograma, EstadoPago, StockExtorno } from '../types';
 import { ModuleInfoBox } from '../components/ModuleInfoBox';
@@ -23,6 +24,7 @@ export function ProgramasZurzam() {
     addStockExtorno, updateStockExtorno, deleteStockExtorno,
   } = useAppContext();
   const { addToast } = useToast();
+  const esAdmin = useEsAdmin();
 
   const [activeTab, setActiveTab] = useState<'programas' | 'resumen'>('programas');
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -436,9 +438,11 @@ export function ProgramasZurzam() {
                         </span>
                       )}
                     </div>
-                      <button onClick={e => { e.stopPropagation(); setConfirmDelete({ mensaje: `¿Eliminar programa "${prog.nombre}"?`, detalle: 'Se eliminarán todos sus detalles y compras de hilo.', accion: () => { deletePrograma(prog.id); addToast('Programa eliminado', 'success'); } }); }} className="text-gray-300 hover:text-red-500 transition-colors">
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      {esAdmin && (
+                        <button onClick={e => { e.stopPropagation(); setConfirmDelete({ mensaje: `¿Eliminar programa "${prog.nombre}"?`, detalle: 'Se eliminarán todos sus detalles y compras de hilo.', accion: () => { deletePrograma(prog.id); addToast('Programa eliminado', 'success'); } }); }} className="text-gray-300 hover:text-red-500 transition-colors">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                   </div>
                 </div>
 
@@ -531,9 +535,11 @@ export function ProgramasZurzam() {
                                       </select>
                                     </td>
                                     <td className="px-2 py-1.5">
-                                        <button onClick={() => setConfirmDelete({ mensaje: '¿Eliminar este detalle?', accion: () => { deleteProgramaDetalle(d.id); addToast('Detalle eliminado', 'success'); } })} className="text-gray-300 hover:text-red-500 transition-colors">
-                                          <Trash2 className="h-3 w-3" />
-                                        </button>
+                                        {esAdmin && (
+                                          <button onClick={() => setConfirmDelete({ mensaje: '¿Eliminar este detalle?', accion: () => { deleteProgramaDetalle(d.id); addToast('Detalle eliminado', 'success'); } })} className="text-gray-300 hover:text-red-500 transition-colors">
+                                            <Trash2 className="h-3 w-3" />
+                                          </button>
+                                        )}
                                     </td>
                                   </tr>
                                 );
@@ -579,9 +585,11 @@ export function ProgramasZurzam() {
                                 </td>
                                 <td className="px-2 py-1.5 font-mono text-right">S/ {h.saldo.toFixed(2)}</td>
                                 <td className="px-2 py-1.5">
-                                    <button onClick={() => setConfirmDelete({ mensaje: '¿Eliminar esta compra de hilo?', accion: () => { deleteCompraHilo(h.id); addToast('Compra eliminada', 'success'); } })} className="text-gray-300 hover:text-red-500 transition-colors">
-                                      <Trash2 className="h-3 w-3" />
-                                    </button>
+                                    {esAdmin && (
+                                      <button onClick={() => setConfirmDelete({ mensaje: '¿Eliminar esta compra de hilo?', accion: () => { deleteCompraHilo(h.id); addToast('Compra eliminada', 'success'); } })} className="text-gray-300 hover:text-red-500 transition-colors">
+                                        <Trash2 className="h-3 w-3" />
+                                      </button>
+                                    )}
                                 </td>
                               </tr>
                             ))}
@@ -625,9 +633,11 @@ export function ProgramasZurzam() {
                                   </td>
                                   <td className="px-2 py-1.5 text-gray-500">{s.notas}</td>
                                   <td className="px-2 py-1.5">
-                                      <button onClick={() => setConfirmDelete({ mensaje: '¿Eliminar este extorno?', accion: () => { deleteStockExtorno(s.id); addToast('Extorno eliminado', 'success'); } })} className="text-gray-300 hover:text-red-500 transition-colors">
-                                        <Trash2 className="h-3 w-3" />
-                                      </button>
+                                      {esAdmin && (
+                                        <button onClick={() => setConfirmDelete({ mensaje: '¿Eliminar este extorno?', accion: () => { deleteStockExtorno(s.id); addToast('Extorno eliminado', 'success'); } })} className="text-gray-300 hover:text-red-500 transition-colors">
+                                          <Trash2 className="h-3 w-3" />
+                                        </button>
+                                      )}
                                   </td>
                                 </tr>
                               ))}

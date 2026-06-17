@@ -8,6 +8,7 @@ import { ModuleInfoBox } from '../components/ModuleInfoBox';
 import { exportRowsToXlsx, exportTableToPdf, exportHojaSeguimientoPdf, exportHojaSeguimientoXlsx } from '../lib/export';
 import type { PdfFont } from '../lib/fonts';
 import { newId } from '../lib/storage';
+import { useEsAdmin } from '../lib/useEsAdmin';
 
 // Paleta exacta por nombre (coincidencia exacta primero, luego parcial)
 const COLOR_PALETTE: Record<string, string> = {
@@ -74,6 +75,7 @@ export function ProduccionConfeccion() {
     addBoletaLinea, addBoletaLineas, updateBoletaLinea, deleteBoletaLinea,
   } = useAppContext();
   const { addToast } = useToast();
+  const esAdmin = useEsAdmin();
   const [activeTab, setActiveTab] = useState<'seguimiento' | 'porProducto'>('seguimiento');
   const [expandedCorte, setExpandedCorte] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -83,6 +85,8 @@ export function ProduccionConfeccion() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [confirmDeleteCorte, setConfirmDeleteCorte] = useState<string | null>(null);
   const [filtroProductoId, setFiltroProductoId] = useState('');
+  // Fechas por corte (editadas inline en el encabezado expandido)
+  const [editFechas, setEditFechas] = useState<Record<string, { inicio: string; entrega: string }>>({});
 
   // Modal asignación operarios: { corteId, colorId } abierto + ops temporales { [tarifaId]: operarioId }
   const [modalColor, setModalColor] = useState<{ corteId: string; colorId: string } | null>(null);
@@ -835,6 +839,17 @@ export function ProduccionConfeccion() {
             const filas = filasPorCorte.get(corte.id) ?? [];
             const isOpen = expandedCorte === corte.id;
             const avgAvance = filas.length > 0 ? Math.round(filas.reduce((s, f) => s + f.pctAvance, 0) / filas.length) : 0;
+            // Fechas del corte — tomadas de la primera fila o del estado de edición
+            const fechaRef = filas[0];
+            const fechasGuardadas = {
+              inicio: fechaRef?.fechaInicio ?? '',
+              entrega: fechaRef?.fechaEntrega ?? '',
+            };
+            const fechasEdit = editFechas[corte.id] ?? fechasGuardadas;
+            const guardarFechas = (inicio: string, entrega: string) => {
+              filas.forEach(f => updateSeguimientoFila(f.id, { fechaInicio: inicio, fechaEntrega: entrega }));
+              setEditFechas(prev => ({ ...prev, [corte.id]: { inicio, entrega } }));
+            };
 
             return (
               <div key={corte.id} className="bg-white border border-gray-200">
@@ -848,6 +863,20 @@ export function ProduccionConfeccion() {
                     <span className="text-xs text-gray-500">{productoMap.get(corte.productoId)?.nombre}</span>
                     <span className="text-xs text-gray-400">{colorMap.get(corte.colorId)}</span>
                     <span className="text-xs text-gray-400">{corte.totalPrendas} prendas</span>
+                    {fechasGuardadas.inicio && (
+                      <span className="text-[10px] text-gray-400 font-mono">
+                        Inicio: {fechasGuardadas.inicio}
+                      </span>
+                    )}
+                    {fechasGuardadas.entrega && (
+                      <span className={`text-[10px] font-mono font-bold ${
+                        fechasGuardadas.entrega < new Date().toISOString().slice(0,10) && avgAvance < 100
+                          ? 'text-red-500'
+                          : 'text-orange-500'
+                      }`}>
+                        Entrega: {fechasGuardadas.entrega}
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-xs text-gray-500">{filas.length} filas</span>
@@ -875,7 +904,7 @@ export function ProduccionConfeccion() {
                       </button>
                       </>
                     )}
-                    {filas.length > 0 && (
+                    {esAdmin && filas.length > 0 && (
                       confirmDeleteCorte === corte.id ? (
                         <span className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
                           <span className="text-[11px] text-red-600 font-bold">¿Eliminar {filas.length} fila{filas.length > 1 ? 's' : ''}?</span>
@@ -909,6 +938,44 @@ export function ProduccionConfeccion() {
 
                 {isOpen && (
                   <div className="border-t border-gray-200">
+                    {/* Barra de fechas */}
+                    <div className="flex items-center gap-4 px-5 py-2 bg-gray-50 border-b border-gray-100" onClick={e => e.stopPropagation()}>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Fechas</span>
+                      <div className="flex items-center gap-1.5">
+                        <label className="text-[10px] text-gray-500 whitespace-nowrap">Inicio:</label>
+                        <input
+                          type="date"
+                          value={fechasEdit.inicio}
+                          onChange={e => {
+                            const v = e.target.value;
+                            setEditFechas(prev => ({ ...prev, [corte.id]: { ...fechasEdit, inicio: v } }));
+                          }}
+                          onBlur={e => guardarFechas(e.target.value, fechasEdit.entrega)}
+                          className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5 bg-white focus:outline-none focus:border-gray-400"
+                        />
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <label className="text-[10px] text-gray-500 whitespace-nowrap">Entrega:</label>
+                        <input
+                          type="date"
+                          value={fechasEdit.entrega}
+                          onChange={e => {
+                            const v = e.target.value;
+                            setEditFechas(prev => ({ ...prev, [corte.id]: { ...fechasEdit, entrega: v } }));
+                          }}
+                          onBlur={e => guardarFechas(fechasEdit.inicio, e.target.value)}
+                          className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5 bg-white focus:outline-none focus:border-gray-400"
+                        />
+                      </div>
+                      {(fechasEdit.inicio !== fechasGuardadas.inicio || fechasEdit.entrega !== fechasGuardadas.entrega) && (
+                        <button
+                          onClick={() => guardarFechas(fechasEdit.inicio, fechasEdit.entrega)}
+                          className="text-[10px] font-bold text-blue-600 border border-blue-200 bg-blue-50 px-2 py-0.5 rounded hover:bg-blue-100"
+                        >
+                          Guardar
+                        </button>
+                      )}
+                    </div>
                     {filas.length === 0 ? (
                       <p className="px-5 py-4 text-sm text-gray-400 italic">Sin filas creadas para este corte.</p>
                     ) : (() => {
@@ -1000,33 +1067,52 @@ export function ProduccionConfeccion() {
                                     <td className="px-3 py-2 font-bold text-center">{fila.talla}</td>
                                     <td className="px-3 py-2 font-mono text-right">{fila.cantidad}</td>
                                     <td className="px-3 py-2">
-                                      <div className="flex items-center gap-2">
-                                        <div className="w-16 h-1.5 bg-gray-200">
-                                          <div className="h-full bg-black" style={{ width: `${fila.pctAvance}%` }} />
-                                        </div>
-                                        <span className="text-[10px]">{fila.pctAvance}%</span>
-                                        {fila.estado === 'LISTO' ? (
-                                          <button
-                                            onClick={() => abrirModalAvance(corte.id, grupo.colorId, fila.talla)}
-                                            className="flex items-center gap-1 text-[10px] border border-green-400 bg-green-100 text-green-800 px-1.5 py-0.5 rounded hover:bg-green-200 whitespace-nowrap"
-                                            title="Ver/editar avance confirmado"
-                                          >
-                                            <CheckCircle className="h-2.5 w-2.5" />
-                                            <span>Listo</span>
-                                          </button>
-                                        ) : (
-                                          <button
-                                            onClick={() => abrirModalAvance(corte.id, grupo.colorId, fila.talla)}
-                                            className="flex items-center gap-1 text-[10px] border border-gray-300 text-gray-600 px-1.5 py-0.5 rounded hover:bg-gray-100 whitespace-nowrap"
-                                            title="Confirmar avance de operaciones para esta talla"
-                                          >
-                                            <CheckCircle className="h-2.5 w-2.5" />
-                                            <span>Confirmar</span>
-                                          </button>
-                                        )}
-                                      </div>
+                                      {(() => {
+                                        const opActual = fila.asignaciones
+                                          .slice()
+                                          .sort((a, b) => a.orden - b.orden)
+                                          .find(a => !a.confirmado);
+                                        return (
+                                          <div className="flex flex-col gap-1">
+                                            <div className="flex items-center gap-2">
+                                              <div className="w-16 h-1.5 bg-gray-200">
+                                                <div className="h-full bg-black" style={{ width: `${fila.pctAvance}%` }} />
+                                              </div>
+                                              <span className="text-[10px]">{fila.pctAvance}%</span>
+                                              {fila.estado === 'LISTO' ? (
+                                                <button
+                                                  onClick={() => abrirModalAvance(corte.id, grupo.colorId, fila.talla)}
+                                                  className="flex items-center gap-1 text-[10px] border border-green-400 bg-green-100 text-green-800 px-1.5 py-0.5 rounded hover:bg-green-200 whitespace-nowrap"
+                                                  title="Ver/editar avance confirmado"
+                                                >
+                                                  <CheckCircle className="h-2.5 w-2.5" />
+                                                  <span>Listo</span>
+                                                </button>
+                                              ) : (
+                                                <button
+                                                  onClick={() => abrirModalAvance(corte.id, grupo.colorId, fila.talla)}
+                                                  className="flex items-center gap-1 text-[10px] border border-gray-300 text-gray-600 px-1.5 py-0.5 rounded hover:bg-gray-100 whitespace-nowrap"
+                                                  title="Confirmar avance de operaciones para esta talla"
+                                                >
+                                                  <CheckCircle className="h-2.5 w-2.5" />
+                                                  <span>Confirmar</span>
+                                                </button>
+                                              )}
+                                            </div>
+                                            {fila.estado !== 'LISTO' && opActual && (
+                                              <div className="flex items-center gap-1">
+                                                <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse flex-shrink-0" />
+                                                <span className="text-[9px] text-blue-700 font-bold truncate max-w-[120px]">
+                                                  {opActual.orden}. {opActual.operacion}
+                                                </span>
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })()}
                                     </td>
                                     <td className="px-3 py-2 font-mono text-right font-bold">S/ {fila.totalPago.toFixed(2)}</td>
+                                    {esAdmin && (
                                     <td className="px-3 py-2">
                                       {confirmDelete === fila.id ? (
                                         <span className="flex items-center gap-1 whitespace-nowrap">
@@ -1046,6 +1132,7 @@ export function ProduccionConfeccion() {
                                         </button>
                                       )}
                                     </td>
+                                    )}
                                   </tr>
                                   );
                                 })}

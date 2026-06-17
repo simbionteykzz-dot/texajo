@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
+import { useEsAdmin } from '../lib/useEsAdmin';
 import { Download, Plus, X, FileText, Trash2, BarChart2 } from 'lucide-react';
 import { CobroDiario } from '../types';
 import { ModuleInfoBox } from '../components/ModuleInfoBox';
@@ -24,6 +25,7 @@ const emptyForm = (): CobroForm => ({
 export function CobrosEntregas() {
   const { cobrosDiarios, clientes, productos, colores, cortes, addCobroDiario, updateCobroDiario, deleteCobroDiario } = useAppContext();
   const { addToast } = useToast();
+  const esAdmin = useEsAdmin();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<CobroForm>(emptyForm());
   const [filterEstado, setFilterEstado] = useState('');
@@ -422,7 +424,7 @@ export function CobrosEntregas() {
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-2">
                       {c.fechaCobro && <span className="text-[10px] text-gray-400 font-mono">{c.fechaCobro}</span>}
-                      {confirmDelete === c.id ? (
+                      {esAdmin && (confirmDelete === c.id ? (
                         <span className="flex items-center gap-1 whitespace-nowrap">
                           <button onClick={() => { deleteCobroDiario(c.id); setConfirmDelete(null); addToast('Cobro eliminado', 'success'); }} className="text-[10px] font-bold text-red-600 hover:text-red-800 uppercase">Sí</button>
                           <span className="text-gray-300">/</span>
@@ -432,7 +434,7 @@ export function CobrosEntregas() {
                         <button onClick={() => setConfirmDelete(c.id)} className="text-gray-300 hover:text-red-500 transition-colors">
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
-                      )}
+                      ))}
                     </div>
                   </td>
                 </tr>
