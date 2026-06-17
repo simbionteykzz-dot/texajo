@@ -223,35 +223,6 @@ export function Cortes() {
     }
   };
 
-  // Anula un corte: si estaba COMPLETADO revierte el movimiento A_CORTE con un AJUSTE_POS
-  const anularCorte = (corte: Corte) => {
-    if (corte.estado === 'COMPLETADO' && corte.telaId && corte.colorId && corte.rollosUsados > 0) {
-      const key = `${corte.telaId}|${corte.colorId}`;
-      const stockAntes = stockActualTelas.get(key) ?? 0;
-      const stockDespues = stockAntes + corte.rollosUsados;
-      const color = colores.find(c => c.id === corte.colorId);
-      const mov: MovimientoTela = {
-        id: newId(),
-        fecha: new Date().toISOString().slice(0, 10),
-        tipo: 'AJUSTE_POS',
-        clienteId: corte.clienteId,
-        telaId: corte.telaId,
-        colorId: corte.colorId,
-        rollos: corte.rollosUsados,
-        kgTotal: corte.kgUsados || 0,
-        categoriaColor: color?.categoria ?? 'OSCURO',
-        precioKg: 0,
-        totalSoles: 0,
-        stockRollosAntes: stockAntes,
-        stockRollosDespues: stockDespues,
-        responsable: '',
-        notas: `Reversión por anulación de corte ${corte.nCorte}`,
-      };
-      addMovimientoTela(mov);
-    }
-    updateCorte(corte.id, { estado: 'ANULADO' });
-    addToast(`Corte ${corte.nCorte} anulado`, 'success');
-  };
 
   // Normaliza un ID que puede ser nombre plano → ID canónico buscando en el catálogo
   const normalizeColorId = (raw: string): string => {
@@ -691,12 +662,6 @@ export function Cortes() {
                               }}
                               className="text-[10px] font-bold uppercase text-blue-600 hover:text-blue-800 whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
                             >{completandoId === c.id ? 'Guardando…' : 'Completar'}</button>
-                          )}
-                          {(c.estado === 'EN_PROCESO' || c.estado === 'COMPLETADO') && (
-                            <button
-                              onClick={() => setConfirmDelete(`anular-${c.id}`)}
-                              className="text-[10px] font-bold uppercase text-red-500 hover:text-red-700 whitespace-nowrap"
-                            >Anular</button>
                           )}
                           {esAdmin && (
                             <button onClick={() => setConfirmDelete(c.id)} className="text-gray-300 hover:text-red-500 transition-colors">
@@ -1622,7 +1587,7 @@ export function Cortes() {
       )}
 
       {/* Confirmar eliminar corte */}
-      {confirmDelete && !confirmDelete.startsWith('anular-') && (
+      {confirmDelete && (
         <ConfirmModal
           mensaje="¿Eliminar este corte?"
           detalle="Se eliminará el corte y todo su seguimiento. Esta acción no se puede deshacer."
@@ -1635,23 +1600,6 @@ export function Cortes() {
         />
       )}
 
-      {/* Confirmar anular corte */}
-      {confirmDelete?.startsWith('anular-') && (() => {
-        const id = confirmDelete.replace('anular-', '');
-        const corte = cortes.find(x => x.id === id);
-        return (
-          <ConfirmModal
-            mensaje={`¿Anular corte ${corte?.nCorte ?? ''}?`}
-            detalle={corte?.estado === 'COMPLETADO' ? 'Se revertirá el descuento de inventario.' : 'El corte pasará a estado ANULADO.'}
-            labelConfirmar="Anular"
-            onConfirmar={() => {
-              if (corte) anularCorte(corte);
-              setConfirmDelete(null);
-            }}
-            onCancelar={() => setConfirmDelete(null)}
-          />
-        );
-      })()}
     </motion.div>
   );
 }

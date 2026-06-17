@@ -182,25 +182,29 @@ CREATE TABLE tarifas_operaciones (
 -- ─────────────────────────────────────────────────────────────
 
 CREATE TABLE movimientos_tela (
-  id           SERIAL PRIMARY KEY,
-  fecha        DATE NOT NULL DEFAULT CURRENT_DATE,
-  tipo         TEXT NOT NULL CHECK (tipo IN (
-                 'INGRESO','A CORTE','A REPROCESO','DE REPROCESO',
-                 'MUESTRA','AJUSTE+','AJUSTE-')),
-  cliente_id   INTEGER REFERENCES clientes(id),
-  tela_id      INTEGER NOT NULL REFERENCES telas(id),
-  color_id     INTEGER NOT NULL REFERENCES colores(id),
-  tonalidad    TEXT,                              -- ej: "1", "2", null
-  rollos       NUMERIC(8,2) NOT NULL,
-  kg           NUMERIC(10,2),                     -- calculado: rollos × kg_por_rollo
-  precio_kg    NUMERIC(8,2),                      -- lookup precios_telas
-  total_soles  NUMERIC(12,2),                     -- calculado: kg × precio_kg
-  proveedor_id INTEGER REFERENCES proveedores(id),
-  num_factura  TEXT,
-  costo_factura NUMERIC(12,2),
-  corte_id     INTEGER,                           -- FK a cortes (se agrega AFTER cortes)
-  notas        TEXT,
-  created_at   TIMESTAMPTZ DEFAULT NOW()
+  id                   SERIAL PRIMARY KEY,
+  fecha                DATE NOT NULL DEFAULT CURRENT_DATE,
+  tipo                 TEXT NOT NULL CHECK (tipo IN (
+                         'INGRESO','A_CORTE','A_REPROCESO','DE_REPROCESO',
+                         'MUESTRA','AJUSTE_POS','AJUSTE_NEG')),
+  cliente_id           INTEGER REFERENCES clientes(id),
+  tela_id              INTEGER NOT NULL REFERENCES telas(id),
+  color_id             INTEGER NOT NULL REFERENCES colores(id),
+  rollos               NUMERIC(8,2) NOT NULL,
+  kg_total             NUMERIC(10,2),
+  categoria_color      TEXT CHECK (categoria_color IN ('OSCURO','CLARO','MELANGE','PPT')),
+  precio_kg            NUMERIC(8,2),
+  total_soles          NUMERIC(12,2),
+  stock_rollos_antes   NUMERIC(8,2) NOT NULL DEFAULT 0,
+  stock_rollos_despues NUMERIC(8,2) NOT NULL DEFAULT 0,
+  responsable          TEXT NOT NULL DEFAULT '',
+  proveedor_id         INTEGER REFERENCES proveedores(id),
+  n_factura            TEXT,
+  costo_real_fact      NUMERIC(12,2),
+  corte_id             INTEGER,
+  n_corte              TEXT,
+  notas                TEXT,
+  created_at           TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- ─────────────────────────────────────────────────────────────
