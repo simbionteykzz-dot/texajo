@@ -11,7 +11,6 @@ export const SECCIONES = [
   { key: 'cobros',       label: 'Cobros y Entregas',  href: '/cobros' },
   { key: 'complementos', label: 'Complementos',       href: '/complementos' },
   { key: 'catalogos',    label: 'Catalogos',          href: '/catalogos' },
-  { key: 'panel',        label: 'Panel Operativo',    href: '/panel' },
   { key: 'tarifas',      label: 'Tabla de Tarifas',   href: '/tarifas' },
   { key: 'stock_odoo',   label: 'Stock Odoo',         href: '/stock-odoo' },
   { key: 'configuracion',label: 'Configuracion',      href: '/configuracion' },

@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, PackageSearch, Receipt, Factory,
   Scissors, Settings, Tag, CreditCard, ClipboardList,
-  PanelLeftClose, PanelLeftOpen, LogOut, X, Layers, Zap, Shield, History, TableProperties, Warehouse,
+  PanelLeftClose, PanelLeftOpen, LogOut, X, Layers, Shield, History, TableProperties, Warehouse,
 } from 'lucide-react';
 import logoDashboard from '../assets/branding/logo-dashboard.png';
 import type { PermisosRol } from '../lib/usePermisos';
@@ -18,7 +18,6 @@ const NAV_ITEMS = [
   { key: 'cobros',        name: 'Cobros y Entregas', href: '/cobros',      icon: Receipt },
   { key: 'complementos',  name: 'Complementos',      href: '/complementos',icon: Layers },
   { key: 'catalogos',     name: 'Catalogos',         href: '/catalogos',   icon: Tag },
-  { key: 'panel',         name: 'Panel Operativo',   href: '/panel',       icon: Zap },
   { key: 'tarifas',       name: 'Tabla de Tarifas',  href: '/tarifas',     icon: TableProperties },
 ] as const;
 

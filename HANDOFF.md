@@ -150,24 +150,11 @@ return ids.includes(b.operarioId);  // filtro clave
 
 ---
 
-## Bug Pendiente — CRÍTICO
+## Bugs Pendientes
 
-### Columna `marca` faltante en tabla `productos`
+_(ninguno crítico conocido al 2026-06-17)_
 
-**Síntoma:** Al crear un producto, el INSERT falla con:
-```
-POST .../rest/v1/productos 400 (Bad Request)
-{"code":"PGRST204","message":"Could not find the 'marca' column of 'productos' in the schema cache"}
-```
-
-**Causa:** La tabla `productos` en Supabase no tiene la columna `marca`. El mapper `fromProducto` en `supabaseDb.ts` sí la envía, pero la DB la rechaza.
-
-**Fix — ejecutar en Supabase SQL Editor:**
-```sql
-ALTER TABLE productos ADD COLUMN IF NOT EXISTS marca text;
-```
-
-**Impacto:** Sin este fix, ningún producto nuevo persiste al recargar la página (el INSERT falla en background, el estado local se pierde al refrescar).
+> ~~**Columna `marca` faltante en tabla `productos`**~~ — **RESUELTO 2026-06-17** via `ALTER TABLE productos ADD COLUMN IF NOT EXISTS marca text;`
 
 ---
 

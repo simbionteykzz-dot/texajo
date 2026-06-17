@@ -247,6 +247,8 @@ export function Destajo() {
 
   const pcResumen = useMemo((): PcOperarioRow[] => {
     const byOp = new Map<string, PcOperarioRow>();
+
+    // Primero: operarios con asignaciones confirmadas en seguimiento
     for (const f of pcFilas) {
       if (!byOp.has(f.operarioId)) {
         byOp.set(f.operarioId, { operarioId: f.operarioId, operaciones: [], totalPrendas: 0, totalImporte: 0 });
@@ -263,6 +265,30 @@ export function Destajo() {
       opRow.totalPrendas += f.cantidad;
       opRow.totalImporte += f.cantidad * f.tarifa;
     }
+
+    // Segundo: operarios que tienen líneas de boleta para este corte pero no están en seguimiento
+    // (ej: asignaciones desconfirmadas después de pagar, o carga manual)
+    if (pcCorteId) {
+      const lineasCorte = boletaLineas.filter(b => b.corteId === pcCorteId && b.importe > 0);
+      for (const b of lineasCorte) {
+        if (byOp.has(b.operarioId)) continue; // ya está desde seguimiento
+        if (!byOp.has(b.operarioId)) {
+          byOp.set(b.operarioId, { operarioId: b.operarioId, operaciones: [], totalPrendas: 0, totalImporte: 0 });
+        }
+        const opRow = byOp.get(b.operarioId)!;
+        let opEntry = opRow.operaciones.find(o => o.tarifaId === b.tarifaId);
+        if (!opEntry) {
+          opEntry = { operacion: b.operacion, orden: b.orden, tarifaId: b.tarifaId, tarifa: b.tarifa, totalPrendas: 0, totalImporte: 0, detalle: [] };
+          opRow.operaciones.push(opEntry);
+        }
+        opEntry.detalle.push({ colorId: b.colorId ?? '', talla: b.talla ?? '', cantidad: b.cantPrendas });
+        opEntry.totalPrendas += b.cantPrendas;
+        opEntry.totalImporte += b.importe;
+        opRow.totalPrendas += b.cantPrendas;
+        opRow.totalImporte += b.importe;
+      }
+    }
+
     return Array.from(byOp.values()).sort((a, b) => {
       const na = operarioMap.get(a.operarioId)?.nombre ?? '';
       const nb = operarioMap.get(b.operarioId)?.nombre ?? '';
@@ -278,16 +304,22 @@ export function Destajo() {
         }),
       })),
     }));
-  }, [pcFilas, operarioMap, colorMap, tallaCmp]);
+  }, [pcFilas, pcCorteId, boletaLineas, operarioMap, colorMap, tallaCmp]);
 
   const pcResumenFiltrado = useMemo(() => {
     let result = pcOperarioId ? pcResumen.filter(r => r.operarioId === pcOperarioId) : pcResumen;
     if (pcEstado) {
       result = result.filter(r => {
-        const lineasOp = boletaLineas.filter(b => b.operarioId === r.operarioId && b.corteId === pcCorteId);
+        const tarifaIds = new Set(r.operaciones.map(o => o.tarifaId));
+        const lineasOp = boletaLineas.filter(
+          b => b.operarioId === r.operarioId &&
+               b.corteId === pcCorteId &&
+               tarifaIds.has(b.tarifaId) &&
+               b.importe > 0
+        );
         if (lineasOp.length === 0) return pcEstado === 'PENDIENTE';
-        const tienePendiente = lineasOp.some(b => b.estadoPago === 'PENDIENTE');
-        return pcEstado === 'PENDIENTE' ? tienePendiente : !tienePendiente;
+        const hayPendiente = lineasOp.some(b => b.estadoPago === 'PENDIENTE');
+        return pcEstado === 'PAGADO' ? !hayPendiente : hayPendiente;
       });
     }
     return result;
@@ -1293,7 +1325,8 @@ export function Destajo() {
 
               {pcResumenFiltrado.map(opRow => {
                 const op = operarioMap.get(opRow.operarioId);
-                const lineasOp = boletaLineas.filter(b => b.operarioId === opRow.operarioId && b.corteId === pcCorteId);
+                const tarifaIdsOp = new Set(opRow.operaciones.map(o => o.tarifaId));
+                const lineasOp = boletaLineas.filter(b => b.operarioId === opRow.operarioId && b.corteId === pcCorteId && tarifaIdsOp.has(b.tarifaId) && b.importe > 0);
                 const tienePendiente = lineasOp.length === 0 || lineasOp.some(b => b.estadoPago === 'PENDIENTE');
                 return (
                   <div key={opRow.operarioId} className="bg-white border border-[#DDD8CF]">
