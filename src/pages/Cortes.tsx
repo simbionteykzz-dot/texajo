@@ -982,12 +982,15 @@ export function Cortes() {
                 <F label="Tendedor">
                   <select value={form.tendedor} onChange={set('tendedor')} className="input-base">
                     <option value="">Seleccionar…</option>
-                    <option value="RIQUE">RIQUE</option>
+                    <option value="RIQUI">RIQUI</option>
+                    <option value="YERSON">YERSON</option>
+                    <option value="JOSE">JOSE</option>
                   </select>
                 </F>
                 <F label="Cortador">
                   <select value={form.cortador} onChange={set('cortador')} className="input-base">
                     <option value="">Seleccionar…</option>
+                    <option value="RIQUI">RIQUI</option>
                     <option value="YERSON">YERSON</option>
                     <option value="JOSE">JOSE</option>
                   </select>
@@ -995,6 +998,7 @@ export function Cortes() {
                 <F label="Ayudante">
                   <select value={form.ayudante} onChange={set('ayudante')} className="input-base">
                     <option value="">Seleccionar…</option>
+                    <option value="RIQUI">RIQUI</option>
                     <option value="YERSON">YERSON</option>
                     <option value="JOSE">JOSE</option>
                   </select>
