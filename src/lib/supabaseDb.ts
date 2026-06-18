@@ -100,15 +100,24 @@ const toProductoColor = (r: DbProductoColor): ProductoColor => ({ id: String(r.i
 const safeInt = (v: string) => { const n = parseInt(v); return isNaN(n) ? v : n; };
 
 const fromCliente = (v: Cliente) => ({ id: v.id, nombre: v.nombre, contacto: v.contacto, notas: v.notas });
+const fromClienteInsert = (v: Cliente) => ({ nombre: v.nombre, contacto: v.contacto, notas: v.notas });
 const fromProveedor = (v: Proveedor) => ({ id: v.id, nombre: v.nombre, ruc: v.ruc, contacto: v.contacto, tipo: v.tipo });
+const fromProveedorInsert = (v: Proveedor) => ({ nombre: v.nombre, ruc: v.ruc, contacto: v.contacto, tipo: v.tipo });
 const fromTela = (v: Tela) => ({ id: v.id, nombre: v.nombre, composicion: v.composicion, kg_por_rollo: v.kgPorRollo, notas: v.notas });
+const fromTelaInsert = (v: Tela) => ({ nombre: v.nombre, composicion: v.composicion, kg_por_rollo: v.kgPorRollo, notas: v.notas });
 const fromColor = (v: Color) => ({ nombre: v.nombre, categoria: v.categoria, prioridad: v.prioridad, notas: v.notas });
 const fromPrecioTela = (v: PrecioTela) => ({ id: v.id, tela_id: v.telaId, categoria_color: v.categoriaColor, precio_kg: v.precioKg });
+const fromPrecioTelaInsert = (v: PrecioTela) => ({ tela_id: v.telaId, categoria_color: v.categoriaColor, precio_kg: v.precioKg });
 const fromPrecioComplemento = (v: PrecioComplemento) => ({ id: v.id, clave: v.clave, tipo: v.tipo, origen: v.origen, talla: v.talla, precio: v.precio });
+const fromPrecioComplementoInsert = (v: PrecioComplemento) => ({ clave: v.clave, tipo: v.tipo, origen: v.origen, talla: v.talla, precio: v.precio });
 const fromPrecioTejeduria = (v: PrecioTejeduria) => ({ id: v.id, tipo_tejido: v.tipoTejido, precio_kg: v.precioKg });
+const fromPrecioTejeduriaInsert = (v: PrecioTejeduria) => ({ tipo_tejido: v.tipoTejido, precio_kg: v.precioKg });
 const toPrecioTintoreria = (r: DbPrecioTint): PrecioTintoreria => ({ id: String(r.id), tipoServicio: r.tipo_servicio, tipoTela: r.tipo_tela, precioKg: r.precio_kg, moneda: r.moneda, notas: r.notas ?? '' });
 const fromPrecioTintoreria = (v: PrecioTintoreria) => ({ id: v.id, tipo_servicio: v.tipoServicio, tipo_tela: v.tipoTela, precio_kg: v.precioKg, moneda: v.moneda, notas: v.notas });
+const fromPrecioTintoreraInsert = (v: PrecioTintoreria) => ({ tipo_servicio: v.tipoServicio, tipo_tela: v.tipoTela, precio_kg: v.precioKg, moneda: v.moneda, notas: v.notas });
 const fromProducto = (v: Producto) => ({ id: v.id, nombre: v.nombre, marca: v.marca ?? null, costo_mo: v.costoMoTotal, precio_venta: v.precioServicio, tela_id: v.telaId ? parseInt(v.telaId) : null, limite_consumo: v.limiteConsumo ?? null, limite_rendimiento: v.limiteRendimiento ?? null, prop_s: v.propS ?? null, prop_m: v.propM ?? null, prop_l: v.propL ?? null, prop_xl: v.propXL ?? null, notas: v.notas });
+// Para INSERT omitimos id (PK integer autoincremental)
+const fromProductoInsert = (v: Producto) => ({ nombre: v.nombre, marca: v.marca ?? null, costo_mo: v.costoMoTotal, precio_venta: v.precioServicio, tela_id: v.telaId ? parseInt(v.telaId) : null, limite_consumo: v.limiteConsumo ?? null, limite_rendimiento: v.limiteRendimiento ?? null, prop_s: v.propS ?? null, prop_m: v.propM ?? null, prop_l: v.propL ?? null, prop_xl: v.propXL ?? null, notas: v.notas });
 const fromTarifa = (v: TarifaOperacion) => {
   const base: Record<string, unknown> = { id: v.id, producto_id: safeInt(v.productoId), orden: v.orden, operacion: v.operacion, tarifa: v.tarifa, notas: v.notas ?? null };
   if (v.clave !== undefined) base.clave = v.clave;
@@ -124,6 +133,7 @@ const fromOperario = (v: Operario) => ({ id: v.id, codigo: v.codigo, nombre_comp
 // Para INSERT omitimos id (PK integer autoincremental)
 const fromOperarioInsert = (v: Operario) => ({ codigo: v.codigo, nombre_completo: v.nombre, activo: v.estado === 'ACTIVO' });
 const fromMovTela = (v: MovimientoTela) => ({ id: v.id, fecha: v.fecha, tipo: v.tipo, cliente_id: v.clienteId ? safeInt(v.clienteId) : null, tela_id: safeInt(v.telaId), color_id: safeInt(v.colorId), rollos: v.rollos, kg_total: v.kgTotal, categoria_color: v.categoriaColor, precio_kg: v.precioKg, total_soles: v.totalSoles, stock_rollos_antes: v.stockRollosAntes, stock_rollos_despues: v.stockRollosDespues, responsable: v.responsable, proveedor_id: v.proveedorId ? safeInt(v.proveedorId) : null, n_factura: v.nFactura ?? null, costo_real_fact: v.costoRealFact ?? null, corte_id: v.corteId ? safeInt(v.corteId) : null, n_corte: v.nCorte ?? null, notas: v.notas });
+const fromMovTelaInsert = (v: MovimientoTela) => ({ fecha: v.fecha, tipo: v.tipo, cliente_id: v.clienteId ? safeInt(v.clienteId) : null, tela_id: safeInt(v.telaId), color_id: safeInt(v.colorId), rollos: v.rollos, kg_total: v.kgTotal, categoria_color: v.categoriaColor, precio_kg: v.precioKg, total_soles: v.totalSoles, stock_rollos_antes: v.stockRollosAntes, stock_rollos_despues: v.stockRollosDespues, responsable: v.responsable, proveedor_id: v.proveedorId ? safeInt(v.proveedorId) : null, n_factura: v.nFactura ?? null, costo_real_fact: v.costoRealFact ?? null, corte_id: v.corteId ? safeInt(v.corteId) : null, n_corte: v.nCorte ?? null, notas: v.notas });
 // fromCorte omite 'id' porque la PK es integer auto-generada; convierte FKs a integer
 const fromCorte = (v: Corte) => {
   const base: Record<string, unknown> = { n_corte: parseInt(v.nCorte), fecha: v.fecha, cliente_id: parseInt(v.clienteId), producto_id: parseInt(v.productoId), color_id: parseInt(v.colorId), tonalidad: v.tonalidad ?? null, colores_detalle: v.coloresDetalle ?? null, tela_id: v.telaId ? parseInt(v.telaId) : null, cortador: v.cortador, ayudante: v.ayudante, tendedor: v.tendedor, kg_usados: v.kgUsados, rollos_usados: v.rollosUsados, tendidas: v.tendidas, mts_por_tendida: v.mtsPorTendida, ancho_cm: v.ancho, cant_s: v.cantS, cant_m: v.cantM, cant_l: v.cantL, cant_xl: v.cantXL, total_prendas: v.totalPrendas, consumo: v.consumo, rendimiento: v.rendimiento, revision: v.revision === 'VERIFICADO', traslado: v.traslado, estado: v.estado, pago_cliente: v.pagoCliente === 'COBRADO' ? 1 : 0, pago_planilla: v.pagoPlanilla === 'PAGADO' ? 1 : 0, costo_mo_corte: v.costoMoCorte, notas: v.notas };
@@ -132,14 +142,22 @@ const fromCorte = (v: Corte) => {
   return base;
 };
 const fromSeguimientoFila = (v: SeguimientoFila) => ({ id: v.id, corte_id: safeInt(v.corteId), n_corte: v.nCorte, producto_id: safeInt(v.productoId), fecha: v.fecha, color_id: safeInt(v.colorId), talla: v.talla, cantidad: v.cantidad, asignaciones: v.asignaciones, pct_avance: v.pctAvance, porcentaje_avance: v.pctAvance, estado: v.estado, total_pago: v.totalPago });
+const fromSeguimientoFilaInsert = (v: SeguimientoFila) => ({ corte_id: safeInt(v.corteId), n_corte: v.nCorte, producto_id: safeInt(v.productoId), fecha: v.fecha, color_id: safeInt(v.colorId), talla: v.talla, cantidad: v.cantidad, asignaciones: v.asignaciones, pct_avance: v.pctAvance, porcentaje_avance: v.pctAvance, estado: v.estado, total_pago: v.totalPago });
 const fromBoletaLinea = (v: BoletaLinea) => ({ id: v.id, operario_id: safeInt(v.operarioId), corte_id: v.corteId ? safeInt(v.corteId) : null, n_corte: v.nCorte, producto_id: v.productoId ? safeInt(v.productoId) : null, color_id: v.colorId ? safeInt(v.colorId) : null, talla: v.talla ?? null, tarifa_id: v.tarifaId ? safeInt(v.tarifaId) : null, operacion: v.operacion, orden: v.orden, tarifa: v.tarifa, cant_prendas: v.cantPrendas, importe: v.importe, periodo: v.periodo, fecha_registro: v.fechaRegistro ?? null, estado_pago: v.estadoPago, fecha_pago: v.fechaPago ?? null });
+const fromBoletaLineaInsert = (v: BoletaLinea) => ({ operario_id: safeInt(v.operarioId), corte_id: v.corteId ? safeInt(v.corteId) : null, n_corte: v.nCorte, producto_id: v.productoId ? safeInt(v.productoId) : null, color_id: v.colorId ? safeInt(v.colorId) : null, talla: v.talla ?? null, tarifa_id: v.tarifaId ? safeInt(v.tarifaId) : null, operacion: v.operacion, orden: v.orden, tarifa: v.tarifa, cant_prendas: v.cantPrendas, importe: v.importe, periodo: v.periodo, fecha_registro: v.fechaRegistro ?? null, estado_pago: v.estadoPago, fecha_pago: v.fechaPago ?? null });
 const fromDescuento = (v: DescuentoBoleta) => ({ operario_id: safeInt(v.operarioId), semana_inicio: v.periodo + '-01', tipo: v.tipo, monto: v.monto, descripcion: v.notas || null });
 const fromPrograma = (v: ProgramaZurzam) => ({ id: v.id, nombre: v.nombre, fecha: v.fecha, cliente_id: safeInt(v.clienteId), rollos_objetivo: v.rollosObjetivo, kg_objetivo: v.kgObjetivo, estado: v.estado, comision_jose: v.comisionJose, estado_pago_comision: v.estadoPagoComision, dias_entrega: v.diasEntrega, notas: v.notas });
+const fromProgramaInsert = (v: ProgramaZurzam) => ({ nombre: v.nombre, fecha: v.fecha, cliente_id: safeInt(v.clienteId), rollos_objetivo: v.rollosObjetivo, kg_objetivo: v.kgObjetivo, estado: v.estado, comision_jose: v.comisionJose, estado_pago_comision: v.estadoPagoComision, dias_entrega: v.diasEntrega, notas: v.notas });
 const fromDetalle = (v: ProgramaDetalle) => ({ id: v.id, programa_id: safeInt(v.programaId), color_id: safeInt(v.colorId), categoria_color: v.categoriaColor, tipo_servicio: v.tipoServicio, prioridad: v.prioridad, kg_tej_enviado: v.kgTejEnviado, kg_tej_retornado: v.kgTejRetornado, precio_kg_tej: v.precioKgTej, moneda_tej: v.monedaTej, tc_tej: v.tcTej, costo_tejido: v.costoTejido, estado_pago_tej: v.estadoPagoTej, kg_tint_enviado: v.kgTintEnviado, kg_tint_retornado: v.kgTintRetornado, rollos_final: v.rollosFinal, precio_kg_tint: v.precioKgTint, moneda_tint: v.monedaTint, tc_tint: v.tcTint, costo_tint: v.costoTint, estado_pago_tint: v.estadoPagoTint, costo_hilo_prorrateado: v.costoHiloProrrateado, costo_total_color: v.costoTotalColor, notas: v.notas });
+const fromDetalleInsert = (v: ProgramaDetalle) => ({ programa_id: safeInt(v.programaId), color_id: safeInt(v.colorId), categoria_color: v.categoriaColor, tipo_servicio: v.tipoServicio, prioridad: v.prioridad, kg_tej_enviado: v.kgTejEnviado, kg_tej_retornado: v.kgTejRetornado, precio_kg_tej: v.precioKgTej, moneda_tej: v.monedaTej, tc_tej: v.tcTej, costo_tejido: v.costoTejido, estado_pago_tej: v.estadoPagoTej, kg_tint_enviado: v.kgTintEnviado, kg_tint_retornado: v.kgTintRetornado, rollos_final: v.rollosFinal, precio_kg_tint: v.precioKgTint, moneda_tint: v.monedaTint, tc_tint: v.tcTint, costo_tint: v.costoTint, estado_pago_tint: v.estadoPagoTint, costo_hilo_prorrateado: v.costoHiloProrrateado, costo_total_color: v.costoTotalColor, notas: v.notas });
 const fromCompraHilo = (v: CompraHilo) => ({ id: v.id, fecha: v.fecha, programa_id: safeInt(v.programaId), tipo_hilo: v.tipoHilo, kg_asignados: v.kgAsignados, precio_kg: v.precioKg, moneda: v.moneda, tipo_cambio: v.tipoCambio, total_soles: v.totalSoles, proveedor_id: safeInt(v.proveedorId), n_factura: v.nFactura, costo_real_fact: v.costoRealFact, diferencia: v.diferencia, estado_pago: v.estadoPago, fecha_pago: v.fechaPago ?? null, monto_pagado: v.montoPagado, saldo: v.saldo, notas: v.notas });
+const fromCompraHiloInsert = (v: CompraHilo) => ({ fecha: v.fecha, programa_id: safeInt(v.programaId), tipo_hilo: v.tipoHilo, kg_asignados: v.kgAsignados, precio_kg: v.precioKg, moneda: v.moneda, tipo_cambio: v.tipoCambio, total_soles: v.totalSoles, proveedor_id: safeInt(v.proveedorId), n_factura: v.nFactura, costo_real_fact: v.costoRealFact, diferencia: v.diferencia, estado_pago: v.estadoPago, fecha_pago: v.fechaPago ?? null, monto_pagado: v.montoPagado, saldo: v.saldo, notas: v.notas });
 const fromExtorno = (v: StockExtorno) => ({ id: v.id, programa_id: safeInt(v.programaId), programa_detalle_id: v.programaDetalleId ? safeInt(v.programaDetalleId) : null, fecha: v.fecha, kg_conos: v.kgConos, precio_kg_hilo: v.precioKgHilo, total_soles: v.totalSoles, usado: v.usado, notas: v.notas });
+const fromExtornoInsert = (v: StockExtorno) => ({ programa_id: safeInt(v.programaId), programa_detalle_id: v.programaDetalleId ? safeInt(v.programaDetalleId) : null, fecha: v.fecha, kg_conos: v.kgConos, precio_kg_hilo: v.precioKgHilo, total_soles: v.totalSoles, usado: v.usado, notas: v.notas });
 const fromCobro = (v: CobroDiario) => ({ id: v.id, fecha: v.fecha, n_corte: v.nCorte, n_factura: v.nFactura, cliente_id: safeInt(v.clienteId), producto_id: safeInt(v.productoId), color_id: safeInt(v.colorId), cant_s: v.cantS, cant_m: v.cantM, cant_l: v.cantL, cant_xl: v.cantXL, total_prendas: v.totalPrendas, precio_unitario: v.precioUnitario, bruto: v.bruto, detraccion_10pct: v.detraccion10Pct, disponible_90pct: v.disponible90Pct, estado: v.estado, notas: v.notas, fecha_cobro: v.fechaCobro ?? null });
+const fromCobroInsert = (v: CobroDiario) => ({ fecha: v.fecha, n_corte: v.nCorte, n_factura: v.nFactura, cliente_id: safeInt(v.clienteId), producto_id: safeInt(v.productoId), color_id: safeInt(v.colorId), cant_s: v.cantS, cant_m: v.cantM, cant_l: v.cantL, cant_xl: v.cantXL, total_prendas: v.totalPrendas, precio_unitario: v.precioUnitario, bruto: v.bruto, detraccion_10pct: v.detraccion10Pct, disponible_90pct: v.disponible90Pct, estado: v.estado, notas: v.notas, fecha_cobro: v.fechaCobro ?? null });
 const fromMovComplemento = (v: MovimientoComplemento) => ({ id: v.id, fecha: v.fecha, tipo: v.tipo, tipo_complemento: v.tipoComplemento, color_id: safeInt(v.colorId), talla: v.talla, cantidad: v.cantidad, precio_unit: v.precioUnit, total_soles: v.totalSoles, stock_antes: v.stockAntes, stock_despues: v.stockDespues, corte_id: v.corteId ? safeInt(v.corteId) : null, n_corte: v.nCorte ?? null, producto_destino_id: v.productoDestinoId ? safeInt(v.productoDestinoId) : null, proveedor_id: v.proveedorId ? safeInt(v.proveedorId) : null, n_factura: v.nFactura ?? null, responsable: v.responsable, notas: v.notas });
+const fromMovComplementoInsert = (v: MovimientoComplemento) => ({ fecha: v.fecha, tipo: v.tipo, tipo_complemento: v.tipoComplemento, color_id: safeInt(v.colorId), talla: v.talla, cantidad: v.cantidad, precio_unit: v.precioUnit, total_soles: v.totalSoles, stock_antes: v.stockAntes, stock_despues: v.stockDespues, corte_id: v.corteId ? safeInt(v.corteId) : null, n_corte: v.nCorte ?? null, producto_destino_id: v.productoDestinoId ? safeInt(v.productoDestinoId) : null, proveedor_id: v.proveedorId ? safeInt(v.proveedorId) : null, n_factura: v.nFactura ?? null, responsable: v.responsable, notas: v.notas });
 // Config key-value → array de rows para upsert
 const fromConfig = (v: Config): Array<{clave: string; valor: string}> => [
   { clave: 'umbral_critico',    valor: String(v.umbralCritico) },
@@ -343,17 +361,17 @@ async function dbDelete(table: TableName, id: string) {
 
 export const db = {
   clientes: {
-    add: (v: Cliente) => dbInsert('clientes', v, fromCliente),
+    add: (v: Cliente) => dbInsert('clientes', v, fromClienteInsert),
     update: (id: string, u: Partial<Cliente>, cur: Cliente) => dbUpdate('clientes', id, u, fromCliente, cur),
     delete: (id: string) => dbDelete('clientes', id),
   },
   proveedores: {
-    add: (v: Proveedor) => dbInsert('proveedores', v, fromProveedor),
+    add: (v: Proveedor) => dbInsert('proveedores', v, fromProveedorInsert),
     update: (id: string, u: Partial<Proveedor>, cur: Proveedor) => dbUpdate('proveedores', id, u, fromProveedor, cur),
     delete: (id: string) => dbDelete('proveedores', id),
   },
   telas: {
-    add: (v: Tela) => dbInsert('telas', v, fromTela),
+    add: (v: Tela) => dbInsert('telas', v, fromTelaInsert),
     update: (id: string, u: Partial<Tela>, cur: Tela) => dbUpdate('telas', id, u, fromTela, cur),
     delete: (id: string) => dbDelete('telas', id),
   },
@@ -363,27 +381,27 @@ export const db = {
     delete: (id: string) => dbDelete('colores', id),
   },
   preciosTelas: {
-    add: (v: PrecioTela) => dbInsert('precios_telas', v, fromPrecioTela),
+    add: (v: PrecioTela) => dbInsert('precios_telas', v, fromPrecioTelaInsert),
     update: (id: string, u: Partial<PrecioTela>, cur: PrecioTela) => dbUpdate('precios_telas', id, u, fromPrecioTela, cur),
     delete: (id: string) => dbDelete('precios_telas', id),
   },
   preciosComplementos: {
-    add: (v: PrecioComplemento) => dbInsert('precios_complementos', v, fromPrecioComplemento),
+    add: (v: PrecioComplemento) => dbInsert('precios_complementos', v, fromPrecioComplementoInsert),
     update: (id: string, u: Partial<PrecioComplemento>, cur: PrecioComplemento) => dbUpdate('precios_complementos', id, u, fromPrecioComplemento, cur),
     delete: (id: string) => dbDelete('precios_complementos', id),
   },
   preciosTejeduria: {
-    add: (v: PrecioTejeduria) => dbInsert('precios_tejeduria', v, fromPrecioTejeduria),
+    add: (v: PrecioTejeduria) => dbInsert('precios_tejeduria', v, fromPrecioTejeduriaInsert),
     update: (id: string, u: Partial<PrecioTejeduria>, cur: PrecioTejeduria) => dbUpdate('precios_tejeduria', id, u, fromPrecioTejeduria, cur),
     delete: (id: string) => dbDelete('precios_tejeduria', id),
   },
   preciosTintoreria: {
-    add: (v: PrecioTintoreria) => dbInsert('precios_tintoreria', v, fromPrecioTintoreria),
+    add: (v: PrecioTintoreria) => dbInsert('precios_tintoreria', v, fromPrecioTintoreraInsert),
     update: (id: string, u: Partial<PrecioTintoreria>, cur: PrecioTintoreria) => dbUpdate('precios_tintoreria', id, u, fromPrecioTintoreria, cur),
     delete: (id: string) => dbDelete('precios_tintoreria', id),
   },
   productos: {
-    add: (v: Producto) => dbInsert('productos', v, fromProducto),
+    add: (v: Producto) => dbInsert('productos', v, fromProductoInsert),
     update: (id: string, u: Partial<Producto>, cur: Producto) => dbUpdate('productos', id, u, fromProducto, cur),
     delete: (id: string) => dbDelete('productos', id),
   },
@@ -398,7 +416,7 @@ export const db = {
     delete: (id: string) => dbDelete('operarios', id),
   },
   movimientosTela: {
-    add: (v: MovimientoTela) => dbInsert('movimientos_tela', v, fromMovTela),
+    add: (v: MovimientoTela) => dbInsert('movimientos_tela', v, fromMovTelaInsert),
     update: (id: string, u: Partial<MovimientoTela>, cur: MovimientoTela) => dbUpdate('movimientos_tela', id, u, fromMovTela, cur),
     delete: (id: string) => dbDelete('movimientos_tela', id),
   },
@@ -413,7 +431,7 @@ export const db = {
     },
   },
   seguimientoFilas: {
-    add: (v: SeguimientoFila): Promise<string | null> => dbInsert('seguimiento_filas', v, fromSeguimientoFila),
+    add: (v: SeguimientoFila): Promise<string | null> => dbInsert('seguimiento_filas', v, fromSeguimientoFilaInsert),
     update: async (id: string, u: Partial<SeguimientoFila>, cur: SeguimientoFila) => {
       const merged = { ...cur, ...u } as SeguimientoFila;
       const mapped = fromSeguimientoFila(merged);
@@ -434,7 +452,7 @@ export const db = {
     },
   },
   boletaLineas: {
-    add: (v: BoletaLinea) => dbInsert('boleta_lineas', v, fromBoletaLinea),
+    add: (v: BoletaLinea) => dbInsert('boleta_lineas', v, fromBoletaLineaInsert),
     update: (id: string, u: Partial<BoletaLinea>, cur: BoletaLinea) => dbUpdate('boleta_lineas', id, u, fromBoletaLinea, cur),
     delete: (id: string) => dbDelete('boleta_lineas', id),
     deleteByCorteId: async (corteId: string) => {
@@ -448,32 +466,32 @@ export const db = {
     delete: (id: string) => dbDelete('descuentos_boleta', id),
   },
   programasZurzam: {
-    add: (v: ProgramaZurzam) => dbInsert('programas_zurzam', v, fromPrograma),
+    add: (v: ProgramaZurzam) => dbInsert('programas_zurzam', v, fromProgramaInsert),
     update: (id: string, u: Partial<ProgramaZurzam>, cur: ProgramaZurzam) => dbUpdate('programas_zurzam', id, u, fromPrograma, cur),
     delete: (id: string) => dbDelete('programas_zurzam', id),
   },
   programaDetalles: {
-    add: (v: ProgramaDetalle) => dbInsert('programa_detalles', v, fromDetalle),
+    add: (v: ProgramaDetalle) => dbInsert('programa_detalles', v, fromDetalleInsert),
     update: (id: string, u: Partial<ProgramaDetalle>, cur: ProgramaDetalle) => dbUpdate('programa_detalles', id, u, fromDetalle, cur),
     delete: (id: string) => dbDelete('programa_detalles', id),
   },
   comprasHilo: {
-    add: (v: CompraHilo) => dbInsert('compras_hilo', v, fromCompraHilo),
+    add: (v: CompraHilo) => dbInsert('compras_hilo', v, fromCompraHiloInsert),
     update: (id: string, u: Partial<CompraHilo>, cur: CompraHilo) => dbUpdate('compras_hilo', id, u, fromCompraHilo, cur),
     delete: (id: string) => dbDelete('compras_hilo', id),
   },
   stockExtornos: {
-    add: (v: StockExtorno) => dbInsert('stock_extornos', v, fromExtorno),
+    add: (v: StockExtorno) => dbInsert('stock_extornos', v, fromExtornoInsert),
     update: (id: string, u: Partial<StockExtorno>, cur: StockExtorno) => dbUpdate('stock_extornos', id, u, fromExtorno, cur),
     delete: (id: string) => dbDelete('stock_extornos', id),
   },
   cobrosDiarios: {
-    add: (v: CobroDiario) => dbInsert('cobros_diarios', v, fromCobro),
+    add: (v: CobroDiario) => dbInsert('cobros_diarios', v, fromCobroInsert),
     update: (id: string, u: Partial<CobroDiario>, cur: CobroDiario) => dbUpdate('cobros_diarios', id, u, fromCobro, cur),
     delete: (id: string) => dbDelete('cobros_diarios', id),
   },
   movimientosComplemento: {
-    add: (v: MovimientoComplemento) => dbInsert('movimientos_complemento', v, fromMovComplemento),
+    add: (v: MovimientoComplemento) => dbInsert('movimientos_complemento', v, fromMovComplementoInsert),
     update: (id: string, u: Partial<MovimientoComplemento>, cur: MovimientoComplemento) => dbUpdate('movimientos_complemento', id, u, fromMovComplemento, cur),
     delete: (id: string) => dbDelete('movimientos_complemento', id),
   },
