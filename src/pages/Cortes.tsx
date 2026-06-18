@@ -20,6 +20,7 @@ const totalRollosSinDuplicar = (colores: { colorBase: string; rollosUsados: stri
   }, 0);
 
 interface ColorDetalle {
+  uid: string;       // key estable para React — no cambia al reordenar/duplicar
   colorId: string;
   colorBase: string; // nombre base para el primer dropdown (ej: "Negro")
   tonalidad: string; // número de tonalidad seleccionado (ej: "2")
@@ -42,6 +43,7 @@ interface CorteForm {
 }
 
 const emptyColorDetalle = (): ColorDetalle => ({
+  uid: crypto.randomUUID(),
   colorId: '', colorBase: '', tonalidad: '',
   kgUsados: '', rollosUsados: '',
   tendidas: '', propS: '', propM: '', propL: '', propXL: '',
@@ -1292,7 +1294,7 @@ export function Cortes() {
                             });
                           };
                         return (
-                          <React.Fragment key={idx}>
+                          <React.Fragment key={det.uid ?? idx}>
                             <tr className="hover:bg-gray-50 border-t border-gray-200">
                               {form.colores.length > 1 && (
                                 <td className="px-2 py-1 text-[10px] font-mono font-bold text-gray-400 text-center align-middle">
@@ -1524,7 +1526,7 @@ export function Cortes() {
                                   type="button"
                                   title="Duplicar este color"
                                   onClick={() => setForm(f => {
-                                    const copia = { ...f.colores[idx], cantS: '0', cantM: '0', cantL: '0', cantXL: '0', kgUsados: '', rollosUsados: '', tendidas: '' };
+                                    const copia = { ...f.colores[idx], uid: crypto.randomUUID(), cantS: '0', cantM: '0', cantL: '0', cantXL: '0', kgUsados: '', rollosUsados: '', tendidas: '' };
                                     const nuevos = [...f.colores];
                                     nuevos.splice(idx + 1, 0, copia);
                                     return { ...f, colores: nuevos };
