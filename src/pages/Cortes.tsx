@@ -1183,6 +1183,7 @@ export function Cortes() {
                         <th className="px-3 py-1.5 text-[10px] font-bold uppercase text-blue-400 text-center w-16">XL</th>
                         <th className="w-6" />
                         <th className="px-3 py-1.5 text-[10px] font-bold uppercase text-gray-500 text-right w-16">Total</th>
+                        <th className="w-6" />
                         {form.colores.length > 1 && <th className="w-6" />}
                       </tr>
                     </thead>
@@ -1518,8 +1519,23 @@ export function Cortes() {
                                 )}
                               </td>
                               <td className="px-2 py-1 text-right font-mono font-bold text-gray-700 whitespace-nowrap">{total}</td>
+                              <td className="px-1 py-1 align-middle">
+                                <button
+                                  type="button"
+                                  title="Duplicar este color"
+                                  onClick={() => setForm(f => {
+                                    const copia = { ...f.colores[idx], cantS: '0', cantM: '0', cantL: '0', cantXL: '0', kgUsados: '', rollosUsados: '', tendidas: '' };
+                                    const nuevos = [...f.colores];
+                                    nuevos.splice(idx + 1, 0, copia);
+                                    return { ...f, colores: nuevos };
+                                  })}
+                                  className="text-gray-300 hover:text-blue-500 transition-colors"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                                </button>
+                              </td>
                               {form.colores.length > 1 && (
-                                <td className="px-2 py-1 align-middle">
+                                <td className="px-1 py-1 align-middle">
                                   <button type="button" onClick={() => setForm(f => ({ ...f, colores: f.colores.filter((_, i) => i !== idx) }))} className="text-gray-300 hover:text-red-500">
                                     <X className="h-3.5 w-3.5" />
                                   </button>
@@ -1554,6 +1570,7 @@ export function Cortes() {
                         <td className="px-2 py-1 text-right font-mono font-black text-gray-800">
                           {form.colores.reduce((s, d) => s + (parseInt(d.cantS)||0)+(parseInt(d.cantM)||0)+(parseInt(d.cantL)||0)+(parseInt(d.cantXL)||0), 0)}
                         </td>
+                        <td />
                         {form.colores.length > 1 && <td />}
                       </tr>
                     </tfoot>
