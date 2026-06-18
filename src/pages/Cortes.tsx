@@ -1454,7 +1454,21 @@ export function Cortes() {
                                                 { id: colorId, nombre: nuevoNombre, categoria: baseColor?.categoria ?? 'OSCURO', prioridad: baseColor?.prioridad ?? 99, notas: '' },
                                                 pcData
                                               );
-                                              addToast(`Color "${capWords(nuevoNombre)}" creado — selecciónalo en el dropdown`, 'success');
+                                              // Seleccionar automáticamente la nueva tonalidad en la fila que la pidió
+                                              const idxFila = tonModal!.idx;
+                                              setForm(f => {
+                                                const next = [...f.colores];
+                                                const t = parseInt(next[idxFila].tendidas) || 0;
+                                                const cantidades = (pS + pM + pL + pXL) > 0 ? {
+                                                  cantS:  String(t > 0 ? pS  * t : pS),
+                                                  cantM:  String(t > 0 ? pM  * t : pM),
+                                                  cantL:  String(t > 0 ? pL  * t : pL),
+                                                  cantXL: String(t > 0 ? pXL * t : pXL),
+                                                } : {};
+                                                next[idxFila] = { ...next[idxFila], tonalidad: String(nuevaNum), colorId, ...cantidades };
+                                                return { ...f, colores: next };
+                                              });
+                                              addToast(`Tonalidad ${nuevaNum} de "${capWords(tonModal!.colorBase)}" creada y seleccionada`, 'success');
                                               setTonModal(null);
                                               setTonProps({ propS: '', propM: '', propL: '', propXL: '' });
                                             }}
