@@ -114,6 +114,12 @@ const fromTarifa = (v: TarifaOperacion) => {
   if (v.clave !== undefined) base.clave = v.clave;
   return base;
 };
+// Para INSERT omitimos id (PK integer autoincremental)
+const fromTarifaInsert = (v: TarifaOperacion) => {
+  const base: Record<string, unknown> = { producto_id: safeInt(v.productoId), orden: v.orden, operacion: v.operacion, tarifa: v.tarifa, notas: v.notas ?? null };
+  if (v.clave !== undefined) base.clave = v.clave;
+  return base;
+};
 const fromOperario = (v: Operario) => ({ id: v.id, codigo: v.codigo, nombre_completo: v.nombre, activo: v.estado === 'ACTIVO' });
 // Para INSERT omitimos id (PK integer autoincremental)
 const fromOperarioInsert = (v: Operario) => ({ codigo: v.codigo, nombre_completo: v.nombre, activo: v.estado === 'ACTIVO' });
@@ -382,7 +388,7 @@ export const db = {
     delete: (id: string) => dbDelete('productos', id),
   },
   tarifasOperaciones: {
-    add: (v: TarifaOperacion) => dbInsert('tarifas_operaciones', v, fromTarifa),
+    add: (v: TarifaOperacion) => dbInsert('tarifas_operaciones', v, fromTarifaInsert),
     update: (id: string, u: Partial<TarifaOperacion>, cur: TarifaOperacion) => dbUpdate('tarifas_operaciones', id, u, fromTarifa, cur),
     delete: (id: string) => dbDelete('tarifas_operaciones', id),
   },
