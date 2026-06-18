@@ -11,11 +11,11 @@ import { newId } from '../lib/storage';
 import { useStockActualTelas, useColoresAgrupados } from '../hooks/useCorteOperaciones';
 import { useEsAdmin } from '../lib/useEsAdmin';
 
-// Suma rollos sin contar duplicados del mismo colorBase (la celda está agrupada por rowSpan)
-const totalRollosSinDuplicar = (colores: { colorBase: string; rollosUsados: string }[]) =>
+// Suma rollos sin contar duplicados del mismo colorBase+tonalidad (la celda está agrupada por rowSpan)
+const totalRollosSinDuplicar = (colores: { colorBase: string; tonalidad: string; rollosUsados: string }[]) =>
   colores.reduce((sum, det, i) => {
-    const base = det.colorBase;
-    if (base && i > 0 && colores[i - 1].colorBase === base) return sum;
+    const key = `${det.colorBase}|${det.tonalidad}`;
+    if (det.colorBase && i > 0 && `${colores[i - 1].colorBase}|${colores[i - 1].tonalidad}` === key) return sum;
     return sum + (parseFloat(det.rollosUsados) || 0);
   }, 0);
 
@@ -1191,13 +1191,14 @@ export function Cortes() {
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {(() => {
-                        // Agrupar rollos por colorBase (todas las tonalidades del mismo color base comparten rollos)
+                        // Agrupar rollos por colorBase+tonalidad (tonalidades distintas = rollos distintos)
                         const rollosSpan: number[] = form.colores.map((_, i) => {
                           const base = form.colores[i].colorBase;
+                          const ton = form.colores[i].tonalidad;
                           if (!base) return 1;
-                          if (i > 0 && form.colores[i - 1].colorBase === base) return 0;
+                          if (i > 0 && form.colores[i - 1].colorBase === base && form.colores[i - 1].tonalidad === ton) return 0;
                           let span = 1;
-                          while (i + span < form.colores.length && form.colores[i + span].colorBase === base) span++;
+                          while (i + span < form.colores.length && form.colores[i + span].colorBase === base && form.colores[i + span].tonalidad === ton) span++;
                           return span;
                         });
                         return form.colores.map((det, idx) => {
