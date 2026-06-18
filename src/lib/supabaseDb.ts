@@ -109,7 +109,11 @@ const fromPrecioTejeduria = (v: PrecioTejeduria) => ({ id: v.id, tipo_tejido: v.
 const toPrecioTintoreria = (r: DbPrecioTint): PrecioTintoreria => ({ id: String(r.id), tipoServicio: r.tipo_servicio, tipoTela: r.tipo_tela, precioKg: r.precio_kg, moneda: r.moneda, notas: r.notas ?? '' });
 const fromPrecioTintoreria = (v: PrecioTintoreria) => ({ id: v.id, tipo_servicio: v.tipoServicio, tipo_tela: v.tipoTela, precio_kg: v.precioKg, moneda: v.moneda, notas: v.notas });
 const fromProducto = (v: Producto) => ({ id: v.id, nombre: v.nombre, marca: v.marca ?? null, costo_mo: v.costoMoTotal, precio_venta: v.precioServicio, tela_id: v.telaId ? parseInt(v.telaId) : null, limite_consumo: v.limiteConsumo ?? null, limite_rendimiento: v.limiteRendimiento ?? null, prop_s: v.propS ?? null, prop_m: v.propM ?? null, prop_l: v.propL ?? null, prop_xl: v.propXL ?? null, notas: v.notas });
-const fromTarifa = (v: TarifaOperacion) => ({ id: v.id, producto_id: safeInt(v.productoId), orden: v.orden, operacion: v.operacion, tarifa: v.tarifa, notas: v.notas ?? null, clave: v.clave });
+const fromTarifa = (v: TarifaOperacion) => {
+  const base: Record<string, unknown> = { id: v.id, producto_id: safeInt(v.productoId), orden: v.orden, operacion: v.operacion, tarifa: v.tarifa, notas: v.notas ?? null };
+  if (v.clave !== undefined) base.clave = v.clave;
+  return base;
+};
 const fromOperario = (v: Operario) => ({ id: v.id, codigo: v.codigo, nombre_completo: v.nombre, activo: v.estado === 'ACTIVO' });
 // Para INSERT omitimos id (PK integer autoincremental)
 const fromOperarioInsert = (v: Operario) => ({ codigo: v.codigo, nombre_completo: v.nombre, activo: v.estado === 'ACTIVO' });
