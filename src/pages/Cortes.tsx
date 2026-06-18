@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
-import { Download, Plus, X, CheckCircle, Clock, XCircle, FileText, Trash2, ChevronDown, ChevronRight, Save } from 'lucide-react';
+import { Download, Plus, X, CheckCircle, Clock, XCircle, FileText, Trash2, ChevronDown, ChevronRight, Save, Play, StopCircle } from 'lucide-react';
 import { Corte, CorteColorDetalle, SeguimientoAsignacion, SeguimientoFila, MovimientoTela } from '../types';
 import { ModuleInfoBox } from '../components/ModuleInfoBox';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -81,6 +81,8 @@ export function Cortes() {
   const [form, setForm] = useState<CorteForm>(emptyForm());
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [completandoId, setCompletandoId] = useState<string | null>(null);
+  const [tiempoModal, setTiempoModal] = useState<{ open: boolean; tipo: 'inicio' | 'fin' }>({ open: false, tipo: 'inicio' });
+  const [tiempoCorteId, setTiempoCorteId] = useState(''); // corte seleccionado en el modal
   const [mostrarTodosProductos, setMostrarTodosProductos] = useState(true);
   const [expandedCortes, setExpandedCortes] = useState<Set<string>>(new Set());
   const [expandedOps, setExpandedOps] = useState<Set<string>>(new Set());
@@ -415,6 +417,26 @@ export function Cortes() {
     addToast('Excel exportado', 'success');
   };
 
+  const fmtHora = (iso: string) => {
+    const d = new Date(iso);
+    return d.toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' });
+  };
+
+  const confirmarTiempo = () => {
+    if (!tiempoCorteId) return;
+    const now = new Date().toISOString();
+    const nCorte = cortes.find(c => c.id === tiempoCorteId)?.nCorte ?? '';
+    if (tiempoModal.tipo === 'inicio') {
+      updateCorte(tiempoCorteId, { horaInicio: now });
+      addToast(`Inicio registrado para Corte ${nCorte}`, 'success');
+    } else {
+      updateCorte(tiempoCorteId, { horaFin: now });
+      addToast(`Finalización registrada para Corte ${nCorte}`, 'success');
+    }
+    setTiempoModal({ open: false, tipo: 'inicio' });
+    setTiempoCorteId('');
+  };
+
   const exportarCortesPdf = () => {
     const dataList = cortesFiltrados.map(c => {
       const tela = telaMap.get(c.telaId ?? '')?.nombre ?? c.telaId ?? '';
@@ -473,6 +495,18 @@ export function Cortes() {
               { label: 'Estados', detail: 'En Proceso → Completado / Anulado con indicador visual' },
             ]}
           />
+          <button
+            onClick={() => { setTiempoModal({ open: true, tipo: 'inicio' }); setTiempoCorteId(''); }}
+            className="btn-secondary flex items-center gap-2 text-green-700 border-green-300 hover:bg-green-50"
+          >
+            <Play className="h-4 w-4" /> Iniciar Corte
+          </button>
+          <button
+            onClick={() => { setTiempoModal({ open: true, tipo: 'fin' }); setTiempoCorteId(''); }}
+            className="btn-secondary flex items-center gap-2 text-red-700 border-red-300 hover:bg-red-50"
+          >
+            <StopCircle className="h-4 w-4" /> Finalizar Corte
+          </button>
           <button onClick={exportarCortes} className="btn-secondary flex items-center gap-2">
             <Download className="h-4 w-4" /> Excel
           </button>
@@ -751,6 +785,31 @@ export function Cortes() {
                                 </div>
                                 {c.traslado && <span className="text-[10px] font-bold text-blue-600">TRASLADO</span>}
                                 {c.notas && <div className="flex items-center gap-1"><span className="text-[9px] uppercase tracking-wide text-gray-400 font-bold">Notas</span><span className="text-gray-600 italic text-[11px]">{c.notas}</span></div>}
+                                {c.horaInicio && (
+                                  <div className="flex items-center gap-1">
+                                    <Play className="h-3 w-3 text-green-600" />
+                                    <span className="text-[9px] uppercase tracking-wide text-gray-400 font-bold">Inicio</span>
+                                    <span className="font-mono text-green-700 text-[11px] font-bold">{fmtHora(c.horaInicio)}</span>
+                                  </div>
+                                )}
+                                {c.horaFin && (
+                                  <div className="flex items-center gap-1">
+                                    <StopCircle className="h-3 w-3 text-red-500" />
+                                    <span className="text-[9px] uppercase tracking-wide text-gray-400 font-bold">Fin</span>
+                                    <span className="font-mono text-red-600 text-[11px] font-bold">{fmtHora(c.horaFin)}</span>
+                                  </div>
+                                )}
+                                {c.horaInicio && c.horaFin && (
+                                  <div className="flex items-center gap-1">
+                                    <Clock className="h-3 w-3 text-blue-500" />
+                                    <span className="text-[9px] uppercase tracking-wide text-gray-400 font-bold">Duración</span>
+                                    <span className="font-mono text-blue-700 text-[11px] font-bold">{(() => {
+                                      const mins = Math.round((new Date(c.horaFin).getTime() - new Date(c.horaInicio).getTime()) / 60000);
+                                      if (mins < 60) return `${mins} min`;
+                                      return `${Math.floor(mins / 60)}h ${mins % 60}min`;
+                                    })()}</span>
+                                  </div>
+                                )}
                               </div>
 
                             </div>
@@ -1603,6 +1662,69 @@ export function Cortes() {
           onCancelar={() => setConfirmDelete(null)}
         />
       )}
+
+      {/* Modal registro de inicio / fin de corte */}
+      {tiempoModal.open && (() => {
+        const esInicio = tiempoModal.tipo === 'inicio';
+        const cortesEnProceso = cortes.filter(c => c.estado === 'EN_PROCESO');
+        const corteSeleccionado = cortes.find(c => c.id === tiempoCorteId);
+        const yaRegistrado = corteSeleccionado && (esInicio ? !!corteSeleccionado.horaInicio : !!corteSeleccionado.horaFin);
+        const cerrar = () => { setTiempoModal({ open: false, tipo: 'inicio' }); setTiempoCorteId(''); };
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={cerrar}>
+            <div className="bg-white shadow-2xl w-full max-w-sm mx-4 p-6 space-y-5" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  {esInicio ? <Play className="h-5 w-5 text-green-600" /> : <StopCircle className="h-5 w-5 text-red-500" />}
+                  <h3 className="font-black uppercase text-sm tracking-wide">
+                    {esInicio ? 'Registrar Inicio de Corte' : 'Registrar Fin de Corte'}
+                  </h3>
+                </div>
+                <button onClick={cerrar} className="text-gray-400 hover:text-gray-700"><X className="h-4 w-4" /></button>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Seleccionar Corte</label>
+                <select value={tiempoCorteId} onChange={e => setTiempoCorteId(e.target.value)} className="input-base w-full">
+                  <option value="">Seleccionar corte…</option>
+                  {cortesEnProceso.map(c => {
+                    const prod = productoMap.get(c.productoId)?.nombre ?? '';
+                    const cli = clienteMap.get(c.clienteId) ?? '';
+                    const tags = [c.horaInicio ? '✓ inicio' : '', c.horaFin ? '✓ fin' : ''].filter(Boolean).join(' ');
+                    return (
+                      <option key={c.id} value={c.id}>
+                        Corte {c.nCorte} — {prod} · {cli}{tags ? ` [${tags}]` : ''}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              {yaRegistrado && (
+                <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 px-3 py-2">
+                  Ya tiene {esInicio ? 'inicio' : 'fin'} registrado ({esInicio ? fmtHora(corteSeleccionado!.horaInicio!) : fmtHora(corteSeleccionado!.horaFin!)}). Se sobreescribirá.
+                </p>
+              )}
+
+              <div className="text-[11px] text-gray-500 bg-gray-50 border border-gray-200 px-3 py-2">
+                Hora actual: <span className="font-mono font-bold text-gray-800">{new Date().toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' })}</span>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-1">
+                <button onClick={cerrar} className="btn-secondary text-xs px-4">Cancelar</button>
+                <button
+                  disabled={!tiempoCorteId}
+                  onClick={confirmarTiempo}
+                  className={`btn-primary text-xs px-4 flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed ${!esInicio ? 'bg-red-600 hover:bg-red-700 border-red-600' : ''}`}
+                >
+                  {esInicio ? <Play className="h-3.5 w-3.5" /> : <StopCircle className="h-3.5 w-3.5" />}
+                  Confirmar {esInicio ? 'Inicio' : 'Fin'}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
     </motion.div>
   );

@@ -252,6 +252,8 @@ CREATE TABLE cortes (
   pago_planilla   NUMERIC(12,2),          -- total destajo del corte
   costo_mo_corte  NUMERIC(12,2),          -- costo_mo × total_prendas
   notas           TEXT,
+  hora_inicio     TIMESTAMPTZ,            -- timestamp inicio del corte físico
+  hora_fin        TIMESTAMPTZ,            -- timestamp fin del corte físico
   created_at      TIMESTAMPTZ DEFAULT NOW(),
   updated_at      TIMESTAMPTZ DEFAULT NOW()
 );

@@ -200,6 +200,8 @@ export interface Corte {
   pagoPlanilla: 'PENDIENTE' | 'PAGADO';
   costoMoCorte: number; // calculado desde tarifas × total prendas
   notas: string;
+  horaInicio?: string;  // ISO timestamp del inicio del corte físico
+  horaFin?: string;     // ISO timestamp de finalización del corte físico
 }
 
 // ─── Seguimiento Producción ────────────────────────────────────────────────
