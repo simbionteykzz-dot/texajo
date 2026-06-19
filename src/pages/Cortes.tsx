@@ -1448,7 +1448,7 @@ export function Cortes() {
                                           </button>
                                           <button
                                             type="button"
-                                            onClick={() => {
+                                            onClick={async () => {
                                               const colorId = newId();
                                               const pS  = parseInt(tonProps.propS)  || 0;
                                               const pM  = parseInt(tonProps.propM)  || 0;
@@ -1457,11 +1457,11 @@ export function Cortes() {
                                               const pcData = (tieneProducto && (pS > 0 || pM > 0 || pL > 0 || pXL > 0))
                                                 ? { id: newId(), productoId: form.productoId, propS: pS, propM: pM, propL: pL, propXL: pXL }
                                                 : null;
-                                              addColorConProductoColor(
+                                              // Esperar el ID real de Supabase antes de usarlo en el formulario
+                                              const realColorId = await addColorConProductoColor(
                                                 { id: colorId, nombre: nuevoNombre, categoria: baseColor?.categoria ?? 'OSCURO', prioridad: baseColor?.prioridad ?? 99, notas: '' },
                                                 pcData
                                               );
-                                              // Seleccionar automáticamente la nueva tonalidad en la fila que la pidió
                                               const idxFila = tonModal!.idx;
                                               setForm(f => {
                                                 const next = [...f.colores];
@@ -1472,7 +1472,7 @@ export function Cortes() {
                                                   cantL:  String(t > 0 ? pL  * t : pL),
                                                   cantXL: String(t > 0 ? pXL * t : pXL),
                                                 } : {};
-                                                next[idxFila] = { ...next[idxFila], tonalidad: String(nuevaNum), colorId, ...cantidades };
+                                                next[idxFila] = { ...next[idxFila], tonalidad: String(nuevaNum), colorId: realColorId, ...cantidades };
                                                 return { ...f, colores: next };
                                               });
                                               addToast(`Tonalidad ${nuevaNum} de "${capWords(tonModal!.colorBase)}" creada y seleccionada`, 'success');
