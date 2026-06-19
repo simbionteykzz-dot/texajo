@@ -78,6 +78,7 @@ export function Cortes() {
   const { addToast } = useToast();
   const esAdmin = useEsAdmin();
   const [showForm, setShowForm] = useState(false);
+  const [editingCorteId, setEditingCorteId] = useState<string | null>(null);
   const [filterEstado, setFilterEstado] = useState('');
   const [filterCliente, setFilterCliente] = useState('');
   const [form, setForm] = useState<CorteForm>(emptyForm());
@@ -98,6 +99,48 @@ export function Cortes() {
 
   const capWords = (s: string) =>
     s.replace(/(^|\s)(\S)/g, (_, sp, ch) => sp + ch.toUpperCase());
+
+  const corteToForm = (c: Corte): CorteForm => {
+    const detalles = c.coloresDetalle && c.coloresDetalle.length > 0
+      ? c.coloresDetalle
+      : [{ colorId: c.colorId, tonalidad: c.tonalidad, kgUsados: c.kgUsados, rollosUsados: c.rollosUsados, tendidas: c.tendidas, propS: 0, propM: 0, propL: 0, propXL: 0, cantS: c.cantS, cantM: c.cantM, cantL: c.cantL, cantXL: c.cantXL, totalPrendas: c.totalPrendas }];
+    const firstDet = detalles[0];
+    return {
+      nCorte: c.nCorte,
+      fecha: c.fecha,
+      clienteId: c.clienteId,
+      productoId: c.productoId,
+      telaId: c.telaId ?? '',
+      cortador: c.cortador,
+      ayudante: c.ayudante,
+      tendedor: c.tendedor ?? '',
+      mtsPorTendida: c.mtsPorTendida > 0 ? String(c.mtsPorTendida) : '',
+      ancho: c.ancho && c.ancho > 0 ? String(c.ancho) : '',
+      propS: String(firstDet.propS ?? 0),
+      propM: String(firstDet.propM ?? 0),
+      propL: String(firstDet.propL ?? 0),
+      propXL: String(firstDet.propXL ?? 0),
+      colores: detalles.map(det => ({
+        uid: crypto.randomUUID(),
+        colorId: det.colorId,
+        colorBase: colores.find(cl => cl.id === det.colorId)?.nombre.replace(/\s+\d+$/, '') ?? '',
+        tonalidad: det.tonalidad ?? '',
+        kgUsados: det.kgUsados > 0 ? String(det.kgUsados) : '',
+        rollosUsados: det.rollosUsados > 0 ? String(det.rollosUsados) : '',
+        tendidas: det.tendidas > 0 ? String(det.tendidas) : '',
+        propS: String(det.propS ?? 0),
+        propM: String(det.propM ?? 0),
+        propL: String(det.propL ?? 0),
+        propXL: String(det.propXL ?? 0),
+        cantS: String(det.cantS),
+        cantM: String(det.cantM),
+        cantL: String(det.cantL),
+        cantXL: String(det.cantXL),
+      })),
+      traslado: c.traslado ?? false,
+      notas: c.notas ?? '',
+    };
+  };
 
   const clienteMap = useMemo(() => new Map(clientes.map(c => [c.id, c.nombre])), [clientes]);
   const productoMap = useMemo(() => new Map(productos.map(p => [p.id, p])), [productos]);
@@ -349,8 +392,7 @@ export function Cortes() {
     const totalPrendas = totalS + totalM + totalL + totalXL;
     const primerColor = coloresDetalle[0];
 
-    const corte: Corte = {
-      id: newId(),
+    const camposComunes = {
       nCorte: form.nCorte,
       fecha: form.fecha,
       clienteId: form.clienteId,
@@ -371,21 +413,32 @@ export function Cortes() {
       totalPrendas,
       consumo: totalPrendas > 0 ? totalKg / totalPrendas : 0,
       rendimiento: totalRollos > 0 ? totalPrendas / totalRollos : 0,
-      revision: 'PENDIENTE',
       traslado: form.traslado,
-      estado: 'EN_PROCESO',
-      pagoCliente: 'PENDIENTE',
-      pagoPlanilla: 'PENDIENTE',
       costoMoCorte: calcCostoMo(form.productoId, totalPrendas),
       notas: form.notas,
     };
-    addCorte(corte);
 
-    const msg = coloresDetalle.length > 1
-      ? `Corte ${form.nCorte} registrado con ${coloresDetalle.length} colores`
-      : `Corte ${form.nCorte} registrado`;
-    addToast(msg, 'success');
+    if (editingCorteId) {
+      updateCorte(editingCorteId, camposComunes);
+      addToast(`Corte ${form.nCorte} actualizado`, 'success');
+    } else {
+      const corte: Corte = {
+        id: newId(),
+        ...camposComunes,
+        revision: 'PENDIENTE',
+        estado: 'EN_PROCESO',
+        pagoCliente: 'PENDIENTE',
+        pagoPlanilla: 'PENDIENTE',
+      };
+      addCorte(corte);
+      const msg = coloresDetalle.length > 1
+        ? `Corte ${form.nCorte} registrado con ${coloresDetalle.length} colores`
+        : `Corte ${form.nCorte} registrado`;
+      addToast(msg, 'success');
+    }
+
     setShowForm(false);
+    setEditingCorteId(null);
     setForm(emptyForm());
   };
 
@@ -706,6 +759,15 @@ export function Cortes() {
                               className="text-[10px] font-bold uppercase text-blue-600 hover:text-blue-800 whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
                             >{completandoId === c.id ? 'Guardando…' : 'Completar'}</button>
                           )}
+                          <button
+                            onClick={() => {
+                              setForm(corteToForm(c));
+                              setEditingCorteId(c.id);
+                              setShowForm(true);
+                            }}
+                            className="text-[10px] font-bold uppercase text-gray-500 hover:text-[#B66F35] whitespace-nowrap"
+                            title="Editar corte"
+                          >Editar</button>
                           {esAdmin && (
                             <button onClick={() => setConfirmDelete(c.id)} className="text-gray-300 hover:text-red-500 transition-colors">
                               <Trash2 className="h-3.5 w-3.5" />
@@ -1002,8 +1064,8 @@ export function Cortes() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white border border-gray-300 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-              <h3 className="text-sm font-black uppercase tracking-widest">Nuevo Corte</h3>
-              <button onClick={() => setShowForm(false)}><X className="h-4 w-4" /></button>
+              <h3 className="text-sm font-black uppercase tracking-widest">{editingCorteId ? `Editar Corte ${form.nCorte}` : 'Nuevo Corte'}</h3>
+              <button onClick={() => { setShowForm(false); setEditingCorteId(null); setForm(emptyForm()); }}><X className="h-4 w-4" /></button>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div className="grid grid-cols-3 gap-4">
@@ -1682,8 +1744,8 @@ export function Cortes() {
                 );
               })()}
               <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setShowForm(false)} className="btn-secondary">Cancelar</button>
-                <button type="submit" className="btn-primary">Guardar Corte</button>
+                <button type="button" onClick={() => { setShowForm(false); setEditingCorteId(null); setForm(emptyForm()); }} className="btn-secondary">Cancelar</button>
+                <button type="submit" className="btn-primary">{editingCorteId ? 'Actualizar Corte' : 'Guardar Corte'}</button>
               </div>
             </form>
           </div>
