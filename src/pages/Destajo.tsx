@@ -1539,9 +1539,11 @@ export function Destajo() {
         )}
         {selectedOperario && (
           <div className="flex items-end gap-2">
-            <button onClick={() => { resetDraft(); setShowForm(true); }} className="btn-primary flex items-center gap-2 text-xs">
-              <Plus className="h-3 w-3" /> Agregar Línea
-            </button>
+            {esAdmin && (
+              <button onClick={() => { resetDraft(); setShowForm(true); }} className="btn-primary flex items-center gap-2 text-xs">
+                <Plus className="h-3 w-3" /> Agregar Línea
+              </button>
+            )}
             <button onClick={() => setShowBoleta(true)} className="btn-secondary flex items-center gap-2 text-xs">
               <Receipt className="h-3 w-3" /> Ver Boleta
             </button>
@@ -1947,14 +1949,16 @@ export function Destajo() {
                     {pagadas.length} líneas pagadas de {lineasFiltradas.length}
                   </p>
                 )}
-                <div className="pt-1 border-t border-gray-100">
-                  <button
-                    onClick={() => { setShowDescForm(true); setDescForm({ tipo: 'ADELANTO', monto: '', notas: '' }); document.getElementById('desc-form-section')?.scrollIntoView({ behavior: 'smooth' }); }}
-                    className="w-full text-[10px] font-bold uppercase tracking-widest text-amber-700 border border-amber-300 py-1 hover:bg-amber-50 flex items-center justify-center gap-1"
-                  >
-                    <Plus className="h-3 w-3" /> Agregar adelanto / descuento
-                  </button>
-                </div>
+                {esAdmin && (
+                  <div className="pt-1 border-t border-gray-100">
+                    <button
+                      onClick={() => { setShowDescForm(true); setDescForm({ tipo: 'ADELANTO', monto: '', notas: '' }); document.getElementById('desc-form-section')?.scrollIntoView({ behavior: 'smooth' }); }}
+                      className="w-full text-[10px] font-bold uppercase tracking-widest text-amber-700 border border-amber-300 py-1 hover:bg-amber-50 flex items-center justify-center gap-1"
+                    >
+                      <Plus className="h-3 w-3" /> Agregar adelanto / descuento
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1966,12 +1970,14 @@ export function Destajo() {
                 <h4 className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
                   Descuentos del período
                 </h4>
-                <button
-                  onClick={() => setShowDescForm(v => !v)}
-                  className="btn-primary flex items-center gap-1 text-xs"
-                >
-                  <Plus className="h-3 w-3" /> Agregar Descuento
-                </button>
+                {esAdmin && (
+                  <button
+                    onClick={() => setShowDescForm(v => !v)}
+                    className="btn-primary flex items-center gap-1 text-xs"
+                  >
+                    <Plus className="h-3 w-3" /> Agregar Descuento
+                  </button>
+                )}
               </div>
 
               {/* Lista de descuentos existentes */}

@@ -321,9 +321,11 @@ export function InventarioTelas() {
           <button onClick={exportarMovimientosPdf} className="btn-secondary flex items-center gap-2">
             <FileText className="h-4 w-4" /> PDF
           </button>
-          <button onClick={() => setShowForm(true)} className="btn-primary flex items-center gap-2">
-            <Plus className="h-4 w-4" /> Registrar Movimiento
-          </button>
+          {esAdmin && (
+            <button onClick={() => setShowForm(true)} className="btn-primary flex items-center gap-2">
+              <Plus className="h-4 w-4" /> Registrar Movimiento
+            </button>
+          )}
         </div>
       </div>
 

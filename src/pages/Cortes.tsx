@@ -557,27 +557,33 @@ export function Cortes() {
               { label: 'Estados', detail: 'En Proceso → Completado / Anulado con indicador visual' },
             ]}
           />
-          <button
-            onClick={() => { setTiempoModal({ open: true, tipo: 'inicio' }); setTiempoCorteId(''); }}
-            className="btn-secondary flex items-center gap-2 text-green-700 border-green-300 hover:bg-green-50"
-          >
-            <Play className="h-4 w-4" /> Iniciar Corte
-          </button>
-          <button
-            onClick={() => { setTiempoModal({ open: true, tipo: 'fin' }); setTiempoCorteId(''); }}
-            className="btn-secondary flex items-center gap-2 text-red-700 border-red-300 hover:bg-red-50"
-          >
-            <StopCircle className="h-4 w-4" /> Finalizar Corte
-          </button>
+          {esAdmin && (
+            <button
+              onClick={() => { setTiempoModal({ open: true, tipo: 'inicio' }); setTiempoCorteId(''); }}
+              className="btn-secondary flex items-center gap-2 text-green-700 border-green-300 hover:bg-green-50"
+            >
+              <Play className="h-4 w-4" /> Iniciar Corte
+            </button>
+          )}
+          {esAdmin && (
+            <button
+              onClick={() => { setTiempoModal({ open: true, tipo: 'fin' }); setTiempoCorteId(''); }}
+              className="btn-secondary flex items-center gap-2 text-red-700 border-red-300 hover:bg-red-50"
+            >
+              <StopCircle className="h-4 w-4" /> Finalizar Corte
+            </button>
+          )}
           <button onClick={exportarCortes} className="btn-secondary flex items-center gap-2">
             <Download className="h-4 w-4" /> Excel
           </button>
           <button onClick={exportarCortesPdf} className="btn-secondary flex items-center gap-2">
             <FileText className="h-4 w-4" /> PDF
           </button>
-          <button onClick={() => setShowForm(true)} className="btn-primary flex items-center gap-2">
-            <Plus className="h-4 w-4" /> Nuevo Corte
-          </button>
+          {esAdmin && (
+            <button onClick={() => setShowForm(true)} className="btn-primary flex items-center gap-2">
+              <Plus className="h-4 w-4" /> Nuevo Corte
+            </button>
+          )}
         </div>
       </div>
 
@@ -720,28 +726,40 @@ export function Cortes() {
                         </span>
                       </td>
                       <td className="px-2 py-1 border-l border-gray-100" onClick={e => e.stopPropagation()}>
-                        <select
-                          value={c.pagoCliente}
-                          onChange={e => updateCorte(c.id, { pagoCliente: e.target.value as 'PENDIENTE' | 'COBRADO' })}
-                          className={`text-[10px] font-bold uppercase border-0 bg-transparent cursor-pointer ${c.pagoCliente === 'COBRADO' ? 'text-green-700' : 'text-yellow-700'}`}
-                        >
-                          <option value="PENDIENTE">Pendiente</option>
-                          <option value="COBRADO">Cobrado</option>
-                        </select>
+                        {esAdmin ? (
+                          <select
+                            value={c.pagoCliente}
+                            onChange={e => updateCorte(c.id, { pagoCliente: e.target.value as 'PENDIENTE' | 'COBRADO' })}
+                            className={`text-[10px] font-bold uppercase border-0 bg-transparent cursor-pointer ${c.pagoCliente === 'COBRADO' ? 'text-green-700' : 'text-yellow-700'}`}
+                          >
+                            <option value="PENDIENTE">Pendiente</option>
+                            <option value="COBRADO">Cobrado</option>
+                          </select>
+                        ) : (
+                          <span className={`text-[10px] font-bold uppercase ${c.pagoCliente === 'COBRADO' ? 'text-green-700' : 'text-yellow-700'}`}>
+                            {c.pagoCliente === 'COBRADO' ? 'Cobrado' : 'Pendiente'}
+                          </span>
+                        )}
                       </td>
                       <td className="px-2 py-1 border-l border-gray-100" onClick={e => e.stopPropagation()}>
-                        <select
-                          value={c.pagoPlanilla}
-                          onChange={e => updateCorte(c.id, { pagoPlanilla: e.target.value as 'PENDIENTE' | 'PAGADO' })}
-                          className={`text-[10px] font-bold uppercase border-0 bg-transparent cursor-pointer ${c.pagoPlanilla === 'PAGADO' ? 'text-green-700' : 'text-yellow-700'}`}
-                        >
-                          <option value="PENDIENTE">Pendiente</option>
-                          <option value="PAGADO">Pagado</option>
-                        </select>
+                        {esAdmin ? (
+                          <select
+                            value={c.pagoPlanilla}
+                            onChange={e => updateCorte(c.id, { pagoPlanilla: e.target.value as 'PENDIENTE' | 'PAGADO' })}
+                            className={`text-[10px] font-bold uppercase border-0 bg-transparent cursor-pointer ${c.pagoPlanilla === 'PAGADO' ? 'text-green-700' : 'text-yellow-700'}`}
+                          >
+                            <option value="PENDIENTE">Pendiente</option>
+                            <option value="PAGADO">Pagado</option>
+                          </select>
+                        ) : (
+                          <span className={`text-[10px] font-bold uppercase ${c.pagoPlanilla === 'PAGADO' ? 'text-green-700' : 'text-yellow-700'}`}>
+                            {c.pagoPlanilla === 'PAGADO' ? 'Pagado' : 'Pendiente'}
+                          </span>
+                        )}
                       </td>
                       <td className="px-2 py-1 border-l border-gray-100" onClick={e => e.stopPropagation()}>
                         <div className="flex flex-col gap-0.5">
-                          {c.estado === 'EN_PROCESO' && (
+                          {esAdmin && c.estado === 'EN_PROCESO' && (
                             <button
                               disabled={completandoId === c.id}
                               onClick={() => {
@@ -759,15 +777,17 @@ export function Cortes() {
                               className="text-[10px] font-bold uppercase text-blue-600 hover:text-blue-800 whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
                             >{completandoId === c.id ? 'Guardando…' : 'Completar'}</button>
                           )}
-                          <button
-                            onClick={() => {
-                              setForm(corteToForm(c));
-                              setEditingCorteId(c.id);
-                              setShowForm(true);
-                            }}
-                            className="text-[10px] font-bold uppercase text-gray-500 hover:text-[#B66F35] whitespace-nowrap"
-                            title="Editar corte"
-                          >Editar</button>
+                          {esAdmin && (
+                            <button
+                              onClick={() => {
+                                setForm(corteToForm(c));
+                                setEditingCorteId(c.id);
+                                setShowForm(true);
+                              }}
+                              className="text-[10px] font-bold uppercase text-gray-500 hover:text-[#B66F35] whitespace-nowrap"
+                              title="Editar corte"
+                            >Editar</button>
+                          )}
                           {esAdmin && (
                             <button onClick={() => setConfirmDelete(c.id)} className="text-gray-300 hover:text-red-500 transition-colors">
                               <Trash2 className="h-3.5 w-3.5" />
