@@ -131,29 +131,51 @@ export function Destajo() {
     estado: bEstado,
   });
 
-  // totalBruto usando cantPrendas real por operario (solo tallas asignadas a este operario)
-  const totalBruto = useMemo(() => lineasFiltradas.reduce((sum, b) => {
-    if (b.talla) return sum + b.importe;
-    const filasSeg = seguimientoFilas.filter(f => {
-      if (f.corteId !== b.corteId) return false;
-      if (b.colorId && f.colorId !== b.colorId) return false;
-      const asig = f.asignaciones.find(a => a.tarifaId === b.tarifaId && a.confirmado === true);
-      if (!asig) return false;
-      const ids = asig.operarioIds?.filter(Boolean).length
-        ? asig.operarioIds!.filter(Boolean)
-        : (asig.operarioId ? [asig.operarioId] : []);
-      return ids.includes(b.operarioId);
-    });
-    if (filasSeg.length === 0) return sum + b.importe;
-    const cantReal = filasSeg.reduce((s, fila) => {
-      const asig = fila.asignaciones.find(a => a.tarifaId === b.tarifaId && a.confirmado === true);
-      const ids = asig?.operarioIds?.filter(Boolean).length
-        ? asig!.operarioIds!.filter(Boolean)
-        : (asig?.operarioId ? [asig.operarioId] : []);
-      return s + (ids.length > 1 ? Math.round(fila.cantidad / ids.length) : fila.cantidad);
+  // totalBruto: solo lo PENDIENTE de pago (lo ya PAGADO ya fue cobrado, no entra en "neto a pagar")
+  const totalBruto = useMemo(() => {
+    return lineasFiltradas.reduce((sum, b) => {
+      // Sub-líneas hijas: nunca sumar directamente, el padre las consolida
+      if (b.talla) return sum;
+
+      // Línea padre: calcular cuánto falta pagar usando seguimientoFilas
+      const tallasDisp = seguimientoFilas.filter(f => {
+        if (f.corteId !== b.corteId) return false;
+        if (b.colorId && f.colorId !== b.colorId) return false;
+        const asig = f.asignaciones.find(a => a.tarifaId === b.tarifaId && a.confirmado === true);
+        if (!asig) return false;
+        const ids = asig.operarioIds?.filter(Boolean).length
+          ? asig.operarioIds!.filter(Boolean)
+          : (asig.operarioId ? [asig.operarioId] : []);
+        return ids.includes(b.operarioId);
+      });
+
+      if (tallasDisp.length === 0) {
+        // Sin desglose por talla: usar importe del padre si PENDIENTE
+        return b.estadoPago === 'PENDIENTE' ? sum + b.importe : sum;
+      }
+
+      // Con desglose por talla: sumar solo las tallas que NO tienen sub-línea PAGADO
+      const cantPendiente = tallasDisp.reduce((s, fila) => {
+        const yaPagada = boletaLineas.some(
+          bl => bl.talla === fila.talla &&
+            bl.operarioId === b.operarioId &&
+            bl.corteId === b.corteId &&
+            bl.tarifaId === b.tarifaId &&
+            bl.colorId === b.colorId &&
+            bl.estadoPago === 'PAGADO',
+        );
+        if (yaPagada) return s;
+        const asig = fila.asignaciones.find(a => a.tarifaId === b.tarifaId && a.confirmado === true);
+        const ids = asig?.operarioIds?.filter(Boolean).length
+          ? asig!.operarioIds!.filter(Boolean)
+          : (asig?.operarioId ? [asig.operarioId] : []);
+        const cant = ids.length > 1 ? Math.round(fila.cantidad / ids.length) : fila.cantidad;
+        return s + cant;
+      }, 0);
+
+      return sum + cantPendiente * b.tarifa;
     }, 0);
-    return sum + cantReal * b.tarifa;
-  }, 0), [lineasFiltradas, seguimientoFilas]);
+  }, [lineasFiltradas, boletaLineas, seguimientoFilas]);
 
   // Vista general: todas las líneas con filtros opcionales
   const todasOperaciones = useMemo(() => {
@@ -505,6 +527,17 @@ export function Destajo() {
         ? Math.round((assignedCount / nuevasAsignaciones.length) * 100)
         : 0;
       updateSeguimientoFila(fila.id, { asignaciones: nuevasAsignaciones, totalPago, pctAvance });
+    }
+    // Si es línea padre (sin talla), eliminar también todas sus sub-líneas hijas
+    if (!b.talla) {
+      const hijas = boletaLineas.filter(
+        h => h.talla &&
+          h.operarioId === b.operarioId &&
+          h.corteId === b.corteId &&
+          h.tarifaId === b.tarifaId &&
+          h.colorId === b.colorId,
+      );
+      hijas.forEach(h => deleteBoletaLinea(h.id));
     }
     deleteBoletaLinea(b.id);
   };
@@ -1574,7 +1607,28 @@ export function Destajo() {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {lineasFiltradas.map(b => {
-                    // Líneas que ya son sub-líneas por talla no se expanden
+                    // Sub-líneas con talla: nunca mostrar en nivel raíz si existe línea madre
+                    // (en boletaLineas completo, no solo en el período filtrado)
+                    if (b.talla) {
+                      const tieneMadre = boletaLineas.some(
+                        p => !p.talla &&
+                          p.operarioId === b.operarioId &&
+                          p.corteId === b.corteId &&
+                          p.tarifaId === b.tarifaId &&
+                          p.colorId === b.colorId,
+                      );
+                      // Si no tiene madre en ningún período → huérfana, no mostrar
+                      if (!tieneMadre) return null;
+                      // Si tiene madre pero no está en la lista filtrada actual → no mostrar
+                      const madreEnLista = lineasFiltradas.some(
+                        p => !p.talla &&
+                          p.operarioId === b.operarioId &&
+                          p.corteId === b.corteId &&
+                          p.tarifaId === b.tarifaId &&
+                          p.colorId === b.colorId,
+                      );
+                      if (madreEnLista) return null;
+                    }
                     if (b.talla) return (
                       <tr key={b.id} className={`bg-blue-50/50 border-l-4 border-blue-200 ${b.estadoPago === 'PAGADO' ? 'opacity-60' : 'bg-amber-50/60'}`}>
                         <td className="px-3 py-2 font-mono text-gray-400 text-[10px]">↳ {b.nCorte}</td>
@@ -1685,7 +1739,7 @@ export function Destajo() {
                           <td className="px-3 py-2 font-mono text-right">S/ {b.tarifa.toFixed(3)}</td>
                           <td className="px-3 py-2">
                             {tieneTallas ? (
-                              <span className="font-mono font-bold text-right block">{cantPrendasReal.toLocaleString()}</span>
+                              <span className="font-mono font-bold text-right block">{cantPendiendas.toLocaleString()}</span>
                             ) : (
                               <input
                                 type="number" min={0}
@@ -1697,7 +1751,7 @@ export function Destajo() {
                               />
                             )}
                           </td>
-                          <td className="px-3 py-2 font-mono text-right font-bold">S/ {importeReal.toFixed(2)}</td>
+                          <td className="px-3 py-2 font-mono text-right font-bold">S/ {(tieneTallas ? importePendiente : importeReal).toFixed(2)}</td>
                           <td className="px-3 py-2">
                             <span className={`text-[10px] font-bold uppercase ${b.estadoPago === 'PAGADO' ? 'text-green-700' : 'text-yellow-700'}`}>{b.estadoPago}</span>
                           </td>
