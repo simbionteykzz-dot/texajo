@@ -889,6 +889,10 @@ export interface ReporteCorteData {
   tendedor: string;
   ancho: number;       // metros
   mtsPorTendida: number;
+  propS?: number;
+  propM?: number;
+  propL?: number;
+  propXL?: number;
   colores: {
     nombre: string;
     kgUsados: number;
@@ -1098,10 +1102,10 @@ function _dibujarReporteCorte(doc: jsPDF, data: ReporteCorteData) {
       'COLOR',
       'KILOS O METROS',
       'TENDIDAS',
-      `S  (${contS})`,
-      `M  (${contM})`,
-      `L  (${contL})`,
-      `XL  (${contXL})`,
+      data.propS != null ? `S  (${data.propS})` : `S  (${contS})`,
+      data.propM != null ? `M  (${data.propM})` : `M  (${contM})`,
+      data.propL != null ? `L  (${data.propL})` : `L  (${contL})`,
+      data.propXL != null ? `XL  (${data.propXL})` : `XL  (${contXL})`,
       'TOTAL',
     ]],
     body: [

@@ -446,6 +446,7 @@ export function Cortes() {
       const detalles = c.coloresDetalle && c.coloresDetalle.length > 0
         ? c.coloresDetalle
         : [{ colorId: c.colorId, kgUsados: c.kgUsados, rollosUsados: c.rollosUsados, tendidas: c.tendidas, cantS: c.cantS, cantM: c.cantM, cantL: c.cantL, cantXL: c.cantXL }];
+      const prod = productoMap.get(c.productoId);
       return {
         nCorte: c.nCorte,
         fecha: c.fecha,
@@ -456,6 +457,10 @@ export function Cortes() {
         tendedor: c.tendedor,
         ancho: c.ancho,
         mtsPorTendida: c.mtsPorTendida,
+        propS: prod?.propS,
+        propM: prod?.propM,
+        propL: prod?.propL,
+        propXL: prod?.propXL,
         colores: detalles.map((d, i) => ({
           nombre: colorMap.get(d.colorId) ?? d.colorId,
           kgUsados: d.kgUsados,
