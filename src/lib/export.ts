@@ -882,6 +882,8 @@ export async function exportHojaSeguimientoPdf(data: HojaSeguimientoData, font: 
 export interface ReporteCorteData {
   nCorte: string;
   fecha: string;       // YYYY-MM-DD
+  horaInicio?: string; // ISO timestamp del inicio del corte físico
+  horaFin?: string;    // ISO timestamp de finalización del corte físico
   tela: string;
   producto: string;
   cortador: string;
@@ -960,16 +962,25 @@ function _dibujarReporteCorte(doc: jsPDF, data: ReporteCorteData) {
   const col2W = W * 0.42;
   const col3W = W * 0.28;
 
-  drawLabelValue(L, y, 'FECHA DE INICIO : ', data.fecha, col1W - 2);
+  const fmtFecha = (iso?: string) => iso ? iso.slice(0, 10) : '';
+  const fmtHora  = (iso?: string) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    const h = d.getHours().toString().padStart(2, '0');
+    const m = d.getMinutes().toString().padStart(2, '0');
+    return `${h}:${m}`;
+  };
+
+  drawLabelValue(L, y, 'FECHA DE INICIO : ', fmtFecha(data.horaInicio) || data.fecha, col1W - 2);
   drawLabelValue(L + col1W, y, 'TELA : ', data.tela, col1W + col2W - 2);
-  drawLabelValue(L + col1W + col2W, y, 'FECHA DE TERMINO : ', '', col3W - 2);
+  drawLabelValue(L + col1W + col2W, y, 'FECHA DE TERMINO : ', fmtFecha(data.horaFin), col3W - 2);
 
   y += 7;
 
   // ── FILA 2: HORA INICIO | PRODUCTO | HORA TERMINO ───────────────────────────
-  drawLabelValue(L, y, 'HORA DE INICIO : ', '', col1W - 2);
+  drawLabelValue(L, y, 'HORA DE INICIO : ', fmtHora(data.horaInicio), col1W - 2);
   drawLabelValue(L + col1W, y, 'PRODUCTO : ', data.producto, col1W + col2W - 2);
-  drawLabelValue(L + col1W + col2W, y, 'HORA DE TERMINO : ', '', col3W - 2);
+  drawLabelValue(L + col1W + col2W, y, 'HORA DE TERMINO : ', fmtHora(data.horaFin), col3W - 2);
 
   y += 7;
 

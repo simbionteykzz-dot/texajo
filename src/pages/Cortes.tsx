@@ -450,6 +450,8 @@ export function Cortes() {
       return {
         nCorte: c.nCorte,
         fecha: c.fecha,
+        horaInicio: c.horaInicio,
+        horaFin: c.horaFin,
         tela,
         producto,
         cortador: c.cortador,
