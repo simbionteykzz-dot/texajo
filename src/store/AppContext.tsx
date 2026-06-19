@@ -592,11 +592,17 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     if (pc) {
       const pcFull: ProductoColor = { ...pc, colorId: realId };
       set(p => ({ ...p, productoColores: [...p.productoColores, pcFull] }));
-      db.productoColores.add(pcFull).then(realPcId => {
-        if (realPcId && realPcId !== pcFull.id) {
-          set(p => ({ ...p, productoColores: p.productoColores.map(x => x.id === pcFull.id ? { ...x, id: realPcId } : x) }));
-        }
-      }).catch(err => logDbError('INSERT', 'productoColores', err));
+      // Solo insertar en Supabase si productoId ya es un integer real (no UUID temporal)
+      const productoIdNum = parseInt(pcFull.productoId);
+      if (!isNaN(productoIdNum)) {
+        db.productoColores.add(pcFull).then(realPcId => {
+          if (realPcId && realPcId !== pcFull.id) {
+            set(p => ({ ...p, productoColores: p.productoColores.map(x => x.id === pcFull.id ? { ...x, id: realPcId } : x) }));
+          }
+        }).catch(err => logDbError('INSERT', 'productoColores', err));
+      } else {
+        console.warn('[addColorConPC] productoId es UUID temporal, se omite INSERT productoColores hasta que el producto tenga ID real', pcFull.productoId);
+      }
     }
     return realId;
   }, [set]);

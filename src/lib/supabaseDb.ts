@@ -98,6 +98,12 @@ const toProductoColor = (r: DbProductoColor): ProductoColor => ({ id: String(r.i
 // ─── Mappers App → DB ────────────────────────────────────────────────────────
 
 const safeInt = (v: string) => { const n = parseInt(v); return isNaN(n) ? v : n; };
+// Para FKs obligatorias: convierte a entero o lanza si el valor no es un ID numérico válido
+const fkInt = (v: string, field?: string): number => {
+  const n = parseInt(v);
+  if (isNaN(n)) throw new Error(`FK inválida${field ? ` (${field})` : ''}: "${v}" no es un integer`);
+  return n;
+};
 
 const fromCliente = (v: Cliente) => ({ id: v.id, nombre: v.nombre, contacto: v.contacto, notas: v.notas });
 const fromClienteInsert = (v: Cliente) => ({ nombre: v.nombre, contacto: v.contacto, notas: v.notas });
@@ -496,8 +502,14 @@ export const db = {
     delete: (id: string) => dbDelete('movimientos_complemento', id),
   },
   productoColores: {
-    add: (v: ProductoColor) => dbInsert('producto_colores', v, (x: ProductoColor) => ({ producto_id: x.productoId, color_id: x.colorId, prop_s: x.propS, prop_m: x.propM, prop_l: x.propL, prop_xl: x.propXL })),
-    update: (id: string, u: Partial<ProductoColor>, cur: ProductoColor) => dbUpdate('producto_colores', id, u, (x: ProductoColor) => ({ id: x.id, producto_id: x.productoId, color_id: x.colorId, prop_s: x.propS, prop_m: x.propM, prop_l: x.propL, prop_xl: x.propXL }), cur),
+    add: (v: ProductoColor) => {
+      if (isNaN(parseInt(v.productoId)) || isNaN(parseInt(v.colorId))) {
+        console.warn('[productoColores.add] IDs temporales, INSERT omitido', v.productoId, v.colorId);
+        return Promise.resolve(null);
+      }
+      return dbInsert('producto_colores', v, (x: ProductoColor) => ({ producto_id: fkInt(x.productoId, 'productoId'), color_id: fkInt(x.colorId, 'colorId'), prop_s: x.propS, prop_m: x.propM, prop_l: x.propL, prop_xl: x.propXL }));
+    },
+    update: (id: string, u: Partial<ProductoColor>, cur: ProductoColor) => dbUpdate('producto_colores', id, u, (x: ProductoColor) => ({ id: x.id, producto_id: fkInt(x.productoId, 'productoId'), color_id: fkInt(x.colorId, 'colorId'), prop_s: x.propS, prop_m: x.propM, prop_l: x.propL, prop_xl: x.propXL }), cur),
     delete: (id: string) => dbDelete('producto_colores', id),
   },
   config: {
