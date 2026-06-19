@@ -1623,6 +1623,37 @@ export function Destajo() {
                         }, 0)
                       : b.cantPrendas;
                     const importeReal = cantPrendasReal * b.tarifa;
+                    // Sub-líneas ya pagadas por talla para esta línea padre
+                    const subLineasPagadas = tieneTallas
+                      ? tallasDisp.filter(fila => {
+                          const sub = boletaLineas.find(
+                            bl => bl.operarioId === b.operarioId &&
+                                  bl.corteId === b.corteId &&
+                                  bl.tarifaId === b.tarifaId &&
+                                  bl.colorId === b.colorId &&
+                                  bl.talla === fila.talla &&
+                                  bl.estadoPago === 'PAGADO'
+                          );
+                          return !!sub;
+                        })
+                      : [];
+                    const todasTallasPagadas = tieneTallas && subLineasPagadas.length === tallasDisp.length;
+                    // Prendas e importe solo de las tallas pendientes (excluir las ya pagadas)
+                    const cantPendiendas = tieneTallas
+                      ? tallasDisp
+                          .filter(fila => !subLineasPagadas.includes(fila))
+                          .reduce((sum, fila) => {
+                            const asig = fila.asignaciones.find(a => a.tarifaId === b.tarifaId && a.confirmado === true);
+                            if (!asig) return sum;
+                            const ids = asig.operarioIds?.filter(Boolean).length
+                              ? asig.operarioIds!.filter(Boolean)
+                              : (asig.operarioId ? [asig.operarioId] : []);
+                            if (!ids.includes(b.operarioId)) return sum;
+                            if (ids.length === 1) return sum + fila.cantidad;
+                            return sum + Math.round(fila.cantidad / ids.length);
+                          }, 0)
+                      : cantPrendasReal;
+                    const importePendiente = cantPendiendas * b.tarifa;
                     const rowBgB = b.estadoPago === 'PAGADO'
                       ? 'bg-green-50 opacity-60'
                       : tieneTallas
@@ -1672,9 +1703,55 @@ export function Destajo() {
                           </td>
                           <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
                             <div className="flex items-center gap-2">
-                              {b.estadoPago === 'PENDIENTE' && (
+                              {b.estadoPago === 'PENDIENTE' && !todasTallasPagadas && (
                                 <button
-                                  onClick={() => updateBoletaLinea(b.id, { estadoPago: 'PAGADO', fechaPago: new Date().toISOString().slice(0, 10), cantPrendas: cantPrendasReal, importe: importeReal })}
+                                  onClick={() => {
+                                    const hoy = new Date().toISOString().slice(0, 10);
+                                    if (tieneTallas) {
+                                      // Pagar solo las tallas pendientes (las ya pagadas se omiten)
+                                      tallasDisp.forEach(fila => {
+                                        const subLinea = boletaLineas.find(
+                                          bl => bl.operarioId === b.operarioId &&
+                                                bl.corteId === b.corteId &&
+                                                bl.tarifaId === b.tarifaId &&
+                                                bl.colorId === b.colorId &&
+                                                bl.talla === fila.talla
+                                        );
+                                        if (subLinea?.estadoPago === 'PAGADO') return; // ya pagada
+                                        const asig = fila.asignaciones.find(a => a.tarifaId === b.tarifaId && a.confirmado === true);
+                                        const ids = asig?.operarioIds?.filter(Boolean).length
+                                          ? asig!.operarioIds!.filter(Boolean)
+                                          : (asig?.operarioId ? [asig.operarioId] : []);
+                                        const cant = ids.length > 1 ? Math.round(fila.cantidad / ids.length) : fila.cantidad;
+                                        if (subLinea) {
+                                          updateBoletaLinea(subLinea.id, { estadoPago: 'PAGADO', fechaPago: hoy });
+                                        } else {
+                                          addBoletaLinea({
+                                            id: newId(),
+                                            operarioId: b.operarioId,
+                                            corteId: b.corteId,
+                                            nCorte: b.nCorte,
+                                            productoId: b.productoId,
+                                            colorId: b.colorId,
+                                            talla: fila.talla,
+                                            tarifaId: b.tarifaId,
+                                            operacion: b.operacion,
+                                            orden: b.orden,
+                                            tarifa: b.tarifa,
+                                            cantPrendas: cant,
+                                            importe: cant * b.tarifa,
+                                            periodo: b.periodo,
+                                            fechaRegistro: b.fechaRegistro,
+                                            estadoPago: 'PAGADO',
+                                            fechaPago: hoy,
+                                          });
+                                        }
+                                      });
+                                      updateBoletaLinea(b.id, { estadoPago: 'PAGADO', fechaPago: hoy, cantPrendas: cantPendiendas, importe: importePendiente });
+                                    } else {
+                                      updateBoletaLinea(b.id, { estadoPago: 'PAGADO', fechaPago: hoy, cantPrendas: cantPrendasReal, importe: importeReal });
+                                    }
+                                  }}
                                   className="text-[10px] text-green-600 hover:text-green-800 font-bold uppercase"
                                 >Pagar todo</button>
                               )}
