@@ -89,10 +89,21 @@ export function TablaTarifas() {
   };
 
   // ── Formularios ─────────────────────────────────────────────────────────────
+  type TarifaFila = { operacion: string; tarifa: string; notas: string };
   const [showTarifaForm, setShowTarifaForm]     = useState(false);
-  const [tarifaForm, setTarifaForm]             = useState({ productoId: '', orden: '1', operacion: '', tarifa: '0', notas: '' });
+  const [tarifaFormProductoId, setTarifaFormProductoId] = useState('');
+  const [tarifaFilas, setTarifaFilas]           = useState<TarifaFila[]>([{ operacion: '', tarifa: '0', notas: '' }]);
   const [showInlineProd, setShowInlineProd]     = useState(false);
   const [inlineProd, setInlineProd]             = useState({ nombre: '', marca: '' });
+
+  const setTarifaFila = (idx: number, field: keyof TarifaFila, value: string) =>
+    setTarifaFilas(prev => prev.map((f, i) => i === idx ? { ...f, [field]: value } : f));
+
+  const addTarifaFila = () =>
+    setTarifaFilas(prev => [...prev, { operacion: '', tarifa: '0', notas: '' }]);
+
+  const removeTarifaFila = (idx: number) =>
+    setTarifaFilas(prev => prev.filter((_, i) => i !== idx));
 
   // Tipos de complemento — se sincroniza desde config una vez que Supabase carga
   const [tiposComplemento, setTiposComplemento] = useState<string[]>([...TIPOS_COMPLEMENTO_LIST]);
@@ -143,7 +154,7 @@ export function TablaTarifas() {
     if (!inlineProd.nombre.trim()) { addToast('Nombre requerido', 'error'); return; }
     const generatedId = newId();
     addProducto({ id: generatedId, nombre: inlineProd.nombre.trim(), marca: inlineProd.marca || undefined, costoMoTotal: 0, precioServicio: 0, notas: '' });
-    setTarifaForm(f => ({ ...f, productoId: generatedId }));
+    setTarifaFormProductoId(generatedId);
     addToast('Producto creado', 'success');
     setShowInlineProd(false);
     setInlineProd({ nombre: '', marca: '' });
@@ -161,21 +172,27 @@ export function TablaTarifas() {
 
   const handleAddTarifa = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!tarifaForm.productoId || !tarifaForm.operacion) { addToast('Producto y operación requeridos', 'error'); return; }
-    const prod  = productos.find(p => p.id === tarifaForm.productoId);
-    const orden = parseInt(tarifaForm.orden) || 1;
-    addTarifaOperacion({
-      id: newId(), productoId: tarifaForm.productoId, orden,
-      operacion: tarifaForm.operacion,
-      tarifa:    parseFloat(tarifaForm.tarifa) || 0,
-      notas:     tarifaForm.notas,
-      clave:     `${prod?.nombre ?? tarifaForm.productoId}|${orden}`,
+    if (!tarifaFormProductoId) { addToast('Selecciona un producto', 'error'); return; }
+    const validas = tarifaFilas.filter(f => f.operacion.trim());
+    if (validas.length === 0) { addToast('Ingresa al menos una operación', 'error'); return; }
+    const prod = productos.find(p => p.id === tarifaFormProductoId);
+    const existentes = tarifasOperaciones.filter(t => t.productoId === tarifaFormProductoId);
+    let nextOrden = existentes.length > 0 ? Math.max(...existentes.map(t => t.orden)) + 1 : 1;
+    validas.forEach(fila => {
+      addTarifaOperacion({
+        id: newId(), productoId: tarifaFormProductoId, orden: nextOrden,
+        operacion: fila.operacion.trim(),
+        tarifa:    parseFloat(fila.tarifa) || 0,
+        notas:     fila.notas,
+        clave:     `${prod?.nombre ?? tarifaFormProductoId}|${nextOrden}`,
+      });
+      nextOrden++;
     });
-    addToast('Tarifa agregada', 'success');
+    addToast(`${validas.length} tarifa${validas.length > 1 ? 's' : ''} agregada${validas.length > 1 ? 's' : ''}`, 'success');
     setShowTarifaForm(false);
-    setTarifaForm({ productoId: '', orden: '1', operacion: '', tarifa: '0', notas: '' });
-    // Expandir el producto recién modificado
-    setExpandidos(prev => new Set([...prev, tarifaForm.productoId]));
+    setTarifaFormProductoId('');
+    setTarifaFilas([{ operacion: '', tarifa: '0', notas: '' }]);
+    setExpandidos(prev => new Set([...prev, tarifaFormProductoId]));
   };
 
   const handleAddPrecioTela = (e: React.FormEvent) => {
@@ -468,109 +485,140 @@ export function TablaTarifas() {
             </div>
           )}
 
-          {/* Modal nueva tarifa */}
+          {/* Modal nueva tarifa — múltiples filas */}
           {showTarifaForm && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-              <div className="bg-white border w-full max-w-sm" style={{ borderColor: '#DDD8CF' }}>
-                <div className="flex items-center justify-between border-b px-6 py-4" style={{ borderColor: '#DDD8CF' }}>
-                  <h3 className="text-sm font-black uppercase tracking-widest">Nueva Tarifa</h3>
-                  <button onClick={() => setShowTarifaForm(false)}><X className="h-4 w-4" /></button>
+              <div className="bg-white border w-full max-w-2xl max-h-[90vh] flex flex-col" style={{ borderColor: '#DDD8CF' }}>
+                <div className="flex items-center justify-between border-b px-6 py-4 flex-shrink-0" style={{ borderColor: '#DDD8CF' }}>
+                  <h3 className="text-sm font-black uppercase tracking-widest">Agregar Tarifas</h3>
+                  <button onClick={() => { setShowTarifaForm(false); setTarifaFormProductoId(''); setTarifaFilas([{ operacion: '', tarifa: '0', notas: '' }]); setShowInlineProd(false); }}>
+                    <X className="h-4 w-4" />
+                  </button>
                 </div>
-                <form onSubmit={handleAddTarifa} className="p-6 space-y-4">
-                  <F label="Producto">
-                    <div className="flex gap-2 items-center">
-                      <select value={tarifaForm.productoId} onChange={e => setTarifaForm(f => ({ ...f, productoId: e.target.value }))}
-                        className="flex-1 border px-3 py-2 text-sm" style={{ borderColor: '#DDD8CF' }} required>
-                        <option value="">Seleccionar producto...</option>
-                        {[...productos].sort((a, b) => a.nombre.localeCompare(b.nombre)).map(p => (
-                          <option key={p.id} value={p.id}>{p.nombre}</option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        title="Nuevo producto"
-                        onClick={() => setShowInlineProd(v => !v)}
-                        className="flex-shrink-0 w-8 h-8 flex items-center justify-center border transition-colors"
-                        style={showInlineProd
-                          ? { background: '#173A25', borderColor: '#173A25', color: '#fff' }
-                          : { background: '#F5F2EA', borderColor: '#DDD8CF', color: '#7A6F67' }}
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                    {showInlineProd && (
-                      <div onSubmit={handleAddInlineProd} className="mt-2 border p-3 space-y-2" style={{ borderColor: '#DDD8CF', background: '#F5F2EA' }}>
-                        <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: '#7A6F67' }}>Nuevo producto</p>
-                        <input
-                          type="text"
-                          placeholder="Nombre *"
-                          value={inlineProd.nombre}
-                          onChange={e => setInlineProd(f => ({ ...f, nombre: e.target.value }))}
-                          className="w-full border px-3 py-1.5 text-xs"
-                          style={{ borderColor: '#DDD8CF' }}
-                        />
-                        <select
-                          value={inlineProd.marca}
-                          onChange={e => setInlineProd(f => ({ ...f, marca: e.target.value }))}
-                          className="w-full border px-3 py-1.5 text-xs"
-                          style={{ borderColor: '#DDD8CF' }}
-                        >
-                          <option value="">Marca (opcional)</option>
-                          <option value="Overshark">Overshark</option>
-                          <option value="Bravos">Bravos</option>
+                <form onSubmit={handleAddTarifa} className="flex flex-col flex-1 overflow-hidden">
+                  <div className="p-6 space-y-4 overflow-y-auto flex-1">
+                    {/* Selector de producto */}
+                    <F label="Producto">
+                      <div className="flex gap-2 items-center">
+                        <select value={tarifaFormProductoId} onChange={e => setTarifaFormProductoId(e.target.value)}
+                          className="flex-1 border px-3 py-2 text-sm" style={{ borderColor: '#DDD8CF' }} required>
+                          <option value="">Seleccionar producto...</option>
+                          {[...productos].sort((a, b) => a.nombre.localeCompare(b.nombre)).map(p => (
+                            <option key={p.id} value={p.id}>{p.nombre}</option>
+                          ))}
                         </select>
-                        <div className="flex gap-2 justify-end pt-1">
-                          <button
-                            type="button"
-                            onClick={() => { setShowInlineProd(false); setInlineProd({ nombre: '', marca: '' }); }}
-                            className="px-3 py-1 text-xs font-bold border"
-                            style={{ borderColor: '#DDD8CF', color: '#6B6058' }}
-                          >
-                            Cancelar
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleAddInlineProd}
-                            className="px-3 py-1 text-xs font-bold text-white"
-                            style={{ background: '#173A25' }}
-                          >
-                            Crear y seleccionar
+                        <button
+                          type="button"
+                          title="Nuevo producto"
+                          onClick={() => setShowInlineProd(v => !v)}
+                          className="flex-shrink-0 w-8 h-8 flex items-center justify-center border transition-colors"
+                          style={showInlineProd
+                            ? { background: '#173A25', borderColor: '#173A25', color: '#fff' }
+                            : { background: '#F5F2EA', borderColor: '#DDD8CF', color: '#7A6F67' }}
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                      {showInlineProd && (
+                        <div className="mt-2 border p-3 space-y-2" style={{ borderColor: '#DDD8CF', background: '#F5F2EA' }}>
+                          <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: '#7A6F67' }}>Nuevo producto</p>
+                          <input
+                            type="text" placeholder="Nombre *" value={inlineProd.nombre}
+                            onChange={e => setInlineProd(f => ({ ...f, nombre: e.target.value }))}
+                            className="w-full border px-3 py-1.5 text-xs" style={{ borderColor: '#DDD8CF' }}
+                          />
+                          <select value={inlineProd.marca} onChange={e => setInlineProd(f => ({ ...f, marca: e.target.value }))}
+                            className="w-full border px-3 py-1.5 text-xs" style={{ borderColor: '#DDD8CF' }}>
+                            <option value="">Marca (opcional)</option>
+                            <option value="Overshark">Overshark</option>
+                            <option value="Bravos">Bravos</option>
+                          </select>
+                          <div className="flex gap-2 justify-end pt-1">
+                            <button type="button" onClick={() => { setShowInlineProd(false); setInlineProd({ nombre: '', marca: '' }); }}
+                              className="px-3 py-1 text-xs font-bold border" style={{ borderColor: '#DDD8CF', color: '#6B6058' }}>
+                              Cancelar
+                            </button>
+                            <button type="button" onClick={handleAddInlineProd}
+                              className="px-3 py-1 text-xs font-bold text-white" style={{ background: '#173A25' }}>
+                              Crear y seleccionar
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </F>
+
+                    {/* Tabla de filas */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#9A8F87' }}>
+                          Operaciones
+                        </label>
+                        <span className="text-[10px] font-mono" style={{ color: '#9A8F87' }}>
+                          Total: S/ {tarifaFilas.reduce((s, f) => s + (parseFloat(f.tarifa) || 0), 0).toFixed(3)}
+                        </span>
+                      </div>
+                      <div className="border" style={{ borderColor: '#DDD8CF' }}>
+                        {/* Cabecera */}
+                        <div className="grid gap-0 text-[10px] font-bold uppercase tracking-widest px-3 py-2" style={{ background: '#F7F4EF', color: '#9A8F87', gridTemplateColumns: '1fr 100px 1fr 28px' }}>
+                          <span>Nombre de Operación</span>
+                          <span className="text-right pr-2">Tarifa S/.</span>
+                          <span className="pl-2">Notas</span>
+                          <span />
+                        </div>
+                        {/* Filas */}
+                        {tarifaFilas.map((fila, idx) => (
+                          <div key={idx} className="grid items-center gap-0 px-2 py-1.5" style={{ borderTop: '1px solid #F0EDE8', gridTemplateColumns: '1fr 100px 1fr 28px' }}>
+                            <input
+                              type="text" value={fila.operacion}
+                              onChange={e => setTarifaFila(idx, 'operacion', e.target.value)}
+                              className="border px-2 py-1 text-xs mr-1" style={{ borderColor: '#DDD8CF' }}
+                              placeholder="Ej: COSTURA PRINCIPAL"
+                              autoFocus={idx === tarifaFilas.length - 1 && idx > 0}
+                            />
+                            <input
+                              type="number" step="0.001" min={0} value={fila.tarifa}
+                              onChange={e => setTarifaFila(idx, 'tarifa', e.target.value)}
+                              className="border px-2 py-1 text-xs text-right font-mono mr-1" style={{ borderColor: '#DDD8CF' }}
+                            />
+                            <input
+                              type="text" value={fila.notas}
+                              onChange={e => setTarifaFila(idx, 'notas', e.target.value)}
+                              className="border px-2 py-1 text-xs ml-1" style={{ borderColor: '#DDD8CF' }}
+                              placeholder="Notas (opcional)"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeTarifaFila(idx)}
+                              disabled={tarifaFilas.length === 1}
+                              className="flex items-center justify-center ml-1 p-1 transition-colors disabled:opacity-20"
+                              style={{ color: '#C0977A' }}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ))}
+                        {/* Botón añadir fila */}
+                        <div className="px-3 py-2" style={{ borderTop: '1px solid #F0EDE8' }}>
+                          <button type="button" onClick={addTarifaFila}
+                            className="flex items-center gap-1 text-[11px] font-mono transition-colors hover:text-[#173A25]"
+                            style={{ color: '#9A8F87' }}>
+                            <Plus className="h-3 w-3" /> añadir operación
                           </button>
                         </div>
                       </div>
-                    )}
-                  </F>
-                  <div className="grid grid-cols-2 gap-3">
-                    <F label="Orden">
-                      <input type="number" min={1} value={tarifaForm.orden}
-                        onChange={e => setTarifaForm(f => ({ ...f, orden: e.target.value }))}
-                        className="w-full border px-3 py-2 text-sm" style={{ borderColor: '#DDD8CF' }} />
-                    </F>
-                    <F label="Tarifa S/.">
-                      <input type="number" step="0.001" min={0} value={tarifaForm.tarifa}
-                        onChange={e => setTarifaForm(f => ({ ...f, tarifa: e.target.value }))}
-                        className="w-full border px-3 py-2 text-sm" style={{ borderColor: '#DDD8CF' }} />
-                    </F>
+                    </div>
                   </div>
-                  <F label="Nombre de la Operación">
-                    <input type="text" value={tarifaForm.operacion}
-                      onChange={e => setTarifaForm(f => ({ ...f, operacion: e.target.value }))}
-                      className="w-full border px-3 py-2 text-sm" style={{ borderColor: '#DDD8CF' }}
-                      placeholder="Ej: COSTURA PRINCIPAL" required />
-                  </F>
-                  <F label="Notas">
-                    <input type="text" value={tarifaForm.notas}
-                      onChange={e => setTarifaForm(f => ({ ...f, notas: e.target.value }))}
-                      className="w-full border px-3 py-2 text-sm" style={{ borderColor: '#DDD8CF' }} />
-                  </F>
-                  <div className="flex justify-end gap-3 pt-2">
-                    <button type="button" onClick={() => setShowTarifaForm(false)}
+
+                  <div className="flex justify-end gap-3 px-6 py-4 border-t flex-shrink-0" style={{ borderColor: '#DDD8CF' }}>
+                    <button type="button" onClick={() => { setShowTarifaForm(false); setTarifaFormProductoId(''); setTarifaFilas([{ operacion: '', tarifa: '0', notas: '' }]); }}
                       className="px-4 py-2 text-xs font-bold border" style={{ borderColor: '#DDD8CF', color: '#6B6058' }}>
                       Cancelar
                     </button>
                     <button type="submit"
                       className="px-4 py-2 text-xs font-bold text-white" style={{ background: '#173A25' }}>
-                      Guardar
+                      Guardar {tarifaFilas.filter(f => f.operacion.trim()).length > 1
+                        ? `${tarifaFilas.filter(f => f.operacion.trim()).length} tarifas`
+                        : 'tarifa'}
                     </button>
                   </div>
                 </form>
