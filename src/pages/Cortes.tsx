@@ -166,7 +166,7 @@ export function Cortes() {
     if (!prod) return;
     setForm(f => {
       const partial: Partial<CorteForm> = {};
-      if (prod.telaId && !f.telaId) partial.telaId = prod.telaId;
+      if (prod.telaId) partial.telaId = prod.telaId;
       const pS = prod.propS ?? 0, pM = prod.propM ?? 0, pL = prod.propL ?? 0, pXL = prod.propXL ?? 0;
       const hasProps = pS > 0 || pM > 0 || pL > 0 || pXL > 0;
       if (hasProps && !f.propS && !f.propM && !f.propL && !f.propXL) {
@@ -1120,10 +1120,23 @@ export function Cortes() {
                   </select>
                 </F>
                 <F label="Tela">
-                  <select value={form.telaId} onChange={set('telaId')} className="input-base">
-                    <option value="">— (opcional)</option>
-                    {telas.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
-                  </select>
+                  {(() => {
+                    const prodTela = productoMap.get(form.productoId)?.telaId;
+                    if (prodTela) {
+                      const tela = telas.find(t => t.id === prodTela);
+                      return (
+                        <select value={form.telaId} disabled className="input-base bg-gray-50 text-gray-600 cursor-not-allowed">
+                          <option value={prodTela}>{tela?.nombre ?? prodTela}</option>
+                        </select>
+                      );
+                    }
+                    return (
+                      <select value={form.telaId} onChange={set('telaId')} className="input-base">
+                        <option value="">— (opcional)</option>
+                        {telas.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+                      </select>
+                    );
+                  })()}
                 </F>
               </div>
               <div className="grid grid-cols-3 gap-4">
