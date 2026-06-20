@@ -100,7 +100,7 @@ export function Catalogos() {
 
   // --- Productos ---
   const [showProdForm, setShowProdForm] = useState(false);
-  const [prodForm, setProdForm] = useState({ nombre: '', marca: '', notas: '' });
+  const [prodForm, setProdForm] = useState({ nombre: '', marca: '', telaId: '', notas: '' });
   const [expandedProd, setExpandedProd] = useState<string | null>(null);
   const [recetaForms, setRecetaForms] = useState<Record<string, { tipoComplemento: TipoComplemento; origen: string; cantidad: string; notas: string }>>({});
   // Auto-calc state per product
@@ -109,10 +109,10 @@ export function Catalogos() {
   const handleAddProducto = (e: React.FormEvent) => {
     e.preventDefault();
     if (!prodForm.nombre) { addToast('Nombre requerido', 'error'); return; }
-    addProducto({ id: newId(), nombre: prodForm.nombre, marca: prodForm.marca || undefined, costoMoTotal: 0, precioServicio: 0, notas: prodForm.notas });
+    addProducto({ id: newId(), nombre: prodForm.nombre, marca: prodForm.marca || undefined, costoMoTotal: 0, precioServicio: 0, telaId: prodForm.telaId || undefined, notas: prodForm.notas });
     addToast('Producto agregado', 'success');
     setShowProdForm(false);
-    setProdForm({ nombre: '', marca: '', notas: '' });
+    setProdForm({ nombre: '', marca: '', telaId: '', notas: '' });
   };
 
   // --- Tarifas ---
@@ -373,9 +373,12 @@ export function Catalogos() {
                             {(p.precioServicio - p.costoMoTotal).toFixed(3)}
                           </td>
                           <td>
-                            <input type="text" value={p.telaBase ?? ''}
-                              onChange={e => updateProducto(p.id, { telaBase: e.target.value || undefined })}
-                              className="w-36 input-base text-xs py-0.5" placeholder="Ej: Jersey 24/1" />
+                            <select value={p.telaId ?? ''}
+                              onChange={e => updateProducto(p.id, { telaId: e.target.value || undefined })}
+                              className="w-40 input-base text-xs py-0.5">
+                              <option value="">— Sin tela —</option>
+                              {telas.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+                            </select>
                           </td>
                           <td>
                             <input type="number" step="0.001" min={0} value={p.limiteConsumo ?? ''}
@@ -571,6 +574,7 @@ export function Catalogos() {
                 <form onSubmit={handleAddProducto} className="p-6 space-y-4">
                   <F label="Nombre"><input type="text" value={prodForm.nombre} onChange={e => setProdForm(f => ({ ...f, nombre: e.target.value }))} className="input-base" required /></F>
                   <F label="Marca"><select value={prodForm.marca} onChange={e => setProdForm(f => ({ ...f, marca: e.target.value }))} className="input-base"><option value="">— Sin marca —</option><option value="Overshark">Overshark</option><option value="Bravos">Bravos</option></select></F>
+                  <F label="Tela"><select value={prodForm.telaId} onChange={e => setProdForm(f => ({ ...f, telaId: e.target.value }))} className="input-base"><option value="">— Sin tela —</option>{telas.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}</select></F>
                   <F label="Notas"><input type="text" value={prodForm.notas} onChange={e => setProdForm(f => ({ ...f, notas: e.target.value }))} className="input-base" /></F>
                   <div className="flex justify-end gap-3"><button type="button" onClick={() => setShowProdForm(false)} className="btn-secondary">Cancelar</button><button type="submit" className="btn-primary">Guardar</button></div>
                 </form>
