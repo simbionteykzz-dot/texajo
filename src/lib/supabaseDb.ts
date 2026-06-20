@@ -59,7 +59,7 @@ const toTela = (r: DbTela): Tela => ({ id: String(r.id), nombre: r.nombre, compo
 const toColor = (r: DbColor): Color => ({ id: String(r.id), nombre: r.nombre, categoria: r.categoria, prioridad: r.prioridad, notas: r.notas ?? '' });
 const toPrecioTela = (r: DbPrecioTela): PrecioTela => ({ id: String(r.id), telaId: String(r.tela_id), categoriaColor: r.categoria ?? r.categoria_color, precioKg: r.precio_kg });
 const toPrecioComplemento = (r: DbPrecioCompl): PrecioComplemento => ({ id: String(r.id), clave: r.clave, tipo: r.tipo, origen: r.origen, talla: r.talla, precio: r.precio });
-const toPrecioTejeduria = (r: DbPrecioTej): PrecioTejeduria => ({ id: String(r.id), tipoTejido: r.tipo_tejido, precioKg: r.precio_kg });
+const toPrecioTejeduria = (r: DbPrecioTej): PrecioTejeduria => ({ id: String(r.id), tipoTejido: r.tipo_tejido, precioKg: r.precio_kg_soles });
 const toProducto = (r: DbProducto): Producto => ({ id: String(r.id), nombre: r.nombre, marca: r.marca ?? undefined, costoMoTotal: r.costo_mo ?? 0, precioServicio: r.precio_venta ?? 0, telaId: r.tela_id ? String(r.tela_id) : undefined, limiteConsumo: r.limite_consumo ?? undefined, limiteRendimiento: r.limite_rendimiento ?? undefined, propS: r.prop_s ?? undefined, propM: r.prop_m ?? undefined, propL: r.prop_l ?? undefined, propXL: r.prop_xl ?? undefined, notas: r.notas ?? '' });
 const toTarifa = (r: DbTarifa): TarifaOperacion => ({ id: String(r.id), productoId: String(r.producto_id), orden: r.orden, operacion: r.operacion, tarifa: r.tarifa, notas: r.notas, clave: r.clave });
 const toOperario = (r: DbOperario): Operario => ({ id: String(r.id), codigo: r.codigo, nombre: r.nombre_completo, estado: r.estado ?? (r.activo === false ? 'INACTIVO' : 'ACTIVO'), dni: r.dni ?? undefined, telefono: r.telefono ?? undefined, modulo: r.modulo ?? undefined, maquina: r.maquina ?? undefined, fechaIngreso: r.fecha_ingreso ?? undefined });
@@ -112,12 +112,12 @@ const fromProveedorInsert = (v: Proveedor) => ({ nombre: v.nombre, ruc: v.ruc, c
 const fromTela = (v: Tela) => ({ id: v.id, nombre: v.nombre, composicion: v.composicion, kg_por_rollo: v.kgPorRollo, notas: v.notas });
 const fromTelaInsert = (v: Tela) => ({ nombre: v.nombre, composicion: v.composicion, kg_por_rollo: v.kgPorRollo, notas: v.notas });
 const fromColor = (v: Color) => ({ nombre: v.nombre, categoria: v.categoria, prioridad: v.prioridad, notas: v.notas });
-const fromPrecioTela = (v: PrecioTela) => ({ id: v.id, tela_id: v.telaId, categoria_color: v.categoriaColor, precio_kg: v.precioKg });
-const fromPrecioTelaInsert = (v: PrecioTela) => ({ tela_id: v.telaId, categoria_color: v.categoriaColor, precio_kg: v.precioKg });
+const fromPrecioTela = (v: PrecioTela) => ({ id: v.id, tela_id: v.telaId, categoria: v.categoriaColor, precio_kg: v.precioKg });
+const fromPrecioTelaInsert = (v: PrecioTela) => ({ tela_id: v.telaId, categoria: v.categoriaColor, precio_kg: v.precioKg });
 const fromPrecioComplemento = (v: PrecioComplemento) => ({ id: v.id, clave: v.clave, tipo: v.tipo, origen: v.origen, talla: v.talla, precio: v.precio });
 const fromPrecioComplementoInsert = (v: PrecioComplemento) => ({ clave: v.clave, tipo: v.tipo, origen: v.origen, talla: v.talla, precio: v.precio });
-const fromPrecioTejeduria = (v: PrecioTejeduria) => ({ id: v.id, tipo_tejido: v.tipoTejido, precio_kg: v.precioKg });
-const fromPrecioTejeduriaInsert = (v: PrecioTejeduria) => ({ tipo_tejido: v.tipoTejido, precio_kg: v.precioKg });
+const fromPrecioTejeduria = (v: PrecioTejeduria) => ({ id: v.id, tipo_tejido: v.tipoTejido, precio_kg_soles: v.precioKg });
+const fromPrecioTejeduriaInsert = (v: PrecioTejeduria) => ({ tipo_tejido: v.tipoTejido, precio_kg_soles: v.precioKg });
 const toPrecioTintoreria = (r: DbPrecioTint): PrecioTintoreria => ({ id: String(r.id), tipoServicio: r.tipo_servicio, tipoTela: r.tipo_tela, precioKg: r.precio_kg, moneda: r.moneda, notas: r.notas ?? '' });
 const fromPrecioTintoreria = (v: PrecioTintoreria) => ({ id: v.id, tipo_servicio: v.tipoServicio, tipo_tela: v.tipoTela, precio_kg: v.precioKg, moneda: v.moneda, notas: v.notas });
 const fromPrecioTintoreraInsert = (v: PrecioTintoreria) => ({ tipo_servicio: v.tipoServicio, tipo_tela: v.tipoTela, precio_kg: v.precioKg, moneda: v.moneda, notas: v.notas });
