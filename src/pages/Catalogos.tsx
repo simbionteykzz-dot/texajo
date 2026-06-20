@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
 import { useEsAdmin } from '../lib/useEsAdmin';
-import { Plus, X, Trash2, ChevronRight, ChevronDown, Upload } from 'lucide-react';
+import { Plus, X, Trash2, ChevronRight, ChevronDown, Upload, Check } from 'lucide-react';
 import { CategoriaColor, Operario, TipoComplemento, RecetaComplemento, ProductoColor, TIPOS_COMPLEMENTO_LIST } from '../types';
 import { ModuleInfoBox } from '../components/ModuleInfoBox';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -198,6 +198,19 @@ export function Catalogos() {
   // --- Precios Tejeduría ---
   const [showTejForm, setShowTejForm] = useState(false);
   const [tejForm, setTejForm] = useState({ tipoTejido: '', precioKg: '' });
+  const [tejEdits, setTejEdits] = useState<Record<string, { tipoTejido: string; precioKg: string }>>({});
+  const getTejEdit = (pt: { id: string; tipoTejido: string; precioKg: number }) =>
+    tejEdits[pt.id] ?? { tipoTejido: pt.tipoTejido, precioKg: String(pt.precioKg) };
+  const setTejEditField = (id: string, field: 'tipoTejido' | 'precioKg', value: string, original: { tipoTejido: string; precioKg: number }) => {
+    setTejEdits(prev => ({ ...prev, [id]: { ...getTejEdit({ id, ...original }), [field]: value } }));
+  };
+  const handleSaveTejEdit = (id: string) => {
+    const edit = tejEdits[id];
+    if (!edit) return;
+    updatePrecioTejeduria(id, { tipoTejido: edit.tipoTejido, precioKg: parseFloat(edit.precioKg) || 0 });
+    setTejEdits(prev => { const n = { ...prev }; delete n[id]; return n; });
+    addToast('Precio actualizado', 'success');
+  };
 
   const handleAddTejido = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1132,28 +1145,40 @@ export function Catalogos() {
                   </tr>
                 </thead>
                 <tbody>
-                  {preciosTejeduria.map(pt => (
-                    <tr key={pt.id}>
-                      <td>
-                        <input type="text" value={pt.tipoTejido}
-                          onChange={e => updatePrecioTejeduria(pt.id, { tipoTejido: e.target.value })}
-                          className="w-48 input-base text-xs py-0.5 font-bold" />
-                      </td>
-                      <td>
-                        <input type="number" min={0} step={0.01} value={pt.precioKg}
-                          onChange={e => updatePrecioTejeduria(pt.id, { precioKg: parseFloat(e.target.value) || 0 })}
-                          className="w-24 input-base text-right text-xs py-0.5" />
-                      </td>
-                      <td>
-                        {esAdmin && (
-                          <button onClick={() => deletePrecioTejeduria(pt.id)}
-                            className="text-red-400 hover:text-red-700 p-1">
-                            <X className="h-3 w-3" />
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                  {preciosTejeduria.map(pt => {
+                    const edit = getTejEdit(pt);
+                    const isDirty = tejEdits[pt.id] !== undefined;
+                    return (
+                      <tr key={pt.id}>
+                        <td>
+                          <input type="text" value={edit.tipoTejido}
+                            onChange={e => setTejEditField(pt.id, 'tipoTejido', e.target.value, pt)}
+                            className="w-48 input-base text-xs py-0.5 font-bold" />
+                        </td>
+                        <td>
+                          <input type="number" min={0} step={0.01} value={edit.precioKg}
+                            onChange={e => setTejEditField(pt.id, 'precioKg', e.target.value, pt)}
+                            className="w-24 input-base text-right text-xs py-0.5" />
+                        </td>
+                        <td>
+                          <div className="flex items-center gap-1">
+                            {isDirty && (
+                              <button onClick={() => handleSaveTejEdit(pt.id)}
+                                className="text-green-600 hover:text-green-800 p-1" title="Confirmar guardado">
+                                <Check className="h-3 w-3" />
+                              </button>
+                            )}
+                            {esAdmin && (
+                              <button onClick={() => deletePrecioTejeduria(pt.id)}
+                                className="text-red-400 hover:text-red-700 p-1">
+                                <X className="h-3 w-3" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                   {preciosTejeduria.length === 0 && (
                     <tr><td colSpan={3} className="text-center text-xs text-gray-400 py-6">Sin precios registrados</td></tr>
                   )}
