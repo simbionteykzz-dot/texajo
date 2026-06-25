@@ -4,3 +4,7 @@ import { twMerge } from "tailwind-merge"
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
+
+export function capWords(s: string): string {
+  return s.replace(/(^|\s)(\S)/g, (_, sp, ch) => sp + ch.toUpperCase());
+}
