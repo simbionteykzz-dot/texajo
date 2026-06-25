@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { RefreshCw, ChevronDown, ChevronRight, AlertCircle, Loader2, X, FileSpreadsheet, FileText, LayoutDashboard, List } from 'lucide-react';
+import { RefreshCw, ChevronDown, ChevronRight, AlertCircle, Loader2, X, FileSpreadsheet, FileText, LayoutDashboard, List, SlidersHorizontal } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { exportRowsToXlsx } from '../lib/exportExcel';
@@ -247,11 +247,12 @@ function Dashboard({ rows }: { rows: import('../lib/odooService').ProductRow[] }
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function OdooStock() {
-  const [raw, setRaw]           = useState<OdooAll | null>(null);
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState<string | null>(null);
-  const [expanded, setExpanded] = useState<Set<number>>(new Set());
-  const [vista, setVista]       = useState<'tabla' | 'dashboard'>('tabla');
+  const [raw, setRaw]                 = useState<OdooAll | null>(null);
+  const [loading, setLoading]         = useState(false);
+  const [error, setError]             = useState<string | null>(null);
+  const [expanded, setExpanded]       = useState<Set<number>>(new Set());
+  const [vista, setVista]             = useState<'tabla' | 'dashboard'>('tabla');
+  const [filtrosPanelOpen, setFiltrosPanelOpen] = useState(false);
 
   // Filters
   const [filtroEmpresas, setFiltroEmpresas]   = useState<Set<string>>(new Set());
@@ -589,7 +590,7 @@ export default function OdooStock() {
     <div className="space-y-4">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-sm font-bold uppercase tracking-widest text-[#1A1A1A]">Stock Odoo</h2>
           <p className="text-[11px] text-[#9A8F87] mt-0.5">
@@ -598,7 +599,20 @@ export default function OdooStock() {
               : 'Sin datos'}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Botón filtros — solo visible en móvil */}
+          {raw && (
+            <button
+              onClick={() => setFiltrosPanelOpen(o => !o)}
+              className={`md:hidden btn-secondary flex items-center gap-1.5 ${filtrosPanelOpen ? 'bg-[#173A25] text-[#F5F2EA] border-[#173A25]' : ''}`}
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              <span className="text-[10px] font-bold uppercase tracking-[0.1em]">Filtros</span>
+              {hasFilters && (
+                <span className="w-2 h-2 rounded-full bg-[#C4612A]" />
+              )}
+            </button>
+          )}
           {raw && (
             <div className="flex border border-[#DDD8CF] overflow-hidden">
               <button
@@ -610,7 +624,7 @@ export default function OdooStock() {
                 }`}
               >
                 <List className="h-3 w-3" />
-                Tabla
+                <span className="hidden xs:inline">Tabla</span>
               </button>
               <button
                 onClick={() => setVista('dashboard')}
@@ -621,7 +635,7 @@ export default function OdooStock() {
                 }`}
               >
                 <LayoutDashboard className="h-3 w-3" />
-                Dashboard
+                <span className="hidden xs:inline">Dashboard</span>
               </button>
             </div>
           )}
@@ -633,7 +647,7 @@ export default function OdooStock() {
                 title="Exportar a Excel"
               >
                 <FileSpreadsheet className="h-3.5 w-3.5 text-green-700" />
-                Excel
+                <span className="hidden sm:inline">Excel</span>
               </button>
               <button
                 onClick={exportarPDF}
@@ -641,7 +655,7 @@ export default function OdooStock() {
                 title="Exportar a PDF"
               >
                 <FileText className="h-3.5 w-3.5 text-red-600" />
-                PDF
+                <span className="hidden sm:inline">PDF</span>
               </button>
             </>
           )}
@@ -651,7 +665,7 @@ export default function OdooStock() {
             className="btn-secondary flex items-center gap-1.5 disabled:opacity-50"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-            {loading ? 'Cargando…' : 'Actualizar'}
+            <span className="hidden sm:inline">{loading ? 'Cargando…' : 'Actualizar'}</span>
           </button>
         </div>
       </div>
@@ -677,10 +691,10 @@ export default function OdooStock() {
 
       {/* Layout principal: sidebar + contenido */}
       {raw && (
-        <div className="flex gap-4 items-start">
+        <div className="flex flex-col md:flex-row gap-4 items-start">
 
           {/* ── Panel lateral de filtros ── */}
-          <aside className="w-52 flex-shrink-0 border border-[#DDD8CF] bg-[#F5F2EA] sticky top-4">
+          <aside className={`w-full md:w-52 md:flex-shrink-0 border border-[#DDD8CF] bg-[#F5F2EA] md:sticky md:top-4 ${filtrosPanelOpen ? 'block' : 'hidden'} md:block`}>
 
             {/* Header panel */}
             <div className="flex items-center justify-between px-3 py-2.5 border-b border-[#DDD8CF]">
@@ -854,25 +868,25 @@ export default function OdooStock() {
                   <button
                     type="button"
                     onClick={() => toggle(prod.templateId)}
-                    className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-[#F5F2EA] text-left transition-colors"
+                    className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-[#F5F2EA] text-left transition-colors min-w-0"
                   >
                     {isOpen
                       ? <ChevronDown  className="h-3.5 w-3.5 text-[#9A8F87] flex-shrink-0" />
                       : <ChevronRight className="h-3.5 w-3.5 text-[#9A8F87] flex-shrink-0" />
                     }
-                    <span className="text-xs font-bold text-[#1A1A1A] flex-1 truncate">{prod.templateName}</span>
-                    <span className="text-[9px] font-bold uppercase tracking-[0.1em] px-2 py-0.5 bg-[#173A25] text-[#F5F2EA]">
+                    <span className="text-xs font-bold text-[#1A1A1A] flex-1 truncate min-w-0">{prod.templateName}</span>
+                    <span className="hidden sm:inline text-[9px] font-bold uppercase tracking-[0.1em] px-2 py-0.5 bg-[#173A25] text-[#F5F2EA] flex-shrink-0">
                       {prod.empresa || '—'}
-                    </span>
-                    <span className={`text-[10px] font-mono font-bold px-2 py-0.5 ${stockBadgeClass(prod.totalStock)}`}>
-                      {prod.totalStock.toFixed(0)} uds
                     </span>
                     <span
                       className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                       style={{ backgroundColor: getStockLevel(prod.totalStock).dotColor }}
                       title={getStockLevel(prod.totalStock).label}
                     />
-                    <span className="text-[9px] text-[#9A8F87]">{prod.variantes.length} var.</span>
+                    <span className={`text-[10px] font-mono font-bold px-2 py-0.5 flex-shrink-0 ${stockBadgeClass(prod.totalStock)}`}>
+                      {prod.totalStock.toFixed(0)} uds
+                    </span>
+                    <span className="hidden sm:inline text-[9px] text-[#9A8F87] flex-shrink-0">{prod.variantes.length} var.</span>
                   </button>
 
                   {isOpen && (
@@ -880,11 +894,14 @@ export default function OdooStock() {
                       <table className="min-w-full text-xs">
                         <thead>
                           <tr className="bg-[#1A1A1A] text-[#F5F2EA]">
-                            {['SKU','Color','Talla','Otros','Stock','Reservado','Disponible','Ubicaciones'].map(h => (
-                              <th key={h} className="px-3 py-2 text-[9px] font-bold uppercase tracking-[0.14em] text-left whitespace-nowrap font-mono">
-                                {h}
-                              </th>
-                            ))}
+                            <th className="hidden sm:table-cell px-3 py-2 text-[9px] font-bold uppercase tracking-[0.14em] text-left whitespace-nowrap font-mono">SKU</th>
+                            <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-[0.14em] text-left whitespace-nowrap font-mono">Color</th>
+                            <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-[0.14em] text-left whitespace-nowrap font-mono">Talla</th>
+                            <th className="hidden sm:table-cell px-3 py-2 text-[9px] font-bold uppercase tracking-[0.14em] text-left whitespace-nowrap font-mono">Otros</th>
+                            <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-[0.14em] text-left whitespace-nowrap font-mono">Stock</th>
+                            <th className="hidden sm:table-cell px-3 py-2 text-[9px] font-bold uppercase tracking-[0.14em] text-left whitespace-nowrap font-mono">Reservado</th>
+                            <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-[0.14em] text-left whitespace-nowrap font-mono">Disponible</th>
+                            <th className="hidden md:table-cell px-3 py-2 text-[9px] font-bold uppercase tracking-[0.14em] text-left whitespace-nowrap font-mono">Ubicaciones</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -899,10 +916,10 @@ export default function OdooStock() {
                                 :                              'bg-green-50 border-l-2 border-l-green-400'
                                 : i % 2 === 0 ? 'bg-white' : 'bg-[#F7F4EF]'
                             }`}>
-                              <td className="px-3 py-1.5 font-mono text-[#7A6F67] text-[11px]">{v.sku || '—'}</td>
+                              <td className="hidden sm:table-cell px-3 py-1.5 font-mono text-[#7A6F67] text-[11px]">{v.sku || '—'}</td>
                               <td className="px-3 py-1.5 text-[#1A1A1A]">{v.color || '—'}</td>
                               <td className="px-3 py-1.5 text-[#1A1A1A]">{v.talla || '—'}</td>
-                              <td className="px-3 py-1.5 text-[#9A8F87] text-[10px]">{v.otrosAttr || '—'}</td>
+                              <td className="hidden sm:table-cell px-3 py-1.5 text-[#9A8F87] text-[10px]">{v.otrosAttr || '—'}</td>
                               <td className="px-3 py-1.5 text-right">
                                 <span className="inline-flex items-center gap-1.5">
                                   <span
@@ -915,7 +932,7 @@ export default function OdooStock() {
                                   </span>
                                 </span>
                               </td>
-                              <td className="px-3 py-1.5 text-right font-mono text-[#7A6F67] text-[11px]">
+                              <td className="hidden sm:table-cell px-3 py-1.5 text-right font-mono text-[#7A6F67] text-[11px]">
                                 {v.stockReservado > 0 ? v.stockReservado.toFixed(0) : '—'}
                               </td>
                               <td className="px-3 py-1.5 text-right">
@@ -923,7 +940,7 @@ export default function OdooStock() {
                                   {v.stockDisponible.toFixed(0)}
                                 </span>
                               </td>
-                              <td className="px-3 py-1.5 text-[10px] text-[#9A8F87] max-w-[180px] truncate">
+                              <td className="hidden md:table-cell px-3 py-1.5 text-[10px] text-[#9A8F87] max-w-[180px] truncate">
                                 {v.locationBreakdown.length > 0
                                   ? v.locationBreakdown.map(l => `${l.locationName}: ${l.qty.toFixed(0)}`).join(' · ')
                                   : '—'}
