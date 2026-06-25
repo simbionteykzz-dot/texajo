@@ -2,13 +2,14 @@ import React, { useState, useMemo } from 'react';
 import { motion } from 'motion/react';
 import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
-import { Download, Plus, X, ChevronDown, ChevronRight, FileText, Trash2, CheckCircle, RotateCcw } from 'lucide-react';
-import { SeguimientoFila, SeguimientoAsignacion } from '../types';
+import { Download, Plus, X, ChevronDown, ChevronRight, FileText, Trash2, CheckCircle, RotateCcw, MoreHorizontal } from 'lucide-react';
+import { SeguimientoFila, SeguimientoAsignacion, BoletaLinea } from '../types';
 import { ModuleInfoBox } from '../components/ModuleInfoBox';
 import { exportRowsToXlsx, exportTableToPdf, exportHojaSeguimientoPdf, exportHojaSeguimientoXlsx } from '../lib/export';
 import type { PdfFont } from '../lib/fonts';
 import { newId } from '../lib/storage';
 import { useEsAdmin } from '../lib/useEsAdmin';
+import { capWords } from '../lib/utils';
 
 // Paleta exacta por nombre (coincidencia exacta primero, luego parcial)
 const COLOR_PALETTE: Record<string, string> = {
@@ -97,6 +98,10 @@ export function ProduccionConfeccion() {
   const [avanceOps, setAvanceOps] = useState<Record<string, boolean>>({});
   // Operarios por operación en el modal confirmar: { [tarifaId]: { operarioId, cantidad }[] }
   const [avanceOpsIds, setAvanceOpsIds] = useState<Record<string, { operarioId: string; cantidad: number }[]>>({});
+  // Menú desplegable "···" por fila (corteId+colorId+talla)
+  const [menuAbierto, setMenuAbierto] = useState<string | null>(null);
+  // Modal edición de operarios por talla (separado del modal confirmar)
+  const [modalEditOps, setModalEditOps] = useState<{ corteId: string; colorId: string; talla: string } | null>(null);
   // Hex overrides por colorId — persiste durante la sesión para que el PDF use el color elegido
   const [colorHexOverrides, setColorHexOverrides] = useState<Record<string, string>>({});
   const [modalHex, setModalHex] = useState<string>('#9E9E9E');
@@ -218,6 +223,97 @@ export function ProduccionConfeccion() {
     setColorHexOverrides(prev => ({ ...prev, [modalColor.colorId]: modalHex }));
     setModalColor(null);
     addToast('Operarios guardados', 'success');
+  };
+
+  const abrirModalEditOps = (corteId: string, colorId: string, talla: string) => {
+    const fila = seguimientoFilas.find(f => f.corteId === corteId && f.colorId === colorId && f.talla === talla);
+    const inicialIds: Record<string, { operarioId: string; cantidad: number }[]> = {};
+    fila?.asignaciones.forEach(a => {
+      const ids = a.operarioIds?.length ? a.operarioIds : (a.operarioId ? [a.operarioId] : []);
+      const totalCant = fila.cantidad;
+      const base = ids.length > 0 ? Math.floor(totalCant / ids.length) : totalCant;
+      const resto = ids.length > 0 ? totalCant - base * ids.length : 0;
+      inicialIds[a.tarifaId] = ids.map((id, i) => ({ operarioId: id, cantidad: base + (i === 0 ? resto : 0) }));
+      if (inicialIds[a.tarifaId].length === 0) inicialIds[a.tarifaId] = [{ operarioId: '', cantidad: totalCant }];
+    });
+    setAvanceOpsIds(inicialIds);
+    setModalEditOps({ corteId, colorId, talla });
+    setMenuAbierto(null);
+  };
+
+  const guardarModalEditOps = () => {
+    if (!modalEditOps) return;
+    const { corteId, colorId, talla } = modalEditOps;
+    const fila = seguimientoFilas.find(f => f.corteId === corteId && f.colorId === colorId && f.talla === talla);
+    if (!fila) return;
+
+    const asignaciones = fila.asignaciones.map(a => {
+      const ops = avanceOpsIds[a.tarifaId] ?? [];
+      const ids = ops.map(o => o.operarioId).filter(Boolean);
+      return {
+        ...a,
+        operarioId: ids[0] ?? a.operarioId,
+        operarioIds: ids.length > 0 ? ids : (a.operarioIds ?? []),
+      };
+    });
+    updateSeguimientoFila(fila.id, { asignaciones });
+
+    // Reconstruir boletas del color con los nuevos operarios
+    const periodo = fila.fecha.slice(0, 7);
+    const tarifasCorte = tarifasDelCorte(corteId);
+    const todasLasFilasColor: SeguimientoFila[] = seguimientoFilas
+      .filter(f => f.corteId === corteId && f.colorId === colorId)
+      .map(f => f.id === fila.id ? { ...f, asignaciones } : f);
+
+    const boletasViejas = boletaLineas.filter(
+      b => b.corteId === corteId && b.colorId === colorId && b.periodo === periodo
+    );
+    const nuevasBoletas: BoletaLinea[] = [];
+    for (const t of tarifasCorte) {
+      const filasConfirmadas = todasLasFilasColor.filter(f =>
+        f.asignaciones.some(a => a.tarifaId === t.id && a.confirmado === true)
+      );
+      if (filasConfirmadas.length === 0) continue;
+      const cantPorOperario = new Map<string, number>();
+      for (const filaConf of filasConfirmadas) {
+        const asig = filaConf.asignaciones.find(a => a.tarifaId === t.id);
+        if (!asig) continue;
+        if (filaConf.id === fila.id) {
+          for (const op of (avanceOpsIds[t.id] ?? []).filter(o => o.operarioId && o.cantidad > 0)) {
+            cantPorOperario.set(op.operarioId, (cantPorOperario.get(op.operarioId) ?? 0) + op.cantidad);
+          }
+        } else {
+          const ids = asig.operarioIds?.length ? asig.operarioIds : (asig.operarioId ? [asig.operarioId] : []);
+          if (ids.length === 0) continue;
+          if (ids.length === 1) {
+            cantPorOperario.set(ids[0], (cantPorOperario.get(ids[0]) ?? 0) + filaConf.cantidad);
+          } else {
+            const base = Math.floor(filaConf.cantidad / ids.length);
+            const resto = filaConf.cantidad - base * ids.length;
+            ids.forEach((id, i) => {
+              cantPorOperario.set(id, (cantPorOperario.get(id) ?? 0) + base + (i === 0 ? resto : 0));
+            });
+          }
+        }
+      }
+      const tarifa = tarifasOperaciones.find(tt => tt.id === t.id);
+      if (!tarifa) continue;
+      for (const [opId, cantTotal] of cantPorOperario) {
+        if (cantTotal === 0) continue;
+        nuevasBoletas.push({
+          id: newId(), operarioId: opId, corteId, nCorte: fila.nCorte,
+          productoId: fila.productoId, colorId, tarifaId: t.id,
+          operacion: tarifa.operacion, orden: tarifa.orden, tarifa: tarifa.tarifa,
+          cantPrendas: cantTotal, importe: cantTotal * tarifa.tarifa,
+          periodo, estadoPago: 'PENDIENTE',
+        });
+      }
+    }
+    boletasViejas.forEach(b => deleteBoletaLinea(b.id));
+    if (nuevasBoletas.length > 0) addBoletaLineas(nuevasBoletas);
+
+    setModalEditOps(null);
+    addToast('Operarios actualizados', 'success');
   };
 
   const abrirModalAvance = (corteId: string, colorId: string, talla: string) => {
@@ -717,6 +813,60 @@ export function ProduccionConfeccion() {
       });
   };
 
+  const generarFilasFaltantes = () => {
+    const cortesSinFilas = cortes.filter(c =>
+      c.estado !== 'ANULADO' && !filasPorCorte.has(c.id)
+    );
+    if (cortesSinFilas.length === 0) {
+      addToast('Todos los cortes ya tienen seguimiento', 'info');
+      return;
+    }
+    let totalFilas = 0;
+    for (const corte of cortesSinFilas) {
+      const tarifas = tarifasOperaciones
+        .filter(t => t.productoId === corte.productoId)
+        .sort((a, b) => a.orden - b.orden);
+      const detalles = corte.coloresDetalle && corte.coloresDetalle.length > 0
+        ? corte.coloresDetalle
+        : [{ colorId: corte.colorId, cantS: corte.cantS, cantM: corte.cantM, cantL: corte.cantL, cantXL: corte.cantXL }];
+      const grouped = new Map<string, { cantS: number; cantM: number; cantL: number; cantXL: number }>();
+      for (const d of detalles) {
+        const prev = grouped.get(d.colorId) ?? { cantS: 0, cantM: 0, cantL: 0, cantXL: 0 };
+        grouped.set(d.colorId, {
+          cantS: prev.cantS + ((d as any).cantS ?? 0),
+          cantM: prev.cantM + ((d as any).cantM ?? 0),
+          cantL: prev.cantL + ((d as any).cantL ?? 0),
+          cantXL: prev.cantXL + ((d as any).cantXL ?? 0),
+        });
+      }
+      for (const [colorId, cants] of grouped) {
+        const tallasValidas = (['S', 'M', 'L', 'XL'] as const).filter(t => cants[`cant${t}` as keyof typeof cants] > 0);
+        for (const talla of tallasValidas) {
+          const cantidad = cants[`cant${talla}` as keyof typeof cants] as number;
+          const asignaciones: SeguimientoAsignacion[] = tarifas.map(t => ({
+            tarifaId: t.id, operacion: t.operacion, orden: t.orden, operarioId: '', pago: 0,
+          }));
+          addSeguimientoFila({
+            id: newId(),
+            corteId: corte.id,
+            nCorte: corte.nCorte,
+            productoId: corte.productoId,
+            fecha: corte.fecha,
+            colorId,
+            talla,
+            cantidad,
+            asignaciones,
+            pctAvance: 0,
+            estado: 'PENDIENTE',
+            totalPago: 0,
+          });
+          totalFilas++;
+        }
+      }
+    }
+    addToast(`${totalFilas} fila${totalFilas !== 1 ? 's' : ''} creada${totalFilas !== 1 ? 's' : ''} para ${cortesSinFilas.length} corte${cortesSinFilas.length !== 1 ? 's' : ''}`, 'success');
+  };
+
   const exportarSeguimiento = () => {
     exportRowsToXlsx(buildRows(), `seguimiento_confeccion_${new Date().toISOString().slice(0, 10)}.xlsx`, 'Confeccion');
     addToast('Excel exportado', 'success');
@@ -776,7 +926,7 @@ export function ProduccionConfeccion() {
           <button onClick={exportarSeguimientoPdf} className="btn-secondary flex items-center gap-2">
             <FileText className="h-4 w-4" /> PDF
           </button>
-          <button onClick={() => setShowForm(true)} className="btn-primary flex items-center gap-2">
+<button onClick={() => setShowForm(true)} className="btn-primary flex items-center gap-2">
             <Plus className="h-4 w-4" /> Nueva Fila
           </button>
         </div>
@@ -860,7 +1010,7 @@ export function ProduccionConfeccion() {
                   <div className="flex items-center gap-4">
                     {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                     <span className="font-black text-sm">{corte.nCorte}</span>
-                    <span className="text-xs text-gray-500">{productoMap.get(corte.productoId)?.nombre}</span>
+                    <span className="text-xs text-gray-500">{capWords(productoMap.get(corte.productoId)?.nombre ?? '')}</span>
                     <span className="text-xs text-gray-400">{colorMap.get(corte.colorId)}</span>
                     <span className="text-xs text-gray-400">{corte.totalPrendas} prendas</span>
                     {fechasGuardadas.inicio && (
@@ -1098,6 +1248,35 @@ export function ProduccionConfeccion() {
                                                   <span>Confirmar</span>
                                                 </button>
                                               )}
+                                            {/* Botón ··· con menú desplegable */}
+                                            {(() => {
+                                              const menuKey = `${corte.id}-${grupo.colorId}-${fila.talla}`;
+                                              const abierto = menuAbierto === menuKey;
+                                              return (
+                                                <div className="relative">
+                                                  <button
+                                                    onClick={() => setMenuAbierto(abierto ? null : menuKey)}
+                                                    className="flex items-center text-[10px] border border-gray-200 text-gray-400 px-1 py-0.5 rounded hover:bg-gray-100 hover:text-gray-600"
+                                                    title="Más opciones"
+                                                  >
+                                                    <MoreHorizontal className="h-3 w-3" />
+                                                  </button>
+                                                  {abierto && (
+                                                    <>
+                                                      <div className="fixed inset-0 z-10" onClick={() => setMenuAbierto(null)} />
+                                                      <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-gray-200 rounded shadow-lg py-1 min-w-[140px]">
+                                                        <button
+                                                          onClick={() => abrirModalEditOps(corte.id, grupo.colorId, fila.talla)}
+                                                          className="w-full text-left px-3 py-1.5 text-[11px] text-gray-700 hover:bg-gray-50 whitespace-nowrap"
+                                                        >
+                                                          Editar operarios
+                                                        </button>
+                                                      </div>
+                                                    </>
+                                                  )}
+                                                </div>
+                                              );
+                                            })()}
                                             </div>
                                             {fila.estado !== 'LISTO' && opActual && (
                                               <div className="flex items-center gap-1">
@@ -1166,7 +1345,7 @@ export function ProduccionConfeccion() {
               >
                 <option value="">Seleccionar producto…</option>
                 {[...productos].sort((a, b) => a.nombre.localeCompare(b.nombre)).map(p => (
-                  <option key={p.id} value={p.id}>{p.nombre}</option>
+                  <option key={p.id} value={p.id}>{capWords(p.nombre)}</option>
                 ))}
               </select>
             </div>
@@ -1260,111 +1439,162 @@ export function ProduccionConfeccion() {
                   <X className="h-4 w-4" />
                 </button>
               </div>
-              <div className="px-5 py-4 space-y-3 max-h-[55vh] overflow-y-auto">
+              <div className="px-5 py-4 space-y-2 max-h-[55vh] overflow-y-auto">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Operaciones — Talla {talla}</p>
                 {tarifasModal.map(t => {
                   const checked = avanceOps[t.id] ?? false;
+                  const asig = filaModal?.asignaciones.find(a => a.tarifaId === t.id);
+                  const ids = asig?.operarioIds?.length ? asig.operarioIds : (asig?.operarioId ? [asig.operarioId] : []);
+                  const nombresOps = ids.map(id => {
+                    const op = operarioMap.get(id);
+                    if (!op) return '';
+                    return (op.nombre ?? op.codigo).split(',')[1]?.trim().split(/\s+/)[0] ?? (op.nombre ?? op.codigo).split(/\s+/)[0];
+                  }).filter(Boolean);
+                  return (
+                    <label
+                      key={t.id}
+                      className={`flex items-center gap-3 px-3 py-2.5 rounded border cursor-pointer transition-colors ${checked ? 'border-green-300 bg-green-50' : 'border-gray-200 bg-white hover:bg-gray-50'}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={e => setAvanceOps(prev => ({ ...prev, [t.id]: e.target.checked }))}
+                        className="h-3.5 w-3.5 accent-green-600 flex-shrink-0"
+                      />
+                      <span className="text-[10px] text-gray-400 font-mono w-4 flex-shrink-0">{t.orden}.</span>
+                      <span className={`text-[11px] font-bold flex-1 ${checked ? 'text-green-800' : 'text-gray-700'}`}>{t.operacion}</span>
+                      {nombresOps.length > 0 && (
+                        <span className="text-[10px] text-gray-400 whitespace-nowrap">{nombresOps.join(', ')}</span>
+                      )}
+                    </label>
+                  );
+                })}
+              </div>
+              {/* Preview avance */}
+              <div className="px-5 pb-3 flex items-center gap-3">
+                <div className="flex-1 h-1.5 bg-gray-200 rounded">
+                  <div className="h-full bg-black rounded transition-all" style={{ width: `${pctPreview}%` }} />
+                </div>
+                <span className="text-[11px] font-black tabular-nums w-10 text-right">{pctPreview}%</span>
+                <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${
+                  pctPreview === 100 ? 'bg-green-100 text-green-800' :
+                  pctPreview > 0 ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600'
+                }`}>
+                  {pctPreview === 100 ? 'Listo' : pctPreview > 0 ? 'En proceso' : 'Pendiente'}
+                </span>
+              </div>
+              <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100">
+                <button onClick={() => setModalAvance(null)} className="btn-secondary text-xs">Cancelar</button>
+                <button onClick={guardarModalAvance} className="btn-primary text-xs">Confirmar</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Modal edición de operarios por talla */}
+      {modalEditOps && (() => {
+        const { corteId, colorId, talla } = modalEditOps;
+        const tarifasModal = tarifasDelCorte(corteId);
+        const filaModal = seguimientoFilas.find(f => f.corteId === corteId && f.colorId === colorId && f.talla === talla);
+        const cantFila = filaModal?.cantidad ?? 0;
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setModalEditOps(null)}>
+            <div className="bg-white w-full max-w-sm rounded shadow-xl" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                <div>
+                  <p className="font-black text-sm">Editar operarios</p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">
+                    {colorMap.get(colorId)} — Talla {talla} — {cantFila} prendas
+                  </p>
+                </div>
+                <button onClick={() => setModalEditOps(null)} className="text-gray-400 hover:text-gray-600">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="px-5 py-4 space-y-3 max-h-[55vh] overflow-y-auto">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Operarios por operación — Talla {talla}</p>
+                {tarifasModal.map(t => {
                   const ops = avanceOpsIds[t.id] ?? [];
                   const totalAsignado = ops.reduce((s, o) => s + (o.cantidad || 0), 0);
-                  const cantFila = filaModal?.cantidad ?? 0;
                   const descuadre = totalAsignado !== cantFila && ops.some(o => o.operarioId);
                   return (
-                    <div
-                      key={t.id}
-                      className={`rounded border transition-colors ${checked ? 'border-green-300 bg-green-50' : 'border-gray-200 bg-white'}`}
-                    >
-                      {/* Fila principal: checkbox + nombre operación */}
-                      <label className="flex items-center gap-3 px-3 py-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={e => setAvanceOps(prev => ({ ...prev, [t.id]: e.target.checked }))}
-                          className="h-3.5 w-3.5 accent-green-600 flex-shrink-0"
-                        />
+                    <div key={t.id} className="rounded border border-gray-200 bg-white">
+                      <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-100">
                         <span className="text-[10px] text-gray-400 font-mono w-4 flex-shrink-0">{t.orden}.</span>
-                        <span className={`text-[11px] font-bold flex-1 ${checked ? 'text-green-800' : 'text-gray-700'}`}>{t.operacion}</span>
+                        <span className="text-[11px] font-bold text-gray-700 flex-1">{t.operacion}</span>
                         {descuadre && (
                           <span className="text-[9px] text-amber-600 font-bold whitespace-nowrap">{totalAsignado}/{cantFila}</span>
                         )}
-                      </label>
-                      {/* Operarios asignados con cantidades */}
-                      <div className="px-3 pb-2 space-y-1">
-                        {ops.map((op, opIdx) => {
-                          const opInfo = op.operarioId ? operarioMap.get(op.operarioId) : null;
-                          const nombreCorto = opInfo
-                            ? ((opInfo.nombre ?? opInfo.codigo).split(',')[1]?.trim().split(/\s+/)[0] ?? (opInfo.nombre ?? opInfo.codigo).split(/\s+/)[0])
-                            : '';
-                          return (
-                            <div key={opIdx} className="flex items-center gap-1.5">
-                              <select
-                                value={op.operarioId}
-                                onChange={e => {
-                                  const newId = e.target.value;
-                                  setAvanceOpsIds(prev => {
-                                    const list = [...(prev[t.id] ?? [])];
-                                    list[opIdx] = { ...list[opIdx], operarioId: newId };
-                                    return { ...prev, [t.id]: list };
-                                  });
-                                }}
-                                className="flex-1 text-[10px] border border-gray-200 rounded px-1.5 py-0.5 bg-white min-w-0"
+                      </div>
+                      <div className="px-3 py-2 space-y-1">
+                        {ops.map((op, opIdx) => (
+                          <div key={opIdx} className="flex items-center gap-1.5">
+                            <select
+                              value={op.operarioId}
+                              onChange={e => {
+                                const newOpId = e.target.value;
+                                setAvanceOpsIds(prev => {
+                                  const list = [...(prev[t.id] ?? [])];
+                                  list[opIdx] = { ...list[opIdx], operarioId: newOpId };
+                                  return { ...prev, [t.id]: list };
+                                });
+                              }}
+                              className="flex-1 text-[10px] border border-gray-200 rounded px-1.5 py-0.5 bg-white min-w-0"
+                            >
+                              <option value="">— sin operario —</option>
+                              {operarios.filter(o => o.estado === 'ACTIVO').map(o => (
+                                <option key={o.id} value={o.id}>
+                                  {(o.nombre ?? o.codigo).split(',')[1]?.trim().split(/\s+/)[0] ?? (o.nombre ?? o.codigo).split(/\s+/)[0]} ({o.codigo})
+                                </option>
+                              ))}
+                            </select>
+                            <input
+                              type="number"
+                              min={0}
+                              max={cantFila}
+                              value={op.cantidad}
+                              onChange={e => {
+                                const val = Math.min(parseInt(e.target.value) || 0, cantFila);
+                                setAvanceOpsIds(prev => {
+                                  const list = [...(prev[t.id] ?? [])];
+                                  list[opIdx] = { ...list[opIdx], cantidad: val };
+                                  const otros = list.length - 1;
+                                  if (otros > 0) {
+                                    const resto = cantFila - val;
+                                    const base = Math.floor(Math.max(resto, 0) / otros);
+                                    const mod = Math.max(resto, 0) - base * otros;
+                                    let primerOtro = true;
+                                    for (let i = 0; i < list.length; i++) {
+                                      if (i === opIdx) continue;
+                                      list[i] = { ...list[i], cantidad: base + (primerOtro ? mod : 0) };
+                                      primerOtro = false;
+                                    }
+                                  }
+                                  return { ...prev, [t.id]: list };
+                                });
+                              }}
+                              className="w-14 text-[10px] border border-gray-200 rounded px-1.5 py-0.5 text-right font-mono"
+                            />
+                            {ops.length > 1 && (
+                              <button
+                                onClick={() => setAvanceOpsIds(prev => {
+                                  const list = (prev[t.id] ?? []).filter((_, i) => i !== opIdx);
+                                  const total = list.reduce((s, o) => s + o.cantidad, 0);
+                                  if (total !== cantFila && list.length > 0) {
+                                    const base = Math.floor(cantFila / list.length);
+                                    const resto = cantFila - base * list.length;
+                                    return { ...prev, [t.id]: list.map((o, i) => ({ ...o, cantidad: base + (i === 0 ? resto : 0) })) };
+                                  }
+                                  return { ...prev, [t.id]: list };
+                                })}
+                                className="text-gray-300 hover:text-red-400 flex-shrink-0"
                               >
-                                <option value="">— sin operario —</option>
-                                {operarios.map(o => (
-                                  <option key={o.id} value={o.id}>
-                                    {(o.nombre ?? o.codigo).split(',')[1]?.trim().split(/\s+/)[0] ?? (o.nombre ?? o.codigo).split(/\s+/)[0]} ({o.codigo})
-                                  </option>
-                                ))}
-                              </select>
-                              <input
-                                type="number"
-                                min={0}
-                                max={cantFila}
-                                value={op.cantidad}
-                                onChange={e => {
-                                  const val = Math.min(parseInt(e.target.value) || 0, cantFila);
-                                  setAvanceOpsIds(prev => {
-                                    const list = [...(prev[t.id] ?? [])];
-                                    list[opIdx] = { ...list[opIdx], cantidad: val };
-                                    // Distribuir el resto entre los demás operarios
-                                    const otros = list.length - 1;
-                                    if (otros > 0) {
-                                      const resto = cantFila - val;
-                                      const base = Math.floor(Math.max(resto, 0) / otros);
-                                      const mod = Math.max(resto, 0) - base * otros;
-                                      let primerOtro = true;
-                                      for (let i = 0; i < list.length; i++) {
-                                        if (i === opIdx) continue;
-                                        list[i] = { ...list[i], cantidad: base + (primerOtro ? mod : 0) };
-                                        primerOtro = false;
-                                      }
-                                    }
-                                    return { ...prev, [t.id]: list };
-                                  });
-                                }}
-                                className="w-14 text-[10px] border border-gray-200 rounded px-1.5 py-0.5 text-right font-mono"
-                              />
-                              {ops.length > 1 && (
-                                <button
-                                  onClick={() => setAvanceOpsIds(prev => {
-                                    const list = (prev[t.id] ?? []).filter((_, i) => i !== opIdx);
-                                    // redistribuir
-                                    const total = list.reduce((s, o) => s + o.cantidad, 0);
-                                    if (total !== cantFila && list.length > 0) {
-                                      const base = Math.floor(cantFila / list.length);
-                                      const resto = cantFila - base * list.length;
-                                      return { ...prev, [t.id]: list.map((o, i) => ({ ...o, cantidad: base + (i === 0 ? resto : 0) })) };
-                                    }
-                                    return { ...prev, [t.id]: list };
-                                  })}
-                                  className="text-gray-300 hover:text-red-400 flex-shrink-0"
-                                >
-                                  <X className="h-3 w-3" />
-                                </button>
-                              )}
-                            </div>
-                          );
-                        })}
-                        {/* Botón añadir operario */}
+                                <X className="h-3 w-3" />
+                              </button>
+                            )}
+                          </div>
+                        ))}
                         <button
                           onClick={() => setAvanceOpsIds(prev => {
                             const list = [...(prev[t.id] ?? [])];
@@ -1385,22 +1615,9 @@ export function ProduccionConfeccion() {
                   );
                 })}
               </div>
-              {/* Preview avance */}
-              <div className="px-5 pb-3 flex items-center gap-3">
-                <div className="flex-1 h-1.5 bg-gray-200 rounded">
-                  <div className="h-full bg-black rounded transition-all" style={{ width: `${pctPreview}%` }} />
-                </div>
-                <span className="text-[11px] font-black tabular-nums w-10 text-right">{pctPreview}%</span>
-                <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${
-                  pctPreview === 100 ? 'bg-green-100 text-green-800' :
-                  pctPreview > 0 ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600'
-                }`}>
-                  {pctPreview === 100 ? 'Listo' : pctPreview > 0 ? 'En proceso' : 'Pendiente'}
-                </span>
-              </div>
               <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100">
-                <button onClick={() => setModalAvance(null)} className="btn-secondary text-xs">Cancelar</button>
-                <button onClick={guardarModalAvance} className="btn-primary text-xs">Confirmar</button>
+                <button onClick={() => setModalEditOps(null)} className="btn-secondary text-xs">Cancelar</button>
+                <button onClick={guardarModalEditOps} className="btn-primary text-xs">Guardar</button>
               </div>
             </div>
           </div>
@@ -1436,7 +1653,7 @@ export function ProduccionConfeccion() {
                 >
                   <option value="">Seleccionar…</option>
                   {cortes.filter(c => c.estado !== 'ANULADO').map(c => (
-                    <option key={c.id} value={c.id}>{c.nCorte} — {productoMap.get(c.productoId)?.nombre}</option>
+                    <option key={c.id} value={c.id}>{c.nCorte} — {capWords(productoMap.get(c.productoId)?.nombre ?? '')}</option>
                   ))}
                 </select>
               </F>

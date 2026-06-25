@@ -148,7 +148,13 @@ const fromCorte = (v: Corte) => {
   return base;
 };
 const fromSeguimientoFila = (v: SeguimientoFila) => ({ id: v.id, corte_id: safeInt(v.corteId), n_corte: v.nCorte, producto_id: safeInt(v.productoId), fecha: v.fecha, color_id: safeInt(v.colorId), talla: v.talla, cantidad: v.cantidad, asignaciones: v.asignaciones, pct_avance: v.pctAvance, porcentaje_avance: v.pctAvance, estado: v.estado, total_pago: v.totalPago });
-const fromSeguimientoFilaInsert = (v: SeguimientoFila) => ({ id: v.id, corte_id: safeInt(v.corteId), n_corte: v.nCorte, producto_id: safeInt(v.productoId), fecha: v.fecha, color_id: safeInt(v.colorId), talla: v.talla, cantidad: v.cantidad, asignaciones: v.asignaciones, pct_avance: v.pctAvance, porcentaje_avance: v.pctAvance, estado: v.estado, total_pago: v.totalPago });
+const tempIntId = () => Math.floor(Math.random() * 2000000000) + 1;
+const fromSeguimientoFilaInsert = (v: SeguimientoFila) => {
+  const parsedId = parseInt(v.id);
+  const id = isNaN(parsedId) ? tempIntId() : parsedId;
+  const nCorte = typeof v.nCorte === 'string' ? parseInt(v.nCorte) || v.nCorte : v.nCorte;
+  return { id, corte_id: safeInt(v.corteId), n_corte: nCorte, producto_id: safeInt(v.productoId), fecha: v.fecha, color_id: safeInt(v.colorId), talla: v.talla, cantidad: v.cantidad, asignaciones: v.asignaciones, pct_avance: v.pctAvance, porcentaje_avance: v.pctAvance, estado: v.estado, total_pago: v.totalPago };
+};
 const fromBoletaLinea = (v: BoletaLinea) => ({ id: v.id, operario_id: safeInt(v.operarioId), corte_id: v.corteId ? safeInt(v.corteId) : null, n_corte: v.nCorte, producto_id: v.productoId ? safeInt(v.productoId) : null, color_id: v.colorId ? safeInt(v.colorId) : null, talla: v.talla ?? null, tarifa_id: v.tarifaId ? safeInt(v.tarifaId) : null, operacion: v.operacion, orden: v.orden, tarifa: v.tarifa, cant_prendas: v.cantPrendas, importe: v.importe, periodo: v.periodo, fecha_registro: v.fechaRegistro ?? null, estado_pago: v.estadoPago, fecha_pago: v.fechaPago ?? null });
 const fromBoletaLineaInsert = (v: BoletaLinea) => ({ id: v.id, operario_id: safeInt(v.operarioId), corte_id: v.corteId ? safeInt(v.corteId) : null, n_corte: v.nCorte, producto_id: v.productoId ? safeInt(v.productoId) : null, color_id: v.colorId ? safeInt(v.colorId) : null, talla: v.talla ?? null, tarifa_id: v.tarifaId ? safeInt(v.tarifaId) : null, operacion: v.operacion, orden: v.orden, tarifa: v.tarifa, cant_prendas: v.cantPrendas, importe: v.importe, periodo: v.periodo, fecha_registro: v.fechaRegistro ?? null, estado_pago: v.estadoPago, fecha_pago: v.fechaPago ?? null });
 const fromDescuento = (v: DescuentoBoleta) => ({ operario_id: safeInt(v.operarioId), semana_inicio: v.periodo + '-01', tipo: v.tipo, monto: v.monto, descripcion: v.notas || null });
@@ -340,7 +346,8 @@ export async function seedInitialData(state: Omit<DbAppState, 'config'> & { conf
 type TableName = string;
 
 async function dbInsert<T>(table: TableName, row: T, mapper: (v: T) => Record<string, unknown>): Promise<string | null> {
-  const { data, error } = await supabase.from(table).insert(mapper(row)).select('id').single();
+  const payload = mapper(row);
+  const { data, error } = await supabase.from(table).insert(payload).select('id').single();
   if (error) throw error;
   return data ? String(data.id) : null;
 }
