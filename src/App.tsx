@@ -118,6 +118,30 @@ export default function App() {
     );
   }
 
+  if (!autenticado) {
+    return (
+      <Login
+        onLogin={async () => {
+          // Registrar login — leer sesión antes de setAutenticado para tener el userId
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user?.id) setProviderKey(session.user.id);
+          setAutenticado(true);
+          setMostrarIntro(true);
+          if (session) {
+            const meta = session.user.user_metadata ?? {};
+            await supabase.from('audit_logs').insert({
+              user_id: session.user.id,
+              user_email: session.user.email ?? '',
+              user_nombre: (meta['nombre'] as string) || (session.user.email ?? '').split('@')[0],
+              accion: 'LOGIN', entidad: 'session', entidad_id: session.user.id,
+              entidad_desc: `${(meta['nombre'] as string) || session.user.email} inició sesión`,
+            });
+          }
+        }}
+      />
+    );
+  }
+
   if (mostrarIntro) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#FFFFFF] px-6 py-8">

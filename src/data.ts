@@ -30,26 +30,46 @@ export const mockTelas: Tela[] = [
   { id: 'TEL-FT-PIQUE',  nombre: 'French Terry Piqué', composicion: '100% Algodón',           kgPorRollo: 20, notas: '' },
   { id: 'TEL-WAFLE',     nombre: 'Wafle',              composicion: '100% Algodón',           kgPorRollo: 20, notas: '' },
   { id: 'TEL-BABY-TY',   nombre: 'Baby Terry',         composicion: '100% Algodón',           kgPorRollo: 20, notas: '' },
-  { id: 'TEL-RIB',       nombre: 'Rib 1x1',            composicion: '95% Algodón 5% Elastano', kgPorRollo: 15, notas: '' },
+  { id: 'TEL-RIB',       nombre: 'Rib 1x1',              composicion: '95% Algodón 5% Elastano',    kgPorRollo: 15, notas: '' },
+  { id: 'TEL-PIQUE',     nombre: 'Pique 30/1',           composicion: '100% Algodón',               kgPorRollo: 20, notas: '' },
+  { id: 'TEL-RIB-2X1',   nombre: 'Rib 2x1 Lycrado',      composicion: '95% Algodón 5% Elastano',    kgPorRollo: 15, notas: '' },
+  { id: 'TEL-JERSEY-FL', nombre: 'Jersey Full Lycra 30/1', composicion: '85% Algodón 15% Elastano', kgPorRollo: 20, notas: '' },
+  { id: 'TEL-FT-24',     nombre: 'French Terry 24/1',    composicion: '100% Algodón',               kgPorRollo: 20, notas: '' },
 ];
 
-// ─── Colores (15) ─────────────────────────────────────────────────────────
+// ─── Colores ──────────────────────────────────────────────────────────────
 export const mockColores: Color[] = [
+  // OSCURO
   { id: 'COL-NEGRO',     nombre: 'Negro',        categoria: 'OSCURO',  prioridad: 1,  notas: '' },
   { id: 'COL-MARINO',    nombre: 'Azul Marino',  categoria: 'OSCURO',  prioridad: 2,  notas: '' },
   { id: 'COL-GRIS-OSC',  nombre: 'Gris Oscuro',  categoria: 'OSCURO',  prioridad: 3,  notas: '' },
   { id: 'COL-MILITAR',   nombre: 'Verde Militar', categoria: 'OSCURO', prioridad: 4,  notas: '' },
   { id: 'COL-MORADO',    nombre: 'Morado',        categoria: 'OSCURO', prioridad: 5,  notas: '' },
-  { id: 'COL-BLANCO',    nombre: 'Blanco',        categoria: 'CLARO',  prioridad: 6,  notas: '' },
-  { id: 'COL-PERLA',     nombre: 'Gris Perla',    categoria: 'CLARO',  prioridad: 7,  notas: '' },
-  { id: 'COL-BEIGE',     nombre: 'Beige',         categoria: 'CLARO',  prioridad: 8,  notas: '' },
-  { id: 'COL-CELESTE',   nombre: 'Celeste',        categoria: 'CLARO', prioridad: 9,  notas: '' },
-  { id: 'COL-ROSA',      nombre: 'Rosa',           categoria: 'CLARO', prioridad: 10, notas: '' },
-  { id: 'COL-MEL-GRIS',  nombre: 'Gris Melange',  categoria: 'MELANGE', prioridad: 11, notas: '' },
-  { id: 'COL-MEL-JASPE', nombre: 'Melange Jaspe', categoria: 'MELANGE', prioridad: 12, notas: '' },
-  { id: 'COL-PPT-VERDE', nombre: 'Verde PPT',     categoria: 'PPT',    prioridad: 13, notas: '' },
-  { id: 'COL-PPT-AZUL',  nombre: 'Azul PPT',      categoria: 'PPT',    prioridad: 14, notas: '' },
-  { id: 'COL-PPT-NAR',   nombre: 'Naranja PPT',   categoria: 'PPT',    prioridad: 15, notas: '' },
+  { id: 'COL-BOTELLA',   nombre: 'Botella',       categoria: 'OSCURO', prioridad: 6,  notas: '' },
+  { id: 'COL-VINO',      nombre: 'Vino',          categoria: 'OSCURO', prioridad: 7,  notas: '' },
+  { id: 'COL-DENIM',     nombre: 'Denim',         categoria: 'OSCURO', prioridad: 8,  notas: '' },
+  { id: 'COL-AZUL',      nombre: 'Azul',          categoria: 'OSCURO', prioridad: 9,  notas: '' },
+  // CLARO
+  { id: 'COL-BLANCO',    nombre: 'Blanco',        categoria: 'CLARO',  prioridad: 10, notas: '' },
+  { id: 'COL-PERLA',     nombre: 'Gris Perla',    categoria: 'CLARO',  prioridad: 11, notas: '' },
+  { id: 'COL-PERLA-INV', nombre: 'Perla',         categoria: 'CLARO',  prioridad: 12, notas: '' },
+  { id: 'COL-BEIGE',     nombre: 'Beige',         categoria: 'CLARO',  prioridad: 13, notas: '' },
+  { id: 'COL-CELESTE',   nombre: 'Celeste',        categoria: 'CLARO', prioridad: 14, notas: '' },
+  { id: 'COL-ROSA',      nombre: 'Rosa',           categoria: 'CLARO', prioridad: 15, notas: '' },
+  { id: 'COL-P-ROSA',    nombre: 'P. Rosa',        categoria: 'CLARO', prioridad: 16, notas: '' },
+  { id: 'COL-CEMENTO',   nombre: 'Cemento',        categoria: 'CLARO', prioridad: 17, notas: '' },
+  { id: 'COL-PACAY',     nombre: 'Pacay',          categoria: 'CLARO', prioridad: 18, notas: '' },
+  { id: 'COL-CAMOTE',    nombre: 'Camote',         categoria: 'CLARO', prioridad: 19, notas: '' },
+  { id: 'COL-TOPO',      nombre: 'Topo',           categoria: 'CLARO', prioridad: 20, notas: '' },
+  { id: 'COL-PLOMO',     nombre: 'Plomo',          categoria: 'CLARO', prioridad: 21, notas: '' },
+  // MELANGE
+  { id: 'COL-MEL-GRIS',  nombre: 'Gris Melange',  categoria: 'MELANGE', prioridad: 22, notas: '' },
+  { id: 'COL-MEL-JASPE', nombre: 'Melange Jaspe', categoria: 'MELANGE', prioridad: 23, notas: '' },
+  { id: 'COL-MELANGE',   nombre: 'Melange',        categoria: 'MELANGE', prioridad: 24, notas: '' },
+  // PPT
+  { id: 'COL-PPT-VERDE', nombre: 'Verde PPT',     categoria: 'PPT',    prioridad: 25, notas: '' },
+  { id: 'COL-PPT-AZUL',  nombre: 'Azul PPT',      categoria: 'PPT',    prioridad: 26, notas: '' },
+  { id: 'COL-PPT-NAR',   nombre: 'Naranja PPT',   categoria: 'PPT',    prioridad: 27, notas: '' },
 ];
 
 // ─── Precios de Tela (por tipo × categoría) ───────────────────────────────
@@ -84,11 +104,31 @@ export const mockPreciosTelas: PrecioTela[] = [
   { id: 'P-BABY-CLA', telaId: 'TEL-BABY-TY', categoriaColor: 'CLARO',   precioKg: 22.00 },
   { id: 'P-BABY-MEL', telaId: 'TEL-BABY-TY', categoriaColor: 'MELANGE', precioKg: 20.00 },
   { id: 'P-BABY-PPT', telaId: 'TEL-BABY-TY', categoriaColor: 'PPT',     precioKg: 18.00 },
-  // Rib
+  // Rib 1x1
   { id: 'P-RIB-OSC', telaId: 'TEL-RIB', categoriaColor: 'OSCURO',  precioKg: 24.00 },
   { id: 'P-RIB-CLA', telaId: 'TEL-RIB', categoriaColor: 'CLARO',   precioKg: 21.00 },
   { id: 'P-RIB-MEL', telaId: 'TEL-RIB', categoriaColor: 'MELANGE', precioKg: 19.00 },
   { id: 'P-RIB-PPT', telaId: 'TEL-RIB', categoriaColor: 'PPT',     precioKg: 18.00 },
+  // Pique 30/1
+  { id: 'P-PIQUE-OSC', telaId: 'TEL-PIQUE', categoriaColor: 'OSCURO',  precioKg: 25.00 },
+  { id: 'P-PIQUE-CLA', telaId: 'TEL-PIQUE', categoriaColor: 'CLARO',   precioKg: 22.00 },
+  { id: 'P-PIQUE-MEL', telaId: 'TEL-PIQUE', categoriaColor: 'MELANGE', precioKg: 20.00 },
+  { id: 'P-PIQUE-PPT', telaId: 'TEL-PIQUE', categoriaColor: 'PPT',     precioKg: 19.00 },
+  // Rib 2x1 Lycrado
+  { id: 'P-RIB2X1-OSC', telaId: 'TEL-RIB-2X1', categoriaColor: 'OSCURO',  precioKg: 26.00 },
+  { id: 'P-RIB2X1-CLA', telaId: 'TEL-RIB-2X1', categoriaColor: 'CLARO',   precioKg: 23.00 },
+  { id: 'P-RIB2X1-MEL', telaId: 'TEL-RIB-2X1', categoriaColor: 'MELANGE', precioKg: 21.00 },
+  { id: 'P-RIB2X1-PPT', telaId: 'TEL-RIB-2X1', categoriaColor: 'PPT',     precioKg: 19.00 },
+  // Jersey Full Lycra 30/1
+  { id: 'P-JERSEYFL-OSC', telaId: 'TEL-JERSEY-FL', categoriaColor: 'OSCURO',  precioKg: 28.00 },
+  { id: 'P-JERSEYFL-CLA', telaId: 'TEL-JERSEY-FL', categoriaColor: 'CLARO',   precioKg: 25.00 },
+  { id: 'P-JERSEYFL-MEL', telaId: 'TEL-JERSEY-FL', categoriaColor: 'MELANGE', precioKg: 23.00 },
+  { id: 'P-JERSEYFL-PPT', telaId: 'TEL-JERSEY-FL', categoriaColor: 'PPT',     precioKg: 21.00 },
+  // French Terry 24/1
+  { id: 'P-FT24-OSC', telaId: 'TEL-FT-24', categoriaColor: 'OSCURO',  precioKg: 27.00 },
+  { id: 'P-FT24-CLA', telaId: 'TEL-FT-24', categoriaColor: 'CLARO',   precioKg: 23.00 },
+  { id: 'P-FT24-MEL', telaId: 'TEL-FT-24', categoriaColor: 'MELANGE', precioKg: 21.00 },
+  { id: 'P-FT24-PPT', telaId: 'TEL-FT-24', categoriaColor: 'PPT',     precioKg: 19.00 },
 ];
 
 // ─── Precios Complementos ─────────────────────────────────────────────────

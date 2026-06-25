@@ -10,6 +10,7 @@ import { exportRowsToXlsx, exportReportesCorte } from '../lib/export';
 import { newId } from '../lib/storage';
 import { useStockActualTelas, useColoresAgrupados } from '../hooks/useCorteOperaciones';
 import { useEsAdmin } from '../lib/useEsAdmin';
+import { capWords } from '../lib/utils';
 
 // Suma rollos sin contar duplicados del mismo colorBase+tonalidad (la celda está agrupada por rowSpan)
 const totalRollosSinDuplicar = (colores: { colorBase: string; tonalidad: string; rollosUsados: string }[]) =>
@@ -97,8 +98,6 @@ export function Cortes() {
   const [tonModal, setTonModal] = useState<{ idx: number; colorBase: string } | null>(null);
   const [tonProps, setTonProps] = useState({ propS: '', propM: '', propL: '', propXL: '' });
 
-  const capWords = (s: string) =>
-    s.replace(/(^|\s)(\S)/g, (_, sp, ch) => sp + ch.toUpperCase());
 
   const corteToForm = (c: Corte): CorteForm => {
     const detalles = c.coloresDetalle && c.coloresDetalle.length > 0
@@ -679,7 +678,7 @@ export function Cortes() {
                       </td>
                       <td className="px-2 py-1 text-xs font-mono whitespace-nowrap border-r border-gray-100">{c.fecha}</td>
                       <td className="px-2 py-1 text-xs whitespace-nowrap border-r border-gray-100">{clienteMap.get(c.clienteId) ?? c.clienteId}</td>
-                      <td className="px-2 py-1 text-xs whitespace-nowrap border-r border-gray-100">{productoMap.get(c.productoId)?.nombre ?? c.productoId}</td>
+                      <td className="px-2 py-1 text-xs whitespace-nowrap border-r border-gray-100">{capWords(productoMap.get(c.productoId)?.nombre ?? c.productoId)}</td>
                       {/* Colores: resumen collapsed o primer color si solo hay 1 */}
                       <td className="px-2 py-1 border-r border-gray-100">
                         {tieneColores && !expanded ? (

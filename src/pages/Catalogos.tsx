@@ -8,6 +8,7 @@ import { ModuleInfoBox } from '../components/ModuleInfoBox';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { importarProporcioesCSV } from '../lib/supabaseDb';
 import { newId } from '../lib/storage';
+import { capWords } from '../lib/utils';
 
 const TIPOS_COMPLEMENTO: string[] = [...TIPOS_COMPLEMENTO_LIST];
 
@@ -341,7 +342,7 @@ export function Catalogos() {
                             </button>
                           </td>
                           <td className="font-bold whitespace-nowrap">
-                            {p.nombre}
+                            {capWords(p.nombre)}
                             {receta.length > 0 && (
                               <span className="ml-1 text-[10px] text-blue-600 font-normal">{receta.length} compl.</span>
                             )}
@@ -872,7 +873,7 @@ export function Catalogos() {
             >
               <option value="">Todos los productos</option>
               {[...productos].sort((a, b) => a.nombre.localeCompare(b.nombre)).map(p => (
-                <option key={p.id} value={p.id}>{p.nombre}</option>
+                <option key={p.id} value={p.id}>{capWords(p.nombre)}</option>
               ))}
             </select>
             <button onClick={() => setShowTarifaForm(true)} className="btn-primary flex items-center gap-2 text-xs">
@@ -933,7 +934,7 @@ export function Catalogos() {
                     <div className="flex gap-2 items-center">
                       <select value={tarifaForm.productoId} onChange={e => setTarifaForm(f => ({ ...f, productoId: e.target.value }))} className="input-base flex-1" required>
                         <option value="">Seleccionar...</option>
-                        {productos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                        {productos.map(p => <option key={p.id} value={p.id}>{capWords(p.nombre)}</option>)}
                       </select>
                       <button
                         type="button"
@@ -1225,7 +1226,7 @@ export function Catalogos() {
               >
                 <option value="">Todos</option>
                 {[...productos].sort((a, b) => a.nombre.localeCompare(b.nombre)).map(p => (
-                  <option key={p.id} value={p.id}>{p.nombre}</option>
+                  <option key={p.id} value={p.id}>{capWords(p.nombre)}</option>
                 ))}
               </select>
             </div>
@@ -1318,7 +1319,7 @@ export function Catalogos() {
                   <F label="Producto">
                     <select value={pcForm.productoId} onChange={e => setPCForm(f => ({ ...f, productoId: e.target.value }))} className="input-base" required>
                       <option value="">Seleccionar...</option>
-                      {[...productos].sort((a, b) => a.nombre.localeCompare(b.nombre)).map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                      {[...productos].sort((a, b) => a.nombre.localeCompare(b.nombre)).map(p => <option key={p.id} value={p.id}>{capWords(p.nombre)}</option>)}
                     </select>
                   </F>
                   <F label="Color">

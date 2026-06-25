@@ -8,6 +8,7 @@ import { useToast } from '../components/ToastProvider';
 import type { CategoriaColor, TipoServicioTint } from '../types';
 import { TIPOS_COMPLEMENTO_LIST } from '../types';
 import { newId } from '../lib/storage';
+import { capWords } from '../lib/utils';
 
 type Seccion = 'operacion' | 'telas' | 'complementos' | 'tejeduria' | 'tintoreria';
 
@@ -380,7 +381,7 @@ export function TablaTarifas() {
                           ? <ChevronDown className="h-3.5 w-3.5" style={{ color: '#9A8F87' }} />
                           : <ChevronRight className="h-3.5 w-3.5" style={{ color: '#9A8F87' }} />
                         }
-                        <span className="text-sm font-bold" style={{ color: '#1A1A1A' }}>{prod.nombre}</span>
+                        <span className="text-sm font-bold" style={{ color: '#1A1A1A' }}>{capWords(prod.nombre)}</span>
                         <span className="text-[10px] font-mono" style={{ color: '#9A8F87' }}>
                           {tarifas.length} operaciones
                         </span>
@@ -504,7 +505,7 @@ export function TablaTarifas() {
                           className="flex-1 border px-3 py-2 text-sm" style={{ borderColor: '#DDD8CF' }} required>
                           <option value="">Seleccionar producto...</option>
                           {[...productos].sort((a, b) => a.nombre.localeCompare(b.nombre)).map(p => (
-                            <option key={p.id} value={p.id}>{p.nombre}</option>
+                            <option key={p.id} value={p.id}>{capWords(p.nombre)}</option>
                           ))}
                         </select>
                         <button

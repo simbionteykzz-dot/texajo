@@ -9,6 +9,7 @@ import { exportRowsToXlsx, exportTableToPdf } from '../lib/export';
 import { BoletaOperario } from '../components/BoletaOperario';
 import { newId } from '../lib/storage';
 import { useEsAdmin } from '../lib/useEsAdmin';
+import { capWords } from '../lib/utils';
 import {
   useBoletaLineas,
   useResumenPorOperario,
@@ -1058,7 +1059,7 @@ export function Destajo() {
               <select value={gCorteId} onChange={e => setGCorteId(e.target.value)} className="input-base w-44">
                 <option value="">Todos</option>
                 {cortes.filter(c => c.estado !== 'ANULADO').map(c => (
-                  <option key={c.id} value={c.id}>{c.nCorte} — {productoMap.get(c.productoId)?.nombre}</option>
+                  <option key={c.id} value={c.id}>{c.nCorte} — {capWords(productoMap.get(c.productoId)?.nombre ?? '')}</option>
                 ))}
               </select>
             </div>
@@ -1140,7 +1141,7 @@ export function Destajo() {
                             <div className="text-[10px] text-gray-400 font-mono">{op?.codigo}</div>
                           </td>
                           <td className="font-mono">{b.nCorte}</td>
-                          <td className="text-[11px] text-gray-600">{productoMap.get(b.productoId)?.nombre ?? '—'}</td>
+                          <td className="text-[11px] text-gray-600">{capWords(productoMap.get(b.productoId)?.nombre ?? '—')}</td>
                           <td className="text-[11px]">{b.colorId ? colorMap.get(b.colorId) ?? '—' : '—'}</td>
                           <td>{b.operacion}</td>
                           <td className="text-right font-mono">S/ {b.tarifa.toFixed(3)}</td>
@@ -1202,7 +1203,7 @@ export function Destajo() {
               >
                 <option value="">Seleccionar corte…</option>
                 {cortes.filter(c => c.estado !== 'ANULADO').map(c => (
-                  <option key={c.id} value={c.id}>{c.nCorte} — {productoMap.get(c.productoId)?.nombre}</option>
+                  <option key={c.id} value={c.id}>{c.nCorte} — {capWords(productoMap.get(c.productoId)?.nombre ?? '')}</option>
                 ))}
               </select>
             </div>
@@ -1277,7 +1278,7 @@ export function Destajo() {
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div className="flex items-center gap-3">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                    Corte {pcCorte?.nCorte} — {productoMap.get(pcCorte!.productoId)?.nombre}
+                    Corte {pcCorte?.nCorte} — {capWords(productoMap.get(pcCorte!.productoId)?.nombre ?? '')}
                   </span>
                   <span className="text-[10px] text-gray-300">·</span>
                   <span className="text-[10px] text-gray-400">
@@ -1518,7 +1519,7 @@ export function Destajo() {
           <select value={bCorteId} onChange={e => { setBCorteId(e.target.value); setBulkCorteId(e.target.value); }} className="input-base w-44">
             <option value="">Todos</option>
             {cortes.filter(c => c.estado !== 'ANULADO').map(c => (
-              <option key={c.id} value={c.id}>{c.nCorte} — {productoMap.get(c.productoId)?.nombre}</option>
+              <option key={c.id} value={c.id}>{c.nCorte} — {capWords(productoMap.get(c.productoId)?.nombre ?? '')}</option>
             ))}
           </select>
         </div>
@@ -1559,7 +1560,7 @@ export function Destajo() {
             <select value={bulkCorteId} onChange={e => { setBulkCorteId(e.target.value); setBCorteId(e.target.value); }} className="input-base w-48">
               <option value="">Seleccionar corte…</option>
               {cortes.filter(c => c.estado !== 'ANULADO').map(c => (
-                <option key={c.id} value={c.id}>{c.nCorte} — {productoMap.get(c.productoId)?.nombre}</option>
+                <option key={c.id} value={c.id}>{c.nCorte} — {capWords(productoMap.get(c.productoId)?.nombre ?? '')}</option>
               ))}
             </select>
           </div>
@@ -1634,7 +1635,7 @@ export function Destajo() {
                     if (b.talla) return (
                       <tr key={b.id} className={`bg-blue-50/50 border-l-4 border-blue-200 ${b.estadoPago === 'PAGADO' ? 'opacity-60' : 'bg-amber-50/60'}`}>
                         <td className="px-3 py-2 font-mono text-gray-400 text-[10px]">↳ {b.nCorte}</td>
-                        <td className="px-3 py-2 text-[11px] text-gray-500">{productoMap.get(b.productoId)?.nombre ?? '—'}</td>
+                        <td className="px-3 py-2 text-[11px] text-gray-500">{capWords(productoMap.get(b.productoId)?.nombre ?? '—')}</td>
                         <td className="px-3 py-2 text-[11px] text-gray-600">{b.colorId ? colorMap.get(b.colorId) ?? '—' : '—'}</td>
                         <td className="px-3 py-2 font-mono font-black text-blue-700">{b.talla}</td>
                         <td className="px-3 py-2 text-gray-600">{b.operacion}</td>
@@ -1730,7 +1731,7 @@ export function Destajo() {
                               {b.nCorte}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-[11px] text-gray-600">{productoMap.get(b.productoId)?.nombre ?? '—'}</td>
+                          <td className="px-3 py-2 text-[11px] text-gray-600">{capWords(productoMap.get(b.productoId)?.nombre ?? '—')}</td>
                           <td className="px-3 py-2 text-[11px]">
                             {b.colorId ? <span className="font-medium text-gray-700">{colorMap.get(b.colorId) ?? b.colorId}</span> : <span className="text-gray-300">—</span>}
                           </td>
@@ -1843,7 +1844,7 @@ export function Destajo() {
                           return (
                             <tr key={`${b.id}-${fila.talla}`} className="bg-amber-50 border-l-4 border-amber-300">
                               <td className="px-3 py-1.5 font-mono text-gray-400 text-[10px]">↳ {b.nCorte}</td>
-                              <td className="px-3 py-1.5 text-[10px] text-gray-500">{productoMap.get(b.productoId)?.nombre ?? '—'}</td>
+                              <td className="px-3 py-1.5 text-[10px] text-gray-500">{capWords(productoMap.get(b.productoId)?.nombre ?? '—')}</td>
                               <td className="px-3 py-1.5 text-[10px] text-gray-600">{colorMap.get(fila.colorId) ?? '—'}</td>
                               <td className="px-3 py-1.5 font-mono font-black text-amber-700">{fila.talla}</td>
                               <td className="px-3 py-1.5 text-[10px] text-gray-500">{b.operacion}</td>
@@ -2147,7 +2148,7 @@ export function Destajo() {
                               >
                                 <option value="">Seleccionar…</option>
                                 {cortes.filter(c => c.estado !== 'ANULADO').map(c => (
-                                  <option key={c.id} value={c.id}>{c.nCorte} — {productoMap.get(c.productoId)?.nombre}</option>
+                                  <option key={c.id} value={c.id}>{c.nCorte} — {capWords(productoMap.get(c.productoId)?.nombre ?? '')}</option>
                                 ))}
                               </select>
                               <select
