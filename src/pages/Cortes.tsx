@@ -154,96 +154,10 @@ export function Cortes() {
   const clienteMap = useMemo(() => new Map(clientes.map(c => [c.id, c.nombre])), [clientes]);
   const productoMap = useMemo(() => new Map(productos.map(p => [p.id, p])), [productos]);
   const colorMap = useMemo(() => {
-    const canonicos = new Set(mockColores.map(c => c.nombre.toLowerCase()));
-    const resolveNombre = (nombre: string): string => {
-      const n = nombre.toLowerCase();
-      if (canonicos.has(n)) return mockColores.find(c => c.nombre.toLowerCase() === n)!.nombre;
-      // Formato nuevo: _dup_NOMBRE_id
-      const mNew = nombre.match(/^_dup_(.+?)_[\w-]+$/);
-      if (mNew && canonicos.has(mNew[1].toLowerCase()))
-        return mockColores.find(c => c.nombre.toLowerCase() === mNew[1].toLowerCase())!.nombre;
-      return nombre;
-    };
-
     const map = new Map<string, string>();
-    for (const c of colores) map.set(c.id, resolveNombre(c.nombre));
-
-    const tryResolveFromTonalidad = (tonalidad: string): string | null => {
-      const base = tonalidad.replace(/\s+Tn-?\d+$/i, '').trim();
-      const baseLow = base.toLowerCase();
-      if (canonicos.has(baseLow)) return mockColores.find(c => c.nombre.toLowerCase() === baseLow)!.nombre;
-      for (const c of mockColores) {
-        const cn = c.nombre.toLowerCase();
-        if (cn === baseLow || baseLow.startsWith(cn) || cn.startsWith(baseLow)) return c.nombre;
-      }
-      return null;
-    };
-
-    // Resolver _dup_* usando los datos del corte (tonalidad, coloresDetalle)
-    for (const [id, nombre] of map) {
-      if (!nombre.startsWith('_dup_')) continue;
-      for (const corte of cortes) {
-        let resuelto = false;
-        // tonalidad del color principal del corte
-        if (corte.colorId === id && corte.tonalidad) {
-          const r = tryResolveFromTonalidad(corte.tonalidad);
-          if (r) { map.set(id, r); resuelto = true; }
-        }
-        if (resuelto) break;
-        // coloresDetalle: entrada exacta para este colorId
-        const det = corte.coloresDetalle?.find(d => d.colorId === id);
-        if (det?.tonalidad) {
-          const r = tryResolveFromTonalidad(det.tonalidad);
-          if (r) { map.set(id, r); resuelto = true; }
-        }
-        if (resuelto) break;
-        // coloresDetalle: cualquier entrada con tonalidad
-        if (corte.coloresDetalle?.length) {
-          for (const d of corte.coloresDetalle) {
-            if (d.tonalidad) {
-              const r = tryResolveFromTonalidad(d.tonalidad);
-              if (r) { map.set(id, r); resuelto = true; break; }
-            }
-          }
-        }
-        if (resuelto) break;
-        // tonalidad del corte aunque no sea el color principal
-        if (corte.tonalidad) {
-          const r = tryResolveFromTonalidad(corte.tonalidad);
-          if (r) { map.set(id, r); resuelto = true; }
-        }
-        if (resuelto) break;
-        // color principal del corte ya resuelto → usarlo para colores secundarios
-        if (corte.colorId !== id && corte.coloresDetalle?.some(d => d.colorId === id)) {
-          const nombrePrincipal = map.get(corte.colorId) ?? '';
-          if (nombrePrincipal && !nombrePrincipal.startsWith('_dup_')) {
-            map.set(id, nombrePrincipal); resuelto = true;
-          }
-        }
-        if (resuelto) break;
-      }
-    }
-
-    // Fallback: movimientos_tela para colorIds aún huérfanos
-    for (const mov of movimientosTela) {
-      if (mov.colorId && map.has(mov.colorId) && (map.get(mov.colorId) ?? '').startsWith('_dup_')) {
-        if (mov.categoriaColor) {
-          const r = tryResolveFromTonalidad(mov.categoriaColor);
-          if (r) map.set(mov.colorId, r);
-        }
-      }
-    }
-
-    // Pass final: _dup_* sin resolver → texto limpio
-    for (const [id, nombre] of map) {
-      if (nombre.startsWith('_dup_')) {
-        const mNum = nombre.match(/^_dup_(\d+)$/);
-        map.set(id, mNum ? `Color ${mNum[1]}` : 'Color');
-      }
-    }
-
+    for (const c of colores) map.set(c.id, resolveNombreColorCortes(c.nombre));
     return map;
-  }, [colores, cortes, movimientosTela]);
+  }, [colores]);
   const telaMap = useMemo(() => new Map(telas.map(t => [t.id, t])), [telas]);
 
   const coloresAgrupados = useColoresAgrupados(colores);
