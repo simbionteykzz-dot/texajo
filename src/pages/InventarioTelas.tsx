@@ -198,8 +198,27 @@ export function InventarioTelas() {
   };
 
   const telaMap = useMemo(() => new Map(telas.map(t => [t.id, t])), [telas]);
-  const colorMap = useMemo(() => new Map(colores.map(c => [c.id, c])), [colores]);
   const clienteMap = useMemo(() => new Map(clientes.map(c => [c.id, c.nombre])), [clientes]);
+
+  const resolveNombreColor = useMemo(() => {
+    const canonicos = new Map(mockColores.map(c => [c.nombre.toLowerCase(), c.nombre]));
+    return (nombre: string): string => {
+      const n = nombre.toLowerCase();
+      if (canonicos.has(n)) return canonicos.get(n)!;
+      const mNew = nombre.match(/^_dup_(.+?)_[\w-]+$/);
+      if (mNew) {
+        const cand = mNew[1].toLowerCase();
+        if (canonicos.has(cand)) return canonicos.get(cand)!;
+      }
+      const mNum = nombre.match(/^_dup_(\d+)$/);
+      if (mNum) return `Color ${mNum[1]}`;
+      if (nombre.startsWith('_dup_')) return 'Color';
+      return nombre;
+    };
+  }, []);
+
+  const colorMap = useMemo(() => new Map(colores.map(c => [c.id, { ...c, nombre: resolveNombreColor(c.nombre) }])), [colores, resolveNombreColor]);
+
   // Solo mostrar colores que están en el catálogo canónico (mockColores)
   const coloresVisibles = useMemo(() => {
     const nombresCanonicos = new Set(mockColores.map(c => c.nombre.toLowerCase()));
@@ -926,7 +945,7 @@ export function InventarioTelas() {
                   <tbody>
                     {[...colores].sort((a, b) => (a.prioridad ?? 999) - (b.prioridad ?? 999) || a.nombre.localeCompare(b.nombre)).map(c => (
                       <tr key={c.id}>
-                        <td className="font-bold">{c.nombre}</td>
+                        <td className="font-bold">{resolveNombreColor(c.nombre)}</td>
                         <td>
                           <span className={`inline-block px-2 py-0.5 text-[10px] font-bold uppercase ${
                             c.categoria === 'OSCURO' ? 'bg-gray-800 text-white' :
@@ -940,7 +959,7 @@ export function InventarioTelas() {
                         {esAdmin && (
                           <td className="px-2">
                             <div className="flex items-center gap-2">
-                              <button onClick={() => { setEditColorId(c.id); setColorForm({ nombre: c.nombre, categoria: c.categoria, prioridad: String(c.prioridad ?? ''), notas: c.notas ?? '' }); setShowColorForm(true); }} className="text-gray-400 hover:text-blue-600 transition-colors">
+                              <button onClick={() => { setEditColorId(c.id); setColorForm({ nombre: resolveNombreColor(c.nombre), categoria: c.categoria, prioridad: String(c.prioridad ?? ''), notas: c.notas ?? '' }); setShowColorForm(true); }} className="text-gray-400 hover:text-blue-600 transition-colors">
                                 <Pencil className="h-3.5 w-3.5" />
                               </button>
                               {confirmDeleteColor === c.id ? (
