@@ -8,6 +8,7 @@ import { ModuleInfoBox } from '../components/ModuleInfoBox';
 import { exportRowsToXlsx, exportTableToPdf, exportHojaSeguimientoPdf, exportHojaSeguimientoXlsx } from '../lib/export';
 import type { PdfFont } from '../lib/fonts';
 import { newId } from '../lib/storage';
+import { mockColores } from '../data';
 import { useEsAdmin } from '../lib/useEsAdmin';
 import { capWords } from '../lib/utils';
 
@@ -487,7 +488,118 @@ export function ProduccionConfeccion() {
   });
 
   const productoMap = useMemo(() => new Map(productos.map(p => [p.id, p])), [productos]);
-  const colorMap = useMemo(() => new Map(colores.map(c => [c.id, c.nombre])), [colores]);
+  const colorMap = useMemo(() => {
+    const canonicos = new Set(mockColores.map(c => c.nombre.toLowerCase()));
+    const resolveNombre = (nombre: string): string => {
+      const n = nombre.toLowerCase();
+      if (canonicos.has(n)) return mockColores.find(c => c.nombre.toLowerCase() === n)!.nombre;
+      // Formato nuevo: _dup_NOMBRE_id
+      const mNew = nombre.match(/^_dup_(.+?)_[\w-]+$/);
+      if (mNew && canonicos.has(mNew[1].toLowerCase()))
+        return mockColores.find(c => c.nombre.toLowerCase() === mNew[1].toLowerCase())!.nombre;
+      // Formato viejo: _dup_N (número puro) — se resuelve más abajo via cortes; aquí solo lo marca
+      return nombre;
+    };
+
+    const map = new Map<string, string>();
+    for (const c of colores) map.set(c.id, resolveNombre(c.nombre));
+
+    // Para _dup_* sin resolver: buscar en cortes via tonalidad o coloresDetalle
+    for (const [id, nombre] of map) {
+      if (!nombre.startsWith('_dup_')) continue;
+      for (const corte of cortes) {
+        if (corte.colorId === id && corte.tonalidad) {
+          const base = corte.tonalidad.replace(/\s+Tn-?\d+$/i, '').trim();
+          if (canonicos.has(base.toLowerCase())) {
+            map.set(id, mockColores.find(c => c.nombre.toLowerCase() === base.toLowerCase())!.nombre);
+            break;
+          }
+        }
+        const det = corte.coloresDetalle?.find(d => d.colorId === id);
+        if (det) {
+          const nombrePrincipal = map.get(corte.colorId) ?? '';
+          if (!nombrePrincipal.startsWith('_dup_') && canonicos.has(nombrePrincipal.toLowerCase())) {
+            map.set(id, mockColores.find(c => c.nombre.toLowerCase() === nombrePrincipal.toLowerCase())!.nombre);
+            break;
+          }
+          if (det.tonalidad) {
+            const base = det.tonalidad.replace(/\s+Tn-?\d+$/i, '').trim();
+            if (canonicos.has(base.toLowerCase())) {
+              map.set(id, mockColores.find(c => c.nombre.toLowerCase() === base.toLowerCase())!.nombre);
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    // Pass 3: seguimientoFilas → corte → tonalidad / coloresDetalle
+    const corteMap2 = new Map(cortes.map(c => [c.id, c]));
+    const tryResolveFromTonalidad = (tonalidad: string): string | null => {
+      const base = tonalidad.replace(/\s+Tn-?\d+$/i, '').trim();
+      const baseLow = base.toLowerCase();
+      if (canonicos.has(baseLow)) return mockColores.find(c => c.nombre.toLowerCase() === baseLow)!.nombre;
+      // Coincidencia parcial — el canónico contiene la base o viceversa
+      for (const c of mockColores) {
+        const cn = c.nombre.toLowerCase();
+        if (cn === baseLow || baseLow.startsWith(cn) || cn.startsWith(baseLow)) return c.nombre;
+      }
+      return null;
+    };
+    for (const [id, nombre] of map) {
+      if (!nombre.startsWith('_dup_')) continue;
+      const filasConEsteColor = seguimientoFilas.filter(f => f.colorId === id);
+      let resuelto = false;
+      for (const fila of filasConEsteColor) {
+        if (resuelto) break;
+        const corte = corteMap2.get(fila.corteId);
+        if (!corte) continue;
+        // 3a: tonalidad del corte principal si el corte.colorId === id
+        if (corte.colorId === id && corte.tonalidad) {
+          const r = tryResolveFromTonalidad(corte.tonalidad);
+          if (r) { map.set(id, r); resuelto = true; break; }
+        }
+        // 3b: coloresDetalle del corte para este colorId
+        const det = corte.coloresDetalle?.find(d => d.colorId === id);
+        if (det?.tonalidad) {
+          const r = tryResolveFromTonalidad(det.tonalidad);
+          if (r) { map.set(id, r); resuelto = true; break; }
+        }
+        // 3c: si el corte tiene coloresDetalle, usar la tonalidad del primer detalle con tonalidad
+        if (corte.coloresDetalle?.length) {
+          for (const d of corte.coloresDetalle) {
+            if (d.tonalidad) {
+              const r = tryResolveFromTonalidad(d.tonalidad);
+              if (r) { map.set(id, r); resuelto = true; break; }
+            }
+          }
+        }
+        // 3d: usar la tonalidad del corte aunque no sea el color principal
+        if (!resuelto && corte.tonalidad) {
+          const r = tryResolveFromTonalidad(corte.tonalidad);
+          if (r) { map.set(id, r); resuelto = true; break; }
+        }
+        // 3e: usar el nombre del color principal del corte si ya está resuelto
+        if (!resuelto && corte.colorId !== id) {
+          const nombrePrincipal = map.get(corte.colorId) ?? '';
+          if (nombrePrincipal && !nombrePrincipal.startsWith('_dup_')) {
+            map.set(id, nombrePrincipal); resuelto = true; break;
+          }
+        }
+      }
+    }
+
+    // Pass 4: los que aún son _dup_* — reemplazar con texto limpio para no mostrar el string interno
+    for (const [id, nombre] of map) {
+      if (nombre.startsWith('_dup_')) {
+        // Intentar extraer número del formato _dup_N para mostrar "Color N"
+        const mNum = nombre.match(/^_dup_(\d+)$/);
+        map.set(id, mNum ? `Color ${mNum[1]}` : 'Color');
+      }
+    }
+
+    return map;
+  }, [colores, cortes, seguimientoFilas]);
   const operarioMap = useMemo(() => new Map(operarios.map(o => [o.id, o])), [operarios]);
   const corteMap = useMemo(() => new Map(cortes.map(c => [c.id, c])), [cortes]);
   const clienteMap = useMemo(() => new Map(clientes.map(c => [c.id, c.nombre])), [clientes]);

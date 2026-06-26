@@ -8,6 +8,7 @@ import { ModuleInfoBox } from '../components/ModuleInfoBox';
 import { exportRowsToXlsx, exportTableToPdf } from '../lib/export';
 import { BoletaOperario } from '../components/BoletaOperario';
 import { newId } from '../lib/storage';
+import { mockColores } from '../data';
 import { useEsAdmin } from '../lib/useEsAdmin';
 import { capWords } from '../lib/utils';
 import {
@@ -113,7 +114,111 @@ export function Destajo() {
   const operarioMap = useMemo(() => new Map(operarios.map(o => [o.id, o])), [operarios]);
   const productoMap = useMemo(() => new Map(productos.map(p => [p.id, p])), [productos]);
   const corteMap = useMemo(() => new Map(cortes.map(c => [c.id, c])), [cortes]);
-  const colorMap = useMemo(() => new Map(colores.map(c => [c.id, c.nombre])), [colores]);
+  const colorMap = useMemo(() => {
+    const canonicos = new Set(mockColores.map(c => c.nombre.toLowerCase()));
+    const resolveNombre = (nombre: string): string => {
+      const n = nombre.toLowerCase();
+      if (canonicos.has(n)) return mockColores.find(c => c.nombre.toLowerCase() === n)!.nombre;
+      const mNew = nombre.match(/^_dup_(.+?)_[\w-]+$/);
+      if (mNew && canonicos.has(mNew[1].toLowerCase()))
+        return mockColores.find(c => c.nombre.toLowerCase() === mNew[1].toLowerCase())!.nombre;
+      return nombre;
+    };
+    const map = new Map<string, string>();
+    for (const c of colores) map.set(c.id, resolveNombre(c.nombre));
+
+    // Para _dup_* sin resolver: buscar en cortes via tonalidad o coloresDetalle
+    for (const [id, nombre] of map) {
+      if (!nombre.startsWith('_dup_')) continue;
+      for (const corte of cortes) {
+        if (corte.colorId === id && corte.tonalidad) {
+          const base = corte.tonalidad.replace(/\s+Tn-?\d+$/i, '').trim();
+          if (canonicos.has(base.toLowerCase())) {
+            map.set(id, mockColores.find(c => c.nombre.toLowerCase() === base.toLowerCase())!.nombre);
+            break;
+          }
+        }
+        const det = corte.coloresDetalle?.find(d => d.colorId === id);
+        if (det) {
+          const np = map.get(corte.colorId) ?? '';
+          if (!np.startsWith('_dup_') && canonicos.has(np.toLowerCase())) {
+            map.set(id, mockColores.find(c => c.nombre.toLowerCase() === np.toLowerCase())!.nombre);
+            break;
+          }
+          if (det.tonalidad) {
+            const base = det.tonalidad.replace(/\s+Tn-?\d+$/i, '').trim();
+            if (canonicos.has(base.toLowerCase())) {
+              map.set(id, mockColores.find(c => c.nombre.toLowerCase() === base.toLowerCase())!.nombre);
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    // Pass 3: seguimientoFilas → corte → tonalidad (con coincidencia parcial)
+    const corteMapLocal = new Map(cortes.map(c => [c.id, c]));
+    const tryResolveFromTonalidad = (tonalidad: string): string | null => {
+      const base = tonalidad.replace(/\s+Tn-?\d+$/i, '').trim();
+      const baseLow = base.toLowerCase();
+      if (canonicos.has(baseLow)) return mockColores.find(c => c.nombre.toLowerCase() === baseLow)!.nombre;
+      for (const c of mockColores) {
+        const cn = c.nombre.toLowerCase();
+        if (cn === baseLow || baseLow.startsWith(cn) || cn.startsWith(baseLow)) return c.nombre;
+      }
+      return null;
+    };
+    for (const [id, nombre] of map) {
+      if (!nombre.startsWith('_dup_')) continue;
+      const filasConEsteColor = seguimientoFilas.filter(f => f.colorId === id);
+      let resuelto = false;
+      for (const fila of filasConEsteColor) {
+        if (resuelto) break;
+        const corte = corteMapLocal.get(fila.corteId);
+        if (!corte) continue;
+        if (corte.colorId === id && corte.tonalidad) {
+          const r = tryResolveFromTonalidad(corte.tonalidad);
+          if (r) { map.set(id, r); resuelto = true; break; }
+        }
+        const det = corte.coloresDetalle?.find(d => d.colorId === id);
+        if (det?.tonalidad) {
+          const r = tryResolveFromTonalidad(det.tonalidad);
+          if (r) { map.set(id, r); resuelto = true; break; }
+        }
+        // coloresDetalle: buscar cualquier entrada con tonalidad
+        if (!resuelto && corte.coloresDetalle?.length) {
+          for (const d of corte.coloresDetalle) {
+            if (d.tonalidad) {
+              const r = tryResolveFromTonalidad(d.tonalidad);
+              if (r) { map.set(id, r); resuelto = true; break; }
+            }
+          }
+        }
+        // tonalidad del corte aunque no sea el color principal
+        if (!resuelto && corte.tonalidad) {
+          const r = tryResolveFromTonalidad(corte.tonalidad);
+          if (r) { map.set(id, r); resuelto = true; break; }
+        }
+        // usar el nombre del color principal del corte si ya está resuelto
+        if (!resuelto && corte.colorId !== id) {
+          const nombrePrincipal = map.get(corte.colorId) ?? '';
+          if (nombrePrincipal && !nombrePrincipal.startsWith('_dup_')) {
+            map.set(id, nombrePrincipal); resuelto = true; break;
+          }
+        }
+      }
+    }
+
+    // Pass 4: _dup_* sin resolver → texto limpio
+    for (const [id, nombre] of map) {
+      if (nombre.startsWith('_dup_')) {
+        const mNum = nombre.match(/^_dup_(\d+)$/);
+        map.set(id, mNum ? `Color ${mNum[1]}` : 'Color');
+      }
+    }
+
+    return map;
+  }, [colores, cortes, seguimientoFilas]);
 
   const tarifasPorCorte = useMemo(() => {
     const map = new Map<string, typeof tarifasOperaciones>();

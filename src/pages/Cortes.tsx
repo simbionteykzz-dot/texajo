@@ -8,7 +8,8 @@ import { ModuleInfoBox } from '../components/ModuleInfoBox';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { exportRowsToXlsx, exportReportesCorte } from '../lib/export';
 import { newId } from '../lib/storage';
-import { useStockActualTelas, useColoresAgrupados } from '../hooks/useCorteOperaciones';
+import { mockColores } from '../data';
+import { useStockActualTelas, useColoresAgrupados, TONALIDADES } from '../hooks/useCorteOperaciones';
 import { useEsAdmin } from '../lib/useEsAdmin';
 import { capWords } from '../lib/utils';
 
@@ -94,9 +95,7 @@ export function Cortes() {
     setExpandedOps(prev => { const s = new Set(prev); s.has(key) ? s.delete(key) : s.add(key); return s; });
   const toggleExpand = (id: string) =>
     setExpandedCortes(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
-  // Mini-modal para agregar tonalidad desde el formulario de corte
-  const [tonModal, setTonModal] = useState<{ idx: number; colorBase: string } | null>(null);
-  const [tonProps, setTonProps] = useState({ propS: '', propM: '', propL: '', propXL: '' });
+
 
 
   const corteToForm = (c: Corte): CorteForm => {
@@ -122,7 +121,7 @@ export function Cortes() {
       colores: detalles.map(det => ({
         uid: crypto.randomUUID(),
         colorId: det.colorId,
-        colorBase: colores.find(cl => cl.id === det.colorId)?.nombre.replace(/\s+\d+$/, '') ?? '',
+        colorBase: colores.find(cl => cl.id === det.colorId)?.nombre ?? '',
         tonalidad: det.tonalidad ?? '',
         kgUsados: det.kgUsados > 0 ? String(det.kgUsados) : '',
         rollosUsados: det.rollosUsados > 0 ? String(det.rollosUsados) : '',
@@ -143,18 +142,108 @@ export function Cortes() {
 
   const clienteMap = useMemo(() => new Map(clientes.map(c => [c.id, c.nombre])), [clientes]);
   const productoMap = useMemo(() => new Map(productos.map(p => [p.id, p])), [productos]);
-  const colorMap = useMemo(() => new Map(colores.map(c => [c.id, c.nombre])), [colores]);
+  const colorMap = useMemo(() => {
+    const canonicos = new Set(mockColores.map(c => c.nombre.toLowerCase()));
+    const resolveNombre = (nombre: string): string => {
+      const n = nombre.toLowerCase();
+      if (canonicos.has(n)) return mockColores.find(c => c.nombre.toLowerCase() === n)!.nombre;
+      // Formato nuevo: _dup_NOMBRE_id
+      const mNew = nombre.match(/^_dup_(.+?)_[\w-]+$/);
+      if (mNew && canonicos.has(mNew[1].toLowerCase()))
+        return mockColores.find(c => c.nombre.toLowerCase() === mNew[1].toLowerCase())!.nombre;
+      return nombre;
+    };
+
+    const map = new Map<string, string>();
+    for (const c of colores) map.set(c.id, resolveNombre(c.nombre));
+
+    const tryResolveFromTonalidad = (tonalidad: string): string | null => {
+      const base = tonalidad.replace(/\s+Tn-?\d+$/i, '').trim();
+      const baseLow = base.toLowerCase();
+      if (canonicos.has(baseLow)) return mockColores.find(c => c.nombre.toLowerCase() === baseLow)!.nombre;
+      for (const c of mockColores) {
+        const cn = c.nombre.toLowerCase();
+        if (cn === baseLow || baseLow.startsWith(cn) || cn.startsWith(baseLow)) return c.nombre;
+      }
+      return null;
+    };
+
+    // Resolver _dup_* usando los datos del corte (tonalidad, coloresDetalle)
+    for (const [id, nombre] of map) {
+      if (!nombre.startsWith('_dup_')) continue;
+      for (const corte of cortes) {
+        let resuelto = false;
+        // tonalidad del color principal del corte
+        if (corte.colorId === id && corte.tonalidad) {
+          const r = tryResolveFromTonalidad(corte.tonalidad);
+          if (r) { map.set(id, r); resuelto = true; }
+        }
+        if (resuelto) break;
+        // coloresDetalle: entrada exacta para este colorId
+        const det = corte.coloresDetalle?.find(d => d.colorId === id);
+        if (det?.tonalidad) {
+          const r = tryResolveFromTonalidad(det.tonalidad);
+          if (r) { map.set(id, r); resuelto = true; }
+        }
+        if (resuelto) break;
+        // coloresDetalle: cualquier entrada con tonalidad
+        if (corte.coloresDetalle?.length) {
+          for (const d of corte.coloresDetalle) {
+            if (d.tonalidad) {
+              const r = tryResolveFromTonalidad(d.tonalidad);
+              if (r) { map.set(id, r); resuelto = true; break; }
+            }
+          }
+        }
+        if (resuelto) break;
+        // tonalidad del corte aunque no sea el color principal
+        if (corte.tonalidad) {
+          const r = tryResolveFromTonalidad(corte.tonalidad);
+          if (r) { map.set(id, r); resuelto = true; }
+        }
+        if (resuelto) break;
+        // color principal del corte ya resuelto → usarlo para colores secundarios
+        if (corte.colorId !== id && corte.coloresDetalle?.some(d => d.colorId === id)) {
+          const nombrePrincipal = map.get(corte.colorId) ?? '';
+          if (nombrePrincipal && !nombrePrincipal.startsWith('_dup_')) {
+            map.set(id, nombrePrincipal); resuelto = true;
+          }
+        }
+        if (resuelto) break;
+      }
+    }
+
+    // Fallback: movimientos_tela para colorIds aún huérfanos
+    for (const mov of movimientosTela) {
+      if (mov.colorId && map.has(mov.colorId) && (map.get(mov.colorId) ?? '').startsWith('_dup_')) {
+        if (mov.categoriaColor) {
+          const r = tryResolveFromTonalidad(mov.categoriaColor);
+          if (r) map.set(mov.colorId, r);
+        }
+      }
+    }
+
+    // Pass final: _dup_* sin resolver → texto limpio
+    for (const [id, nombre] of map) {
+      if (nombre.startsWith('_dup_')) {
+        const mNum = nombre.match(/^_dup_(\d+)$/);
+        map.set(id, mNum ? `Color ${mNum[1]}` : 'Color');
+      }
+    }
+
+    return map;
+  }, [colores, cortes, movimientosTela]);
   const telaMap = useMemo(() => new Map(telas.map(t => [t.id, t])), [telas]);
 
   const coloresAgrupados = useColoresAgrupados(colores);
 
-  // Nombres base ordenados por prioridad mínima del grupo
+  // Solo los 15 colores canónicos, ordenados por prioridad
   const nombresBase = useMemo(() => {
-    return [...coloresAgrupados.keys()].sort((a, b) => {
-      const minA = Math.min(...(coloresAgrupados.get(a)?.map(x => x.prioridad) ?? [999]));
-      const minB = Math.min(...(coloresAgrupados.get(b)?.map(x => x.prioridad) ?? [999]));
-      return minA - minB || a.localeCompare(b);
-    });
+    const canonicos = new Set(mockColores.map(c => c.nombre.toLowerCase()));
+    return mockColores
+      .filter(c => coloresAgrupados.has(c.nombre) || canonicos.has(c.nombre.toLowerCase()))
+      .sort((a, b) => (a.prioridad ?? 999) - (b.prioridad ?? 999))
+      .map(c => c.nombre);
   }, [coloresAgrupados]);
 
   const stockActualTelas = useStockActualTelas(movimientosTela);
@@ -1343,20 +1432,17 @@ export function Cortes() {
                                   {String.fromCharCode(65 + idx)}
                                 </td>
                               )}
-                              {/* Dropdown 1: nombre base del color */}
+                              {/* Dropdown 1: color base */}
                               <td className="px-2 py-1 min-w-[110px] w-28">
                                 <select
                                   value={det.colorBase}
                                   onChange={e => {
                                     const base = e.target.value;
-                                    const opciones = coloresAgrupados.get(base) ?? [];
-                                    const unica = opciones.length === 1 ? opciones[0] : null;
-                                    const newColorId = unica ? unica.id : '';
-                                    const newTon = unica?.tonalidad ?? '';
+                                    const newColorId = (coloresAgrupados.get(base) ?? [])[0]?.id ?? '';
                                     setForm(f => {
                                       const next = [...f.colores];
                                       const t = parseInt(next[idx].tendidas) || 0;
-                                        const pS  = parseInt(f.propS)  || 0;
+                                      const pS  = parseInt(f.propS)  || 0;
                                       const pM  = parseInt(f.propM)  || 0;
                                       const pL  = parseInt(f.propL)  || 0;
                                       const pXL = parseInt(f.propXL) || 0;
@@ -1366,7 +1452,7 @@ export function Cortes() {
                                         cantL:  String(t > 0 ? pL  * t : pL),
                                         cantXL: String(t > 0 ? pXL * t : pXL),
                                       } : {};
-                                      next[idx] = { ...next[idx], colorBase: base, tonalidad: newTon, colorId: newColorId, ...cantidades };
+                                      next[idx] = { ...next[idx], colorBase: base, colorId: newColorId, tonalidad: '', ...cantidades };
                                       return { ...f, colores: next };
                                     });
                                   }}
@@ -1379,121 +1465,31 @@ export function Cortes() {
                                   ))}
                                 </select>
                               </td>
-                              {/* Dropdown 2: tonalidad */}
+                              {/* Dropdown 2: tonalidad 1–4 (dato descriptivo) */}
                               <td className="px-2 py-1 min-w-[80px] w-20">
-                                {(() => {
-                                  const opciones = coloresAgrupados.get(det.colorBase) ?? [];
-                                  const conTonalidad = opciones.filter(o => o.tonalidad !== null);
-                                  return (
-                                    <div className="flex items-center gap-1">
-                                      {(!det.colorBase || conTonalidad.length === 0) ? (
-                                        <span className="text-xs text-gray-400 px-1 flex-1">—</span>
-                                      ) : (
-                                        <select
-                                          value={det.tonalidad}
-                                          onChange={e => {
-                                            const ton = e.target.value;
-                                            const opcion = conTonalidad.find(o => o.tonalidad === ton);
-                                            const colorId = opcion?.id ?? '';
-                                            setForm(f => {
-                                              const next = [...f.colores];
-                                              const t = parseInt(next[idx].tendidas) || 0;
-                                              const pS  = parseInt(f.propS)  || 0;
-                                              const pM  = parseInt(f.propM)  || 0;
-                                              const pL  = parseInt(f.propL)  || 0;
-                                              const pXL = parseInt(f.propXL) || 0;
-                                              const cantidades = (pS + pM + pL + pXL) > 0 ? {
-                                                cantS:  String(t > 0 ? pS  * t : pS),
-                                                cantM:  String(t > 0 ? pM  * t : pM),
-                                                cantL:  String(t > 0 ? pL  * t : pL),
-                                                cantXL: String(t > 0 ? pXL * t : pXL),
-                                              } : {};
-                                              next[idx] = { ...next[idx], tonalidad: ton, colorId, ...cantidades };
-                                              return { ...f, colores: next };
-                                            });
-                                          }}
-                                          className="input-base text-xs py-1 flex-1 min-w-0"
-                                          required={idx === 0}
-                                        >
-                                          <option value="">Ton…</option>
-                                          {conTonalidad.map(o => (
-                                            <option key={o.id} value={o.tonalidad!}>{o.tonalidad}</option>
-                                          ))}
-                                        </select>
-                                      )}
-                                      {det.colorBase && (
-                                        <button
-                                          type="button"
-                                          onClick={() => setTonModal({ idx, colorBase: det.colorBase })}
-                                          className="text-[10px] font-bold text-blue-600 hover:text-white hover:bg-blue-500 border border-blue-300 hover:border-blue-500 w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
-                                          title={`Agregar nueva tonalidad de "${det.colorBase}"`}
-                                        >+</button>
-                                      )}
-                                    </div>
-                                  );
-                                })()}
-                                {/* Mini-modal tonalidad */}
-                                {tonModal?.idx === idx && (() => {
-                                  const variantes = colores.filter(c => {
-                                    const m = c.nombre.match(/^(.+?)\s+(\d+)$/);
-                                    return m && m[1].toLowerCase() === tonModal.colorBase.toLowerCase();
-                                  });
-                                  const maxTon = variantes.reduce((max, c) => {
-                                    const m = c.nombre.match(/(\d+)$/);
-                                    return m ? Math.max(max, parseInt(m[1])) : max;
-                                  }, 0);
-                                  const nuevaNum = maxTon + 1;
-                                  const nuevoNombre = `${tonModal.colorBase} ${nuevaNum}`;
-                                  const baseColor = colores.find(c => c.nombre.toLowerCase() === tonModal.colorBase.toLowerCase()) ?? variantes[0];
-                                  const tieneProducto = !!form.productoId;
-                                  return (
-                                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setTonModal(null)}>
-                                      <div className="bg-white shadow-2xl p-6 w-80 border border-gray-200" onClick={e => e.stopPropagation()}>
-                                        <p className="text-sm font-black uppercase tracking-widest text-gray-800 mb-1">Nueva tonalidad</p>
-                                        <p className="text-xs text-gray-500 mb-4">
-                                          Se creará <strong className="text-blue-600">"{capWords(nuevoNombre)}"</strong> con la misma categoría que la base.
-                                        </p>
-                                        <div className="flex gap-2 justify-end">
-                                          <button type="button" onClick={() => { setTonModal(null); setTonProps({ propS: '', propM: '', propL: '', propXL: '' }); }} className="px-3 py-1.5 text-xs text-gray-600 border border-gray-300 hover:bg-gray-50">
-                                            Cancelar
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={async () => {
-                                              const colorId = newId();
-                                              const realColorId = await addColorConProductoColor(
-                                                { id: colorId, nombre: nuevoNombre, categoria: baseColor?.categoria ?? 'OSCURO', prioridad: baseColor?.prioridad ?? 99, notas: '' },
-                                                null
-                                              );
-                                              const idxFila = tonModal!.idx;
-                                              setForm(f => {
-                                                const next = [...f.colores];
-                                                const t = parseInt(next[idxFila].tendidas) || 0;
-                                                const pS  = parseInt(f.propS)  || 0;
-                                                const pM  = parseInt(f.propM)  || 0;
-                                                const pL  = parseInt(f.propL)  || 0;
-                                                const pXL = parseInt(f.propXL) || 0;
-                                                const cantidades = (pS + pM + pL + pXL) > 0 && t > 0 ? {
-                                                  cantS:  String(pS  * t),
-                                                  cantM:  String(pM  * t),
-                                                  cantL:  String(pL  * t),
-                                                  cantXL: String(pXL * t),
-                                                } : {};
-                                                next[idxFila] = { ...next[idxFila], tonalidad: String(nuevaNum), colorId: realColorId, ...cantidades };
-                                                return { ...f, colores: next };
-                                              });
-                                              addToast(`Tonalidad ${nuevaNum} de "${capWords(tonModal!.colorBase)}" creada y seleccionada`, 'success');
-                                              setTonModal(null);
-                                            }}
-                                            className="px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700"
-                                          >
-                                            Crear Ton. {nuevaNum}
-                                          </button>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  );
-                                })()}
+                                <div className="flex items-center gap-1">
+                                  {!det.colorBase ? (
+                                    <span className="text-xs text-gray-400 px-1 flex-1">—</span>
+                                  ) : (
+                                    <select
+                                      value={det.tonalidad}
+                                      onChange={e => {
+                                        const ton = e.target.value;
+                                        setForm(f => {
+                                          const next = [...f.colores];
+                                          next[idx] = { ...next[idx], tonalidad: ton };
+                                          return { ...f, colores: next };
+                                        });
+                                      }}
+                                      className="input-base text-xs py-1 w-full"
+                                    >
+                                      <option value="">Ton…</option>
+                                      {TONALIDADES.map(t => (
+                                        <option key={t} value={t}>Tonalidad {t}</option>
+                                      ))}
+                                    </select>
+                                  )}
+                                </div>
                               </td>
                               <td className="px-2 py-1">
                                 <input type="number" min={0} step={0.1} value={det.kgUsados} onChange={setDet('kgUsados')} className="input-base text-xs py-1 text-right w-full min-w-[52px]" placeholder="0" />
