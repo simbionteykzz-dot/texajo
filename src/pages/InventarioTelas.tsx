@@ -392,13 +392,13 @@ export function InventarioTelas() {
 
   // Tab Histórico: resumen mensual (últimos 24 meses)
   const historicoMensual = useMemo(() => {
-    const map = new Map<string, { periodo: string; ingresos: number; consumo: number; otros: number }>();
+    const map = new Map<string, { periodo: string; rollосIngresos: number; rollosConsumo: number; ingresos: number; consumo: number; otros: number }>();
     for (const m of movimientosTela) {
       const periodo = m.fecha.slice(0, 7);
-      if (!map.has(periodo)) map.set(periodo, { periodo, ingresos: 0, consumo: 0, otros: 0 });
+      if (!map.has(periodo)) map.set(periodo, { periodo, rollосIngresos: 0, rollosConsumo: 0, ingresos: 0, consumo: 0, otros: 0 });
       const row = map.get(periodo)!;
-      if (m.tipo === 'INGRESO') row.ingresos += m.kgTotal;
-      else if (m.tipo === 'A_CORTE') row.consumo += m.kgTotal;
+      if (m.tipo === 'INGRESO') { row.rollосIngresos += m.rollos; row.ingresos += m.kgTotal; }
+      else if (m.tipo === 'A_CORTE') { row.rollosConsumo += m.rollos; row.consumo += m.kgTotal; }
       else row.otros += m.kgTotal;
     }
     return Array.from(map.values())
@@ -803,7 +803,7 @@ export function InventarioTelas() {
                 <table className="texajo-table">
                   <thead>
                     <tr>
-                      {['Período', 'Ingresos (kg)', 'Consumo A Corte (kg)', 'Otros (kg)', 'Balance (kg)'].map(h => (
+                      {['Período', 'Rollos Ingr.', 'Rollos Consumo', 'Ingresos (kg)', 'Consumo A Corte (kg)', 'Otros (kg)', 'Balance (kg)'].map(h => (
                         <th key={h}>{h}</th>
                       ))}
                     </tr>
@@ -814,6 +814,8 @@ export function InventarioTelas() {
                       return (
                         <tr key={row.periodo}>
                           <td className="font-mono font-bold">{row.periodo}</td>
+                          <td className="font-mono text-right text-green-700">{row.rollосIngresos}</td>
+                          <td className="font-mono text-right text-blue-700">{row.rollosConsumo}</td>
                           <td className="font-mono text-right text-green-700">{row.ingresos.toFixed(1)}</td>
                           <td className="font-mono text-right text-blue-700">{row.consumo.toFixed(1)}</td>
                           <td className="font-mono text-right text-gray-500">{row.otros.toFixed(1)}</td>
