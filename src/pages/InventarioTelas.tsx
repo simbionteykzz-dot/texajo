@@ -943,7 +943,17 @@ export function InventarioTelas() {
                     </tr>
                   </thead>
                   <tbody>
-                    {[...colores].sort((a, b) => (a.prioridad ?? 999) - (b.prioridad ?? 999) || a.nombre.localeCompare(b.nombre)).map(c => (
+                    {(() => {
+                      const vistos = new Set<string>();
+                      return [...colores]
+                        .sort((a, b) => (a.prioridad ?? 999) - (b.prioridad ?? 999) || a.nombre.localeCompare(b.nombre))
+                        .filter(c => {
+                          const nombreResuelto = resolveNombreColor(c.nombre);
+                          if (vistos.has(nombreResuelto.toLowerCase())) return false;
+                          vistos.add(nombreResuelto.toLowerCase());
+                          return true;
+                        });
+                    })().map(c => (
                       <tr key={c.id}>
                         <td className="font-bold">{resolveNombreColor(c.nombre)}</td>
                         <td>
