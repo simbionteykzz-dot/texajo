@@ -15,6 +15,15 @@ const TONALIDADES = ['1', '2', '3', '4'] as const;
 import { useEsAdmin } from '../lib/useEsAdmin';
 import { capWords } from '../lib/utils';
 
+const _canonicosMap = new Map(mockColores.map(c => [c.nombre.toLowerCase(), c.nombre]));
+function resolveNombreColorCortes(nombre: string): string {
+  const n = nombre.toLowerCase();
+  if (_canonicosMap.has(n)) return _canonicosMap.get(n)!;
+  const mNew = nombre.match(/^_dup_(.+?)_[\w-]+$/);
+  if (mNew && _canonicosMap.has(mNew[1].toLowerCase())) return _canonicosMap.get(mNew[1].toLowerCase())!;
+  return nombre;
+}
+
 // Suma rollos sin contar duplicados del mismo colorBase+tonalidad (la celda está agrupada por rowSpan)
 const totalRollosSinDuplicar = (colores: { colorBase: string; tonalidad: string; rollosUsados: string }[]) =>
   colores.reduce((sum, det, i) => {
@@ -123,7 +132,7 @@ export function Cortes() {
       colores: detalles.map(det => ({
         uid: crypto.randomUUID(),
         colorId: det.colorId,
-        colorBase: colores.find(cl => cl.id === det.colorId)?.nombre ?? '',
+        colorBase: resolveNombreColorCortes(colores.find(cl => cl.id === det.colorId)?.nombre ?? ''),
         tonalidad: det.tonalidad ?? '',
         kgUsados: det.kgUsados > 0 ? String(det.kgUsados) : '',
         rollosUsados: det.rollosUsados > 0 ? String(det.rollosUsados) : '',
