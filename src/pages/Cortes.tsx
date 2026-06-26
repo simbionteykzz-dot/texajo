@@ -9,7 +9,9 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import { exportRowsToXlsx, exportReportesCorte } from '../lib/export';
 import { newId } from '../lib/storage';
 import { mockColores } from '../data';
-import { useStockActualTelas, useColoresAgrupados, TONALIDADES } from '../hooks/useCorteOperaciones';
+import { useStockActualTelas, useColoresAgrupados } from '../hooks/useCorteOperaciones';
+
+const TONALIDADES = ['1', '2', '3', '4'] as const;
 import { useEsAdmin } from '../lib/useEsAdmin';
 import { capWords } from '../lib/utils';
 

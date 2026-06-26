@@ -21,22 +21,19 @@ export function useStockActualTelas(movimientosTela: MovimientoTela[]) {
   }, [movimientosTela]);
 }
 
-// Agrupa colores por nombre base con sus tonalidades
+// Agrupa colores por nombre — cada color es su propio grupo (sin parsear tonalidades del nombre)
 export function useColoresAgrupados(colores: Color[]) {
   return useMemo(() => {
-    const grupos = new Map<string, { id: string; tonalidad: string | null; prioridad: number }[]>();
+    const grupos = new Map<string, { id: string; prioridad: number }[]>();
     for (const c of colores) {
-      const m = c.nombre.match(/^(.+?)\s+(\d+)$/);
-      const base = m ? m[1] : c.nombre;
-      const ton = m ? m[2] : null;
-      if (!grupos.has(base)) grupos.set(base, []);
-      grupos.get(base)!.push({ id: c.id, tonalidad: ton, prioridad: c.prioridad ?? 999 });
+      if (!grupos.has(c.nombre)) grupos.set(c.nombre, []);
+      grupos.get(c.nombre)!.push({ id: c.id, prioridad: c.prioridad ?? 999 });
     }
-    for (const arr of grupos.values())
-      arr.sort((a, b) => parseInt(a.tonalidad ?? '0') - parseInt(b.tonalidad ?? '0'));
     return grupos;
   }, [colores]);
 }
+
+export const TONALIDADES = ['1', '2', '3', '4'] as const;
 
 export function makeDescontarInventario(
   movimientosTela: MovimientoTela[],
