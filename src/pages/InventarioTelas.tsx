@@ -948,6 +948,8 @@ export function InventarioTelas() {
                       return [...colores]
                         .sort((a, b) => (a.prioridad ?? 999) - (b.prioridad ?? 999) || a.nombre.localeCompare(b.nombre))
                         .filter(c => {
+                          // Ocultar _dup_* sin nombre canónico conocido (quedan como "Color N")
+                          if (c.nombre.startsWith('_dup_')) return false;
                           const nombreResuelto = resolveNombreColor(c.nombre);
                           if (vistos.has(nombreResuelto.toLowerCase())) return false;
                           vistos.add(nombreResuelto.toLowerCase());
