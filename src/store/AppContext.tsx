@@ -138,7 +138,7 @@ interface AppContextProps extends AppState {
   updateTela: (id: string, updates: Partial<Tela>) => void;
   deleteTela: (id: string) => void;
   addColor: (c: Color) => void;
-  updateColor: (id: string, updates: Partial<Color>) => void;
+  updateColor: (id: string, updates: Partial<Color>) => Promise<void>;
   deleteColor: (id: string) => void;
   addPrecioTela: (p: PrecioTela) => void;
   updatePrecioTela: (id: string, updates: Partial<PrecioTela>) => void;
@@ -502,7 +502,16 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   const addBoletaLineas = (bs: BoletaLinea[]) => {
     set(p => ({ ...p, boletaLineas: [...p.boletaLineas, ...bs] }));
     bs.forEach(b => {
-      db.boletaLineas.add(b).catch(err => logDbError('INSERT', 'boletaLineas', err));
+      db.boletaLineas.add(b)
+        .then(realId => {
+          if (realId && realId !== b.id) {
+            set(p => ({
+              ...p,
+              boletaLineas: p.boletaLineas.map(x => x.id === b.id ? { ...x, id: realId } : x),
+            }));
+          }
+        })
+        .catch(err => logDbError('INSERT', 'boletaLineas', err));
       const rec = b as unknown as Record<string, unknown>;
       auditLog('CREATE', 'boleta_lineas', String(b.id), describeRecord('boleta_lineas', rec), undefined, rec);
     });
@@ -571,7 +580,15 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   const deleteTela = makeDelete('telas', db.telas.delete);
 
   const addColor = makeAdd<Color>('colores', db.colores.add);
-  const updateColor = makeUpdate<Color>('colores', db.colores.update);
+  const updateColor = (id: string, updates: Partial<Color>): Promise<void> => {
+    const cur = (stateRef.current.colores as Color[]).find(x => x.id === id);
+    set(p => ({ ...p, colores: p.colores.map(x => x.id === id ? { ...x, ...updates } : x) }));
+    if (!cur) {
+      logDbError('UPDATE', 'colores', new Error(`ID "${id}" no encontrado en colores`));
+      return Promise.resolve();
+    }
+    return db.colores.update(id, updates, cur).catch(err => { logDbError('UPDATE', 'colores', err); });
+  };
   const deleteColor = makeDelete('colores', db.colores.delete);
 
   // Inserta color en Supabase, espera el ID real, luego inserta producto_color con ese ID

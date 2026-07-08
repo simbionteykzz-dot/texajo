@@ -1,182 +1,91 @@
-# Handoff — Texajo Sistema de Gestión Textil
+# HANDOFF — Texajo Sistema de Gestión Textil
 
-**Fecha:** 2026-06-16  
-**Rama:** `master`  
-**Último commit:** `2f72787` — fix: validar colorIds duplicados al guardar corte con múltiples tonalidades
-
----
-
-## Stack Técnico
-
-| Capa | Tecnología |
-|------|-----------|
-| Frontend | React + Vite + TypeScript |
-| Estilos | Tailwind CSS v4 |
-| Base de datos | Supabase (PostgreSQL) |
-| Backend auxiliar | Flask serverless en Vercel (`/api/`) |
-| Deploy | Vercel |
-| Repo | https://github.com/simbionteykzz-dot/texajo.git |
+**Fecha:** 2026-07-07  
+**Servidor local:** http://localhost:3000  
+**Branch:** master
 
 ---
 
-## Variables de Entorno (`.env` — NO commitear)
+## Estado del servidor
 
-```
-VITE_SUPABASE_URL=https://gbqujodnryjwqlufhebk.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdicXVqb2Rucnlqd3FsdWZoZWJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAwNjU1MzMsImV4cCI6MjA5NTY0MTUzM30.JELqH6OxM9GyxKPoUbv3_04zOHYd--Xg6OFFNYH57kU
-```
-
-> **IMPORTANTE:** La key debe ser el JWT anon (formato `eyJ...`), NO la Publishable Key (`sb_publishable_...`). La Publishable Key es solo para autenticación de usuarios, no para el cliente JS de Supabase.
+El servidor de desarrollo está corriendo en `http://localhost:3000` (Vite 6, React 19 + TypeScript).
 
 ---
 
-## Arquitectura de Datos
+## Cambios recientes aplicados (no commiteados)
 
-### Flujo de persistencia
+Los siguientes archivos tienen cambios en el working tree:
 
-```
-Usuario interactúa → AppContext (React state) → supabaseDb.ts → Supabase REST API
-                                ↑
-                    loadAllFromDb() al iniciar la app
-```
+### `src/lib/supabaseDb.ts`
+- **`DbCorte.n_corte`**: cambiado de `number` → `string` (DB migrada a `text`)
+- **`DbMovTela.n_corte`**: cambiado de `number | null` → `string | null`
+- **`fromCorte`**: `n_corte` ya no hace `parseInt(v.nCorte)` — pasa `v.nCorte` directo como string
+- **`fromSeguimientoFilaInsert`**: eliminado `parseInt` en `n_corte`; también eliminado `id` del payload (lo genera Supabase con `gen_random_uuid()`)
+- **`dbInsert`**: strips `id` de todos los payloads de insert universalmente para evitar errores de PK
 
-- **`src/store/AppContext.tsx`** — Estado global. `makeAdd/makeUpdate/makeDelete` actualizan el estado local y persisten en Supabase en background (fire-and-forget con `.catch(console.error)`).
-- **`src/lib/supabaseDb.ts`** — Capa de mapeo snake_case (DB) ↔ camelCase (app). Contiene `loadAllFromDb()` y el objeto `db` con CRUD por entidad.
-- **`src/lib/supabase.ts`** — Cliente Supabase inicializado desde env vars.
+### `src/pages/Cortes.tsx`
+- Regex de validación de `nCorte` actualizada: `^\d+[-]?[A-Za-z]?$` (antes solo `^\d+[A-Za-z]?$`)
+- Placeholder del input: `"Ej: 100, 100A ó 100-A"`
 
-### Tablas en Supabase
-
-| Tabla | Entidad app |
-|-------|------------|
-| `productos` | `Producto` |
-| `tarifas_operaciones` | `TarifaOperacion` |
-| `clientes` | `Cliente` |
-| `proveedores` | `Proveedor` |
-| `telas` | `Tela` |
-| `colores` | `Color` |
-| `operarios` | `Operario` |
-| `precios_telas` | `PrecioTela` |
-| `precios_complementos` | `PrecioComplemento` |
-| `precios_tejeduria` | `PrecioTejeduria` |
-| `precios_tintoreria` | `PrecioTintoreria` |
-| `movimientos_tela` | `MovimientoTela` |
-| `cortes` | `Corte` |
-| `seguimiento_filas` | `SeguimientoFila` |
-| `boleta_lineas` | `BoletaLinea` |
-| `descuentos_boleta` | `DescuentoBoleta` |
-| `programas_zurzam` | `ProgramaZurzam` |
-| `programa_detalles` | `ProgramaDetalle` |
-| `compras_hilo` | `CompraHilo` |
-| `stock_extornos` | `StockExtorno` |
-| `cobros_diarios` | `CobroDiario` |
-| `movimientos_complemento` | `MovimientoComplemento` |
-| `producto_colores` | `ProductoColor` |
-| `config` | `Config` (singleton, id='singleton') |
-| `audit_logs` | Log de auditoría automático |
-
-> **Sin RLS** — acceso público con anon key. Todos los usuarios ven y modifican los mismos datos.
+### Otros archivos modificados (cambios anteriores, sin relación con las fixes de hoy):
+- `src/data.ts`
+- `src/hooks/useCorteOperaciones.ts`
+- `src/pages/CobrosEntregas.tsx`
+- `src/pages/Complementos.tsx`
+- `src/store/AppContext.tsx`
 
 ---
 
-## Empresas (Odoo)
+## Migraciones SQL ejecutadas en Supabase
 
-El módulo `OdooStock` consulta stock directamente a Odoo desde el browser:
-
-| Empresa | ID Odoo |
-|---------|---------|
-| Overshark | 8 |
-| Bravos | 11 |
-
-Box Prime (id 5) fue excluido intencionalmente.
-
----
-
-## Paleta de Colores (Texajo)
-
-| Token | Valor |
-|-------|-------|
-| Crema | `#F5F2EA` |
-| Verde oscuro | `#173A25` |
-| Cobre | `#B66F35` |
-| Borde | `#DDD8CF` |
-| Muted | `#7A6F67` |
-
----
-
-## Módulos / Páginas
-
-| Archivo | Módulo |
-|---------|--------|
-| `Dashboard.tsx` | Panel principal |
-| `Catalogos.tsx` | Productos, Tarifas, Clientes, Proveedores, Telas, Colores, Operarios |
-| `InventarioTelas.tsx` | Movimientos de tela y stock |
-| `Cortes.tsx` | Órdenes de corte |
-| `ProduccionConfeccion.tsx` | Seguimiento de confección |
-| `Destajo.tsx` | Boletas de destajo |
-| `CobrosEntregas.tsx` | Cobros diarios |
-| `ProgramasZurzam.tsx` | Programas de tejido/tintorería |
-| `Complementos.tsx` | Stock de complementos |
-| `OdooStock.tsx` | Stock Odoo (Overshark + Bravos) |
-| `TablaTarifas.tsx` | Vista de tarifas |
-| `PanelOperativo.tsx` | Panel operario |
-| `PanelAdmin.tsx` | Panel administrador |
-| `HistorialGeneral.tsx` | Auditoría / historial |
-| `Configuracion.tsx` | Config del sistema |
-| `Login.tsx` | Autenticación |
-
----
-
-## Bug Fix Reciente — Destajo: prendas por operario incorrectas
-
-### Síntoma
-Cuando dos operarios distintos estaban asignados a tallas diferentes de un mismo color/corte, la vista de Destajo mostraba a cada operario el total de prendas del color completo en vez de solo las prendas de sus tallas.
-
-**Ejemplo:** Corte 58, Blanco 1 — EDWID (M/L/XL = 320) y Alexander (S = 80). Ambos veían 400 prendas.
-
-### Causa
-En `Destajo.tsx`, las funciones `tallasDisp`, `tallasFilas` y `cantPrendasReal` filtraban filas de `seguimientoFilas` por `corteId+colorId+tarifaId+confirmado` pero **no verificaban si `b.operarioId` estaba asignado a esa talla**. Resultado: sumaban cantidades de todas las tallas sin importar el operario.
-
-### Fix aplicado (`src/pages/Destajo.tsx`)
-Los cuatro lugares donde se calculan tallas y cantidades por operario ahora incluyen:
-```ts
-const ids = asig.operarioIds?.filter(Boolean).length
-  ? asig.operarioIds!.filter(Boolean)
-  : (asig.operarioId ? [asig.operarioId] : []);
-return ids.includes(b.operarioId);  // filtro clave
+```sql
+-- Ejecutadas manualmente en el SQL Editor de Supabase
+ALTER TABLE cortes ALTER COLUMN n_corte TYPE text;
+ALTER TABLE movimientos_tela ALTER COLUMN n_corte TYPE text;
+-- seguimiento_filas.id ya era text con gen_random_uuid() como default
 ```
 
-### Fix también en `src/pages/ProduccionConfeccion.tsx`
-- `guardarModalAvance` y `reconstruirBoletasColor` usan `addBoletaLineas` (batch) en vez de `addBoletaLinea` en loop para evitar race conditions en el estado React.
+---
+
+## Bugs corregidos en esta sesión
+
+### 1. `duplicate key value violates unique constraint "seguimiento_filas_pkey"` (código 23505)
+- **Causa:** `fromSeguimientoFilaInsert` enviaba un `id` entero aleatorio que colisionaba con filas existentes
+- **Fix:** Se eliminó `id` del payload de insert; Supabase lo genera automáticamente con `gen_random_uuid()`
+- **Ubicación:** `src/lib/supabaseDb.ts` — función `fromSeguimientoFilaInsert` y `dbInsert`
+
+### 2. `null value in column "id" violates not-null constraint` (código 23502)
+- **Causa:** Algún path enviaba `id: null` explícito en el insert
+- **Fix:** `dbInsert` ahora hace destructuring universal `{ id: _id, ...payload }` antes de insertar
+
+### 3. `nCorte` con letra sufijo se borraba al editar (ej: `63-B` → `63`)
+- **Causa triple:**
+  1. Regex de validación no permitía guion (`-`)
+  2. `fromCorte` hacía `parseInt(v.nCorte)` truncando la letra
+  3. La columna `n_corte` en DB era `integer` (no guardaba letras)
+- **Fix:** Regex actualizada + mappers sin `parseInt` + migración SQL a `text`
 
 ---
 
-## Bugs Pendientes
+## Arquitectura del proyecto
 
-_(ninguno crítico conocido al 2026-06-17)_
+```
+React 19 + TypeScript + Vite 6
+    ↕ supabase-js
+Supabase (PostgreSQL) — tablas principales:
+  cortes, seguimiento_filas, movimientos_tela,
+  cobros_diarios, movimientos_complemento,
+  operarios, boleta_lineas, programas_zurzam, ...
+```
 
-> ~~**Columna `marca` faltante en tabla `productos`**~~ — **RESUELTO 2026-06-17** via `ALTER TABLE productos ADD COLUMN IF NOT EXISTS marca text;`
-
----
-
-## Historial de Cambios Recientes
-
-| Commit | Descripción |
-|--------|------------|
-| (pendiente) | fix: Destajo muestra prendas correctas por operario cuando hay operarios distintos por talla |
-| `2f72787` | Fix validar colorIds duplicados al guardar corte con múltiples tonalidades |
-| `debb5ad` | PDF hoja seguimiento con paginación automática y tipografía suave |
-| `18a7be4` | Fix PDF solo muestra operario si operación está confirmada |
-| `48c97c0` | Descuento merma 1% en boleta de destajo |
-| `48d3fc5` | Fix props de tonalidad cargan al seleccionar color |
-| `5ac2c66` | Refactor seguridad, tipado fuerte y extracción de lógica a hooks |
-| `8370ca5` | Fix detección huérfanas incluye operarioId |
-| `25e009e` | Fix detección boletas huérfanas no debe exigir colorId |
+**Capa de datos:** `src/lib/supabaseDb.ts`  
+**Estado global:** `src/store/AppContext.tsx`  
+**Páginas principales:** Cortes, InventarioTelas, CobrosEntregas, Complementos, ProgramasZurzam, Destajo
 
 ---
 
-## Notas de Desarrollo
+## Próximos pasos sugeridos
 
-- Los errores de Supabase fallan silenciosamente (solo `console.error`). Si algo no persiste, revisar DevTools → Console buscando `[Supabase] INSERT/UPDATE/DELETE en X falló`.
-- `loadAllFromDb()` lanza si fallan las tablas `clientes`, `telas` o `productos` — en ese caso se usa caché local de localStorage (key `texajo_v3`).
-- El campo `marca` en Catalogos.tsx usa dropdown Overshark/Bravos (no texto libre) tanto en el form principal como en el inline del modal de Tarifas.
-- El formulario inline de nuevo producto en el modal de Tarifas es un `<div>` (no `<form>`) para evitar que el submit burbujee al form padre.
+1. **Commitear** los cambios actuales (`src/lib/supabaseDb.ts`, `src/pages/Cortes.tsx`)
+2. **Probar** creación y edición de corte con nombre `63-B` end-to-end
+3. Verificar que el seguimiento de filas del corte `63-B` se guarda correctamente

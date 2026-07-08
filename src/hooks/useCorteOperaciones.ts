@@ -21,13 +21,28 @@ export function useStockActualTelas(movimientosTela: MovimientoTela[]) {
   }, [movimientosTela]);
 }
 
-// Agrupa colores por nombre — cada color es su propio grupo (sin parsear tonalidades del nombre)
+// Resuelve el nombre canónico de un color (quita prefijo _dup_NOMBRE_id)
+function resolveNombreCanonicoColor(nombre: string): string {
+  const m = nombre.match(/^_dup_(.+?)_[\w-]+$/);
+  return m ? m[1] : nombre;
+}
+
+// Agrupa colores por nombre canónico — los _dup_NOMBRE_* se agrupan bajo NOMBRE
 export function useColoresAgrupados(colores: Color[]) {
   return useMemo(() => {
     const grupos = new Map<string, { id: string; prioridad: number }[]>();
     for (const c of colores) {
-      if (!grupos.has(c.nombre)) grupos.set(c.nombre, []);
-      grupos.get(c.nombre)!.push({ id: c.id, prioridad: c.prioridad ?? 999 });
+      const clave = resolveNombreCanonicoColor(c.nombre);
+      if (!grupos.has(clave)) grupos.set(clave, []);
+      grupos.get(clave)!.push({ id: c.id, prioridad: c.prioridad ?? 999 });
+    }
+    // Ordenar cada grupo: el canónico primero (sin _dup_), luego por prioridad
+    for (const [, arr] of grupos) {
+      arr.sort((a, b) => {
+        const aEsDup = colores.find(c => c.id === a.id)?.nombre.startsWith('_dup_') ? 1 : 0;
+        const bEsDup = colores.find(c => c.id === b.id)?.nombre.startsWith('_dup_') ? 1 : 0;
+        return aEsDup - bEsDup || a.prioridad - b.prioridad;
+      });
     }
     return grupos;
   }, [colores]);

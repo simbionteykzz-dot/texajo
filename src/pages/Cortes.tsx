@@ -361,8 +361,8 @@ export function Cortes() {
       return;
     }
 
-    if (!/^\d+[A-Za-z]?$/.test(form.nCorte.trim()) || parseInt(form.nCorte) <= 0) {
-      addToast('N° Corte debe ser un número, con letra opcional al final (ej: 100 ó 100A)', 'error');
+    if (!/^\d+[-]?[A-Za-z]?$/.test(form.nCorte.trim()) || parseInt(form.nCorte) <= 0) {
+      addToast('N° Corte debe ser un número, con letra opcional al final (ej: 100, 100A ó 100-A)', 'error');
       return;
     }
 
@@ -653,7 +653,7 @@ export function Cortes() {
                   cantL: det.cantL,
                   cantXL: det.cantXL,
                   totalColor: det.cantS + det.cantM + det.cantL + det.cantXL,
-                  kgUsados: det.kgUsados,
+                  kgUsados: det.kgUsados ?? 0,
                 }));
 
                 const expanded = expandedCortes.has(c.id);
@@ -668,10 +668,14 @@ export function Cortes() {
                   ? Math.round(filasSegsAll.reduce((s, sf) => s + (sf.pctAvance ?? 0), 0) / filasSegsAll.length)
                   : null;
 
-                // Resumen de colores para la fila collapsed
-                const resumenColores = filas.map(f =>
-                  (colorMap.get(f.colorId) ?? f.colorId) + (f.tonalidad ? ` Tn-${f.tonalidad}` : '')
-                ).join(' · ');
+                // Resumen de colores para la fila collapsed — deduplicar por nombre+tonalidad
+                const resumenColores = (() => {
+                  const seen = new Set<string>();
+                  return filas
+                    .map(f => (colorMap.get(f.colorId) ?? f.colorId) + (f.tonalidad ? ` Tn-${f.tonalidad}` : ''))
+                    .filter(label => { if (seen.has(label)) return false; seen.add(label); return true; })
+                    .join(' · ');
+                })();
 
                 return (
                   <React.Fragment key={c.id}>
@@ -1101,7 +1105,7 @@ export function Cortes() {
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div className="grid grid-cols-3 gap-4">
-                <F label="N° Corte"><input type="text" placeholder="Ej: 100 ó 100A" value={form.nCorte} onChange={set('nCorte')} className="input-base" required /></F>
+                <F label="N° Corte"><input type="text" placeholder="Ej: 100, 100A ó 100-A" value={form.nCorte} onChange={set('nCorte')} className="input-base" required /></F>
                 <F label="Fecha"><input type="date" value={form.fecha} onChange={set('fecha')} className="input-base" required /></F>
                 <F label="Cliente">
                   <select value={form.clienteId} onChange={set('clienteId')} className="input-base" required>

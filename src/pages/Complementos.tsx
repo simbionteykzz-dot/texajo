@@ -8,6 +8,7 @@ import { TipoComplemento, TipoMovimientoComplemento, MovimientoComplemento, TIPO
 import { ModuleInfoBox } from '../components/ModuleInfoBox';
 import { exportRowsToXlsx, exportTableToPdf } from '../lib/export';
 import { newId } from '../lib/storage';
+import { mockColores } from '../data';
 
 const TIPOS_MOV: TipoMovimientoComplemento[] = ['INGRESO', 'CONSUMO', 'AJUSTE_POS', 'AJUSTE_NEG'];
 const MOV_LABEL: Record<TipoMovimientoComplemento, string> = {
@@ -66,6 +67,11 @@ export function Complementos() {
 
   const colorMap = useMemo(() => new Map(colores.map(c => [c.id, c])), [colores]);
   const productoMap = useMemo(() => new Map(productos.map(p => [p.id, p.nombre])), [productos]);
+  const coloresCanonicos = useMemo(() => {
+    const canonicos = new Set(mockColores.map(c => c.nombre.toLowerCase()));
+    return colores.filter(c => canonicos.has(c.nombre.toLowerCase()))
+      .sort((a, b) => (a.prioridad ?? 999) - (b.prioridad ?? 999) || a.nombre.localeCompare(b.nombre));
+  }, [colores]);
 
   const set = (field: keyof MovCompForm) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
@@ -271,7 +277,7 @@ export function Complementos() {
         </select>
         <select value={filterColor} onChange={e => setFilterColor(e.target.value)} className="input-base text-xs w-40">
           <option value="">Todos los colores</option>
-          {colores.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+          {coloresCanonicos.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
         </select>
         <select value={filterTalla} onChange={e => setFilterTalla(e.target.value)} className="input-base text-xs w-28">
           <option value="">Todas las tallas</option>
@@ -361,7 +367,7 @@ export function Complementos() {
                 <F label="Color">
                   <select value={form.colorId} onChange={set('colorId')} className="input-base" required>
                     <option value="">Seleccionar…</option>
-                    {colores.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                    {coloresCanonicos.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                   </select>
                 </F>
                 <F label="Talla">

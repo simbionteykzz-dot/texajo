@@ -8,6 +8,7 @@ import { CobroDiario } from '../types';
 import { ModuleInfoBox } from '../components/ModuleInfoBox';
 import { exportRowsToXlsx, exportTableToPdf } from '../lib/export';
 import { newId } from '../lib/storage';
+import { mockColores } from '../data';
 
 interface CobroForm {
   fecha: string; nCorte: string; nFactura: string;
@@ -39,6 +40,11 @@ export function CobrosEntregas() {
   const productoMap = useMemo(() => new Map(productos.map(p => [p.id, p])), [productos]);
   const colorMap = useMemo(() => new Map(colores.map(c => [c.id, c.nombre])), [colores]);
   const corteMap = useMemo(() => new Map(cortes.map(c => [c.nCorte, c])), [cortes]);
+  const coloresCanonicos = useMemo(() => {
+    const canonicos = new Set(mockColores.map(c => c.nombre.toLowerCase()));
+    return colores.filter(c => canonicos.has(c.nombre.toLowerCase()))
+      .sort((a, b) => (a.prioridad ?? 999) - (b.prioridad ?? 999) || a.nombre.localeCompare(b.nombre));
+  }, [colores]);
 
   // Auto-rellena campos al ingresar N° Corte
   useEffect(() => {
@@ -622,7 +628,7 @@ export function CobrosEntregas() {
                 <F label="Color">
                   <select value={form.colorId} onChange={set('colorId')} className="input-base">
                     <option value="">—</option>
-                    {colores.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                    {coloresCanonicos.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                   </select>
                 </F>
               </div>
