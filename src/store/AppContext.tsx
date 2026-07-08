@@ -412,7 +412,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       const cur = (stateRef.current[field] as unknown as T[]).find(x => x.id === id);
       set(p => ({
         ...p,
-        [field]: (p[field] as unknown as T[]).map(x => x.id === id ? { ...x, ...updates } : x) as AppState[typeof field],
+        [field]: (p[field] as unknown as T[]).map(x => x.id === id ? { ...x, ...updates } : x) as unknown as AppState[typeof field],
       }));
       if (cur) {
         const entidad = FIELD_TO_TABLE[field] ?? String(field);

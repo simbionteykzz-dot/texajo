@@ -157,7 +157,13 @@ export function ProduccionConfeccion() {
         const ids = (tallaOps[fila.talla] ?? []).filter(Boolean);
         const tarifa = tarifasOperaciones.find(t => t.id === a.tarifaId);
         const pago = ids.length && tarifa ? fila.cantidad * tarifa.tarifa : 0;
-        return { ...a, operarioId: ids[0] ?? '', operarioIds: ids, pago };
+        const idsPrevios = a.operarioIds?.length ? a.operarioIds : (a.operarioId ? [a.operarioId] : []);
+        const cambiaronOperarios = ids.length > 0 &&
+          (ids.length !== idsPrevios.length || ids.some(id => !idsPrevios.includes(id)));
+        return {
+          ...a, operarioId: ids[0] ?? '', operarioIds: ids, pago,
+          confirmado: (a.confirmado && cambiaronOperarios) ? false : a.confirmado,
+        };
       });
       const totalPago = asignaciones.reduce((s, a) => s + a.pago, 0);
       const confirmedCount = asignaciones.filter(a => a.confirmado).length;
@@ -248,16 +254,26 @@ export function ProduccionConfeccion() {
     const fila = seguimientoFilas.find(f => f.corteId === corteId && f.colorId === colorId && f.talla === talla);
     if (!fila) return;
 
+    // Si se cambia el conjunto de operarios de una operación ya confirmada, exigir
+    // reconfirmación: no dejar que el/los nuevo(s) operario(s) cobren sin verificación.
     const asignaciones = fila.asignaciones.map(a => {
       const ops = avanceOpsIds[a.tarifaId] ?? [];
       const ids = ops.map(o => o.operarioId).filter(Boolean);
+      const idsPrevios = a.operarioIds?.length ? a.operarioIds : (a.operarioId ? [a.operarioId] : []);
+      const cambiaronOperarios = ids.length > 0 &&
+        (ids.length !== idsPrevios.length || ids.some(id => !idsPrevios.includes(id)));
       return {
         ...a,
         operarioId: ids[0] ?? a.operarioId,
         operarioIds: ids.length > 0 ? ids : (a.operarioIds ?? []),
+        confirmado: (a.confirmado && cambiaronOperarios) ? false : a.confirmado,
       };
     });
-    updateSeguimientoFila(fila.id, { asignaciones });
+    const pctAvance = asignaciones.length > 0
+      ? Math.round((asignaciones.filter(a => a.confirmado).length / asignaciones.length) * 100)
+      : fila.pctAvance;
+    const estado = pctAvance === 100 ? 'LISTO' : (fila.estado === 'LISTO' ? 'EN_PROCESO' : fila.estado);
+    updateSeguimientoFila(fila.id, { asignaciones, pctAvance, estado });
 
     // Reconstruir boletas del color con los nuevos operarios
     const periodo = fila.fecha.slice(0, 7);
@@ -805,6 +821,12 @@ export function ProduccionConfeccion() {
     const filasDelColor = seguimientoFilas.filter(f => f.corteId === fila.corteId && f.colorId === fila.colorId);
     const tarifasCorte = tarifasDelCorte(fila.corteId);
 
+    // Si se cambia el operario de una operación ya confirmada, exigir reconfirmación:
+    // el nuevo operario no debe cobrar automáticamente por trabajo que no se ha verificado.
+    const opIdPrevio = fila.asignaciones.find(a => a.tarifaId === tarifaId)?.operarioId ?? '';
+    const estabaConfirmada = fila.asignaciones.find(a => a.tarifaId === tarifaId)?.confirmado ?? false;
+    const reasignacion = estabaConfirmada && opIdPrevio && opIdPrevio !== operarioId;
+
     // Construir versión actualizada para calcular totales correctos
     const filasActualizadas: SeguimientoFila[] = seguimientoFilas.map(f => {
       if (f.corteId !== fila.corteId || f.colorId !== fila.colorId) return f;
@@ -812,7 +834,12 @@ export function ProduccionConfeccion() {
       const base: SeguimientoAsignacion[] = f.asignaciones.length > 0
         ? f.asignaciones
         : tarifasCorte.map(t => ({ tarifaId: t.id, operacion: t.operacion, orden: t.orden, operarioId: '', pago: 0 }));
-      return { ...f, asignaciones: base.map(a => a.tarifaId === tarifaId ? { ...a, operarioId, pago } : a) };
+      return {
+        ...f,
+        asignaciones: base.map(a => a.tarifaId === tarifaId
+          ? { ...a, operarioId, pago, confirmado: reasignacion ? false : a.confirmado }
+          : a),
+      };
     });
 
     for (const f of filasDelColor) {
@@ -827,8 +854,6 @@ export function ProduccionConfeccion() {
 
     // Upsert o eliminar boleta según si se asignó o desasignó
     const periodo = fila.fecha.slice(0, 7);
-    const opIdPrevio = fila.asignaciones.find(a => a.tarifaId === tarifaId)?.operarioId ?? '';
-    const estaConfirmada = fila.asignaciones.find(a => a.tarifaId === tarifaId)?.confirmado ?? false;
 
     if (opIdPrevio && opIdPrevio !== operarioId) {
       const linea = boletaLineas.find(
@@ -838,9 +863,12 @@ export function ProduccionConfeccion() {
       if (linea) deleteBoletaLinea(linea.id);
     }
 
-    // Upsert solo si la operación está confirmada
-    if (operarioId && tarifa && estaConfirmada) {
+    // Upsert solo si la operación sigue confirmada tras la reasignación (no se resetea confirmado)
+    if (operarioId && tarifa && estabaConfirmada && !reasignacion) {
       upsertBoletaLinea(operarioId, fila.corteId, tarifaId, periodo, filasActualizadas);
+    }
+    if (reasignacion) {
+      addToast('Operario reasignado — la operación quedó pendiente de reconfirmar', 'info');
     }
   };
 

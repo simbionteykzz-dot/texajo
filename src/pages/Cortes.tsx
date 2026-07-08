@@ -82,9 +82,9 @@ const ESTADO_ICON: Record<string, React.ReactNode> = {
 export function Cortes() {
   const {
     cortes, clientes, productos, colores, telas, tarifasOperaciones, operarios,
-    movimientosTela, seguimientoFilas,
+    movimientosTela, seguimientoFilas, boletaLineas,
     addCorte, updateCorte, deleteCorte,
-    addMovimientoTela, addSeguimientoFila,
+    addMovimientoTela, addSeguimientoFila, updateSeguimientoFila, deleteBoletaLinea,
     updateProducto, addColorConProductoColor,
   } = useAppContext();
 
@@ -96,6 +96,8 @@ export function Cortes() {
   const [filterCliente, setFilterCliente] = useState('');
   const [form, setForm] = useState<CorteForm>(emptyForm());
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [confirmAnular, setConfirmAnular] = useState<string | null>(null);
+  const [confirmReactivar, setConfirmReactivar] = useState<string | null>(null);
   const [completandoId, setCompletandoId] = useState<string | null>(null);
   const [tiempoModal, setTiempoModal] = useState<{ open: boolean; tipo: 'inicio' | 'fin' }>({ open: false, tipo: 'inicio' });
   const [tiempoCorteId, setTiempoCorteId] = useState(''); // corte seleccionado en el modal
@@ -283,6 +285,31 @@ export function Cortes() {
     }
   };
 
+  // Anula un corte: marca sus filas de seguimiento pendientes como ANULADO y elimina
+  // las boletas aún no pagadas (las ya PAGADAS se conservan, ese dinero ya se entregó)
+  const anularCorte = (corte: Corte) => {
+    updateCorte(corte.id, { estado: 'ANULADO' });
+    for (const f of seguimientoFilas) {
+      if (f.corteId !== corte.id) continue;
+      if (f.estado === 'LISTO' || f.estado === 'PAGADO' || f.estado === 'ANULADO') continue;
+      updateSeguimientoFila(f.id, { estado: 'ANULADO' });
+    }
+    for (const b of boletaLineas) {
+      if (b.corteId !== corte.id) continue;
+      if (b.estadoPago === 'PAGADO') continue;
+      deleteBoletaLinea(b.id);
+    }
+  };
+
+  // Reactiva un corte anulado: vuelve el corte y sus filas ANULADO a estado activo.
+  // No recupera boletas de pago que se hayan eliminado al anular.
+  const reactivarCorte = (corte: Corte) => {
+    updateCorte(corte.id, { estado: 'EN_PROCESO' });
+    for (const f of seguimientoFilas) {
+      if (f.corteId !== corte.id || f.estado !== 'ANULADO') continue;
+      updateSeguimientoFila(f.id, { estado: 'PENDIENTE' });
+    }
+  };
 
   // Normaliza un ID que puede ser nombre plano → ID canónico buscando en el catálogo
   const normalizeColorId = (raw: string): string => {
@@ -803,6 +830,20 @@ export function Cortes() {
                               className="text-[10px] font-bold uppercase text-gray-500 hover:text-[#B66F35] whitespace-nowrap"
                               title="Editar corte"
                             >Editar</button>
+                          )}
+                          {esAdmin && c.estado !== 'ANULADO' && (
+                            <button
+                              onClick={() => setConfirmAnular(c.id)}
+                              className="text-[10px] font-bold uppercase text-gray-500 hover:text-red-600 whitespace-nowrap"
+                              title="Anular corte"
+                            >Anular</button>
+                          )}
+                          {esAdmin && c.estado === 'ANULADO' && (
+                            <button
+                              onClick={() => setConfirmReactivar(c.id)}
+                              className="text-[10px] font-bold uppercase text-gray-500 hover:text-blue-600 whitespace-nowrap"
+                              title="Reactivar corte"
+                            >Reactivar</button>
                           )}
                           {esAdmin && (
                             <button onClick={() => setConfirmDelete(c.id)} className="text-gray-300 hover:text-red-500 transition-colors">
@@ -1612,6 +1653,36 @@ export function Cortes() {
             addToast('Corte eliminado', 'success');
           }}
           onCancelar={() => setConfirmDelete(null)}
+        />
+      )}
+
+      {/* Confirmar anular corte */}
+      {confirmAnular && (
+        <ConfirmModal
+          mensaje="¿Anular este corte?"
+          detalle="El corte y sus filas de seguimiento pendientes pasarán a ANULADO. Las boletas de pago aún no pagadas de este corte se eliminarán; las ya pagadas se conservan. Esta acción no se puede deshacer."
+          onConfirmar={() => {
+            const corte = cortes.find(c => c.id === confirmAnular);
+            if (corte) anularCorte(corte);
+            setConfirmAnular(null);
+            addToast('Corte anulado', 'success');
+          }}
+          onCancelar={() => setConfirmAnular(null)}
+        />
+      )}
+
+      {/* Confirmar reactivar corte */}
+      {confirmReactivar && (
+        <ConfirmModal
+          mensaje="¿Reactivar este corte?"
+          detalle="El corte volverá a EN_PROCESO y sus filas de seguimiento a PENDIENTE. Las boletas de pago que se eliminaron al anular NO se recuperan — los operarios deberán reconfirmarse de nuevo."
+          onConfirmar={() => {
+            const corte = cortes.find(c => c.id === confirmReactivar);
+            if (corte) reactivarCorte(corte);
+            setConfirmReactivar(null);
+            addToast('Corte reactivado', 'success');
+          }}
+          onCancelar={() => setConfirmReactivar(null)}
         />
       )}
 
