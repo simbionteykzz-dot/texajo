@@ -253,6 +253,7 @@ export default function OdooStock() {
   const [expanded, setExpanded]       = useState<Set<number>>(new Set());
   const [vista, setVista]             = useState<'tabla' | 'dashboard'>('tabla');
   const [filtrosPanelOpen, setFiltrosPanelOpen] = useState(false);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
 
   // Filters
   const [filtroEmpresas, setFiltroEmpresas]   = useState<Set<string>>(new Set());
@@ -604,12 +605,12 @@ export default function OdooStock() {
           {raw && (
             <button
               onClick={() => setFiltrosPanelOpen(o => !o)}
-              className={`md:hidden btn-secondary flex items-center gap-1.5 ${filtrosPanelOpen ? 'bg-[#173A25] text-[#F5F2EA] border-[#173A25]' : ''}`}
+              className={`md:hidden btn-secondary flex items-center gap-1.5 relative ${filtrosPanelOpen ? 'bg-[#173A25] text-[#F5F2EA] border-[#173A25]' : ''}`}
             >
               <SlidersHorizontal className="h-3.5 w-3.5" />
               <span className="text-[10px] font-bold uppercase tracking-[0.1em]">Filtros</span>
               {hasFilters && (
-                <span className="w-2 h-2 rounded-full bg-[#C4612A]" />
+                <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#C4612A]" />
               )}
             </button>
           )}
@@ -640,24 +641,36 @@ export default function OdooStock() {
             </div>
           )}
           {filtered.length > 0 && vista === 'tabla' && (
-            <>
+            <div className="relative">
               <button
-                onClick={exportarExcel}
+                onClick={() => setExportMenuOpen(o => !o)}
                 className="btn-secondary flex items-center gap-1.5"
-                title="Exportar a Excel"
               >
-                <FileSpreadsheet className="h-3.5 w-3.5 text-green-700" />
-                <span className="hidden sm:inline">Excel</span>
+                <FileSpreadsheet className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Exportar</span>
               </button>
-              <button
-                onClick={exportarPDF}
-                className="btn-secondary flex items-center gap-1.5"
-                title="Exportar a PDF"
-              >
-                <FileText className="h-3.5 w-3.5 text-red-600" />
-                <span className="hidden sm:inline">PDF</span>
-              </button>
-            </>
+              {exportMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setExportMenuOpen(false)} />
+                  <div className="absolute right-0 top-full mt-1 z-40 bg-white border border-[#DDD8CF] shadow-lg min-w-[140px]">
+                    <button
+                      onClick={() => { exportarExcel(); setExportMenuOpen(false); }}
+                      className="w-full flex items-center gap-2 px-3 py-2.5 text-[11px] font-bold text-[#1A1A1A] hover:bg-[#F5F2EA] text-left"
+                    >
+                      <FileSpreadsheet className="h-3.5 w-3.5 text-green-700 flex-shrink-0" />
+                      Excel
+                    </button>
+                    <button
+                      onClick={() => { exportarPDF(); setExportMenuOpen(false); }}
+                      className="w-full flex items-center gap-2 px-3 py-2.5 text-[11px] font-bold text-[#1A1A1A] hover:bg-[#F5F2EA] text-left border-t border-[#DDD8CF]"
+                    >
+                      <FileText className="h-3.5 w-3.5 text-red-600 flex-shrink-0" />
+                      PDF
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           )}
           <button
             onClick={load}
@@ -693,20 +706,42 @@ export default function OdooStock() {
       {raw && (
         <div className="flex flex-col md:flex-row gap-4 items-start">
 
+          {/* ── Backdrop del drawer de filtros (solo móvil) ── */}
+          {filtrosPanelOpen && (
+            <div
+              className="md:hidden fixed inset-0 z-40 bg-black/40"
+              onClick={() => setFiltrosPanelOpen(false)}
+            />
+          )}
+
           {/* ── Panel lateral de filtros ── */}
-          <aside className={`w-full md:w-52 md:flex-shrink-0 border border-[#DDD8CF] bg-[#F5F2EA] md:sticky md:top-4 ${filtrosPanelOpen ? 'block' : 'hidden'} md:block`}>
+          <aside className={`
+            border border-[#DDD8CF] bg-[#F5F2EA] overflow-y-auto
+            fixed inset-y-0 left-0 z-50 w-[85vw] max-w-xs transition-transform duration-200 ease-out
+            ${filtrosPanelOpen ? 'translate-x-0' : '-translate-x-full'}
+            md:static md:z-auto md:translate-x-0 md:w-52 md:max-w-none md:flex-shrink-0 md:sticky md:top-4 md:max-h-[calc(100vh-2rem)]
+          `}>
 
             {/* Header panel */}
-            <div className="flex items-center justify-between px-3 py-2.5 border-b border-[#DDD8CF]">
+            <div className="flex items-center justify-between px-3 py-2.5 border-b border-[#DDD8CF] sticky top-0 bg-[#F5F2EA] z-10">
               <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-[#1A1A1A]">Filtros</span>
-              {hasFilters && (
+              <div className="flex items-center gap-3">
+                {hasFilters && (
+                  <button
+                    onClick={clearAll}
+                    className="text-[9px] font-bold uppercase tracking-[0.1em] text-[#C4612A] hover:text-[#a04e22] transition-colors"
+                  >
+                    Limpiar
+                  </button>
+                )}
                 <button
-                  onClick={clearAll}
-                  className="text-[9px] font-bold uppercase tracking-[0.1em] text-[#C4612A] hover:text-[#a04e22] transition-colors"
+                  onClick={() => setFiltrosPanelOpen(false)}
+                  className="md:hidden p-1.5 -mr-1.5 text-[#7A6F67] hover:text-[#1A1A1A]"
+                  aria-label="Cerrar filtros"
                 >
-                  Limpiar
+                  <X className="h-4 w-4" />
                 </button>
-              )}
+              </div>
             </div>
 
             {/* Filtro por alerta */}
@@ -819,6 +854,16 @@ export default function OdooStock() {
                 ))}
               </div>
             </FilterSection>
+
+            {/* Botón aplicar — solo móvil, en zona fácil de alcanzar */}
+            <div className="md:hidden sticky bottom-0 bg-[#F5F2EA] border-t border-[#DDD8CF] px-3 py-3">
+              <button
+                onClick={() => setFiltrosPanelOpen(false)}
+                className="w-full bg-[#173A25] text-[#F5F2EA] text-[11px] font-bold uppercase tracking-[0.1em] py-2.5"
+              >
+                Ver {filtered.length} resultado{filtered.length !== 1 ? 's' : ''}
+              </button>
+            </div>
           </aside>
 
           {/* ── Contenido principal ── */}
@@ -890,18 +935,74 @@ export default function OdooStock() {
                   </button>
 
                   {isOpen && (
-                    <div className="border-t border-[#DDD8CF] overflow-x-auto">
+                    <div className="border-t border-[#DDD8CF]">
+                      {/* ── Tarjetas apiladas (móvil) ── */}
+                      <div className="sm:hidden divide-y divide-[#DDD8CF]">
+                        {prod.variantes.map(v => {
+                          const esNivelActivo = filtroAlerta !== 'todos' &&
+                            getStockLevel(v.stock).label === STOCK_LEVELS[filtroAlerta].label;
+                          return (
+                            <div key={v.variantId} className={`px-3 py-3 ${
+                              esNivelActivo
+                                ? filtroAlerta === 'danger'  ? 'bg-red-50 border-l-2 border-l-red-400'
+                                : filtroAlerta === 'warning' ? 'bg-yellow-50 border-l-2 border-l-yellow-400'
+                                :                              'bg-green-50 border-l-2 border-l-green-400'
+                                : 'bg-white'
+                            }`}>
+                              <div className="flex items-center justify-between gap-2 mb-1.5">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <span
+                                    className="w-2 h-2 rounded-full flex-shrink-0"
+                                    style={{ backgroundColor: getStockLevel(v.stock).dotColor }}
+                                  />
+                                  <span className="text-[13px] font-bold text-[#1A1A1A] truncate">{v.color || '—'}</span>
+                                  <span className="text-[11px] text-[#7A6F67] flex-shrink-0">· Talla {v.talla || '—'}</span>
+                                </div>
+                                <span className={`font-mono font-bold text-sm px-2 py-0.5 flex-shrink-0 ${stockBadgeClass(v.stock)}`}>
+                                  {v.stock.toFixed(0)}
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-3 gap-2 text-[10px]">
+                                <div>
+                                  <p className="text-[#9A8F87] uppercase tracking-wide">Disponible</p>
+                                  <p className={`font-mono font-bold text-[12px] ${stockBadgeClass(v.stockDisponible).split(' ').filter(c => c.startsWith('text-')).join(' ')}`}>
+                                    {v.stockDisponible.toFixed(0)}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-[#9A8F87] uppercase tracking-wide">Reservado</p>
+                                  <p className="font-mono font-bold text-[12px] text-[#7A6F67]">
+                                    {v.stockReservado > 0 ? v.stockReservado.toFixed(0) : '—'}
+                                  </p>
+                                </div>
+                                <div className="truncate">
+                                  <p className="text-[#9A8F87] uppercase tracking-wide">SKU</p>
+                                  <p className="font-mono text-[11px] text-[#7A6F67] truncate" title={v.sku}>{v.sku || '—'}</p>
+                                </div>
+                              </div>
+                              {v.locationBreakdown.length > 0 && (
+                                <p className="text-[10px] text-[#9A8F87] mt-1.5 truncate" title={v.locationBreakdown.map(l => `${l.locationName}: ${l.qty.toFixed(0)}`).join(' · ')}>
+                                  {v.locationBreakdown.map(l => `${l.locationName}: ${l.qty.toFixed(0)}`).join(' · ')}
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* ── Tabla (sm+) ── */}
+                      <div className="hidden sm:block overflow-x-auto">
                       <table className="min-w-full text-xs">
                         <thead>
                           <tr className="bg-[#1A1A1A] text-[#F5F2EA]">
-                            <th className="hidden sm:table-cell px-3 py-2 text-[9px] font-bold uppercase tracking-[0.14em] text-left whitespace-nowrap font-mono">SKU</th>
+                            <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-[0.14em] text-left whitespace-nowrap font-mono">SKU</th>
                             <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-[0.14em] text-left whitespace-nowrap font-mono">Color</th>
                             <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-[0.14em] text-left whitespace-nowrap font-mono">Talla</th>
-                            <th className="hidden sm:table-cell px-3 py-2 text-[9px] font-bold uppercase tracking-[0.14em] text-left whitespace-nowrap font-mono">Otros</th>
+                            <th className="hidden md:table-cell px-3 py-2 text-[9px] font-bold uppercase tracking-[0.14em] text-left whitespace-nowrap font-mono">Otros</th>
                             <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-[0.14em] text-left whitespace-nowrap font-mono">Stock</th>
-                            <th className="hidden sm:table-cell px-3 py-2 text-[9px] font-bold uppercase tracking-[0.14em] text-left whitespace-nowrap font-mono">Reservado</th>
+                            <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-[0.14em] text-left whitespace-nowrap font-mono">Reservado</th>
                             <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-[0.14em] text-left whitespace-nowrap font-mono">Disponible</th>
-                            <th className="hidden md:table-cell px-3 py-2 text-[9px] font-bold uppercase tracking-[0.14em] text-left whitespace-nowrap font-mono">Ubicaciones</th>
+                            <th className="hidden lg:table-cell px-3 py-2 text-[9px] font-bold uppercase tracking-[0.14em] text-left whitespace-nowrap font-mono">Ubicaciones</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -916,10 +1017,10 @@ export default function OdooStock() {
                                 :                              'bg-green-50 border-l-2 border-l-green-400'
                                 : i % 2 === 0 ? 'bg-white' : 'bg-[#F7F4EF]'
                             }`}>
-                              <td className="hidden sm:table-cell px-3 py-1.5 font-mono text-[#7A6F67] text-[11px]">{v.sku || '—'}</td>
+                              <td className="px-3 py-1.5 font-mono text-[#7A6F67] text-[11px]">{v.sku || '—'}</td>
                               <td className="px-3 py-1.5 text-[#1A1A1A]">{v.color || '—'}</td>
                               <td className="px-3 py-1.5 text-[#1A1A1A]">{v.talla || '—'}</td>
-                              <td className="hidden sm:table-cell px-3 py-1.5 text-[#9A8F87] text-[10px]">{v.otrosAttr || '—'}</td>
+                              <td className="hidden md:table-cell px-3 py-1.5 text-[#9A8F87] text-[10px]">{v.otrosAttr || '—'}</td>
                               <td className="px-3 py-1.5 text-right">
                                 <span className="inline-flex items-center gap-1.5">
                                   <span
@@ -932,7 +1033,7 @@ export default function OdooStock() {
                                   </span>
                                 </span>
                               </td>
-                              <td className="hidden sm:table-cell px-3 py-1.5 text-right font-mono text-[#7A6F67] text-[11px]">
+                              <td className="px-3 py-1.5 text-right font-mono text-[#7A6F67] text-[11px]">
                                 {v.stockReservado > 0 ? v.stockReservado.toFixed(0) : '—'}
                               </td>
                               <td className="px-3 py-1.5 text-right">
@@ -940,7 +1041,7 @@ export default function OdooStock() {
                                   {v.stockDisponible.toFixed(0)}
                                 </span>
                               </td>
-                              <td className="hidden md:table-cell px-3 py-1.5 text-[10px] text-[#9A8F87] max-w-[180px] truncate">
+                              <td className="hidden lg:table-cell px-3 py-1.5 text-[10px] text-[#9A8F87] max-w-[180px] truncate">
                                 {v.locationBreakdown.length > 0
                                   ? v.locationBreakdown.map(l => `${l.locationName}: ${l.qty.toFixed(0)}`).join(' · ')
                                   : '—'}
@@ -950,6 +1051,7 @@ export default function OdooStock() {
                           })}
                         </tbody>
                       </table>
+                      </div>
                     </div>
                   )}
                 </div>
