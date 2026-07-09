@@ -1,13 +1,17 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Bell, UserCircle, Search, X, Menu } from 'lucide-react';
+import { Bell, UserCircle, Search, X, Menu, Eye } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { cn } from '../lib/utils';
 import { useNavigate } from 'react-router-dom';
 import type { AuthUser } from '../lib/useAuthUser';
+import { ROLES_SIMULABLES } from '../lib/usePermisos';
 
 interface HeaderProps {
   onMenuClick?: () => void;
   authUser: AuthUser | null;
+  esSuperAdminReal?: boolean;
+  rolVista?: string | null;
+  onCambiarRolVista?: (rol: string | null) => void;
 }
 
 const BADGE_COLORS: Record<string, { bg: string; text: string }> = {
@@ -17,7 +21,7 @@ const BADGE_COLORS: Record<string, { bg: string; text: string }> = {
   'Encargado de Área':     { bg: '#4A6741', text: '#FFFFFF' },
 };
 
-export function Header({ onMenuClick, authUser }: HeaderProps) {
+export function Header({ onMenuClick, authUser, esSuperAdminReal, rolVista, onCambiarRolVista }: HeaderProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const { cortes, programasZurzam, telas, movimientosTela, config, cobrosDiarios } = useAppContext();
@@ -70,7 +74,8 @@ export function Header({ onMenuClick, authUser }: HeaderProps) {
     notifications.push({ id: 'more-debt', title: 'Cobros pendientes', message: `+${deudasPendientes.length - 3} cobros más pendientes`, type: 'info' });
   }
 
-  const rolColors = authUser ? (BADGE_COLORS[authUser.rol] ?? { bg: '#6B6058', text: '#FFFFFF' }) : null;
+  const rolMostrado = rolVista ?? authUser?.rol;
+  const rolColors = rolMostrado ? (BADGE_COLORS[rolMostrado] ?? { bg: '#6B6058', text: '#FFFFFF' }) : null;
   const nombreMostrado = authUser?.nombre ?? 'Usuario';
 
   return (
@@ -133,6 +138,23 @@ export function Header({ onMenuClick, authUser }: HeaderProps) {
       </div>
 
       <div className="flex flex-shrink-0 items-center gap-3 md:gap-6">
+        {esSuperAdminReal && onCambiarRolVista && (
+          <div className="hidden sm:flex items-center gap-1.5 border-r pr-6 mr-2" style={{ borderColor: '#DDD8CF' }}>
+            <Eye className="h-3.5 w-3.5" style={{ color: '#9A8F87' }} aria-hidden />
+            <select
+              value={rolVista ?? 'Super Admin'}
+              onChange={(e) => onCambiarRolVista(e.target.value === 'Super Admin' ? null : e.target.value)}
+              className="bg-transparent border-none text-[10px] font-mono font-bold uppercase tracking-wider focus:outline-none cursor-pointer"
+              style={{ color: '#1A1A1A' }}
+              title="Ver la aplicación como otro rol"
+            >
+              {ROLES_SIMULABLES.map(rol => (
+                <option key={rol} value={rol}>{rol}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <div className="hidden sm:block text-right border-r pr-6 mr-2" style={{ borderColor: '#DDD8CF' }}>
           <div className="font-mono font-bold uppercase" style={{ fontSize: '9px', letterSpacing: '0.18em', color: '#9A8F87' }}>Mes Activo</div>
           <div className="font-serif italic leading-none mt-1" style={{ fontSize: '1rem', color: '#1A1A1A' }}>
@@ -187,12 +209,12 @@ export function Header({ onMenuClick, authUser }: HeaderProps) {
           <UserCircle className="h-6 w-6 md:h-7 md:w-7 flex-shrink-0" style={{ color: '#1A1A1A' }} />
           <div className="hidden sm:flex flex-col items-start leading-none gap-1">
             <span className="text-xs font-bold" style={{ color: '#1A1A1A' }}>{nombreMostrado}</span>
-            {rolColors && authUser && (
+            {rolColors && rolMostrado && (
               <span
                 className="px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider"
                 style={{ background: rolColors.bg, color: rolColors.text }}
               >
-                {authUser.rol}
+                {rolMostrado}
               </span>
             )}
           </div>

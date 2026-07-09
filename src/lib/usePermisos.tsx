@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
 import { supabase } from './supabase';
 
 export const SECCIONES = [
@@ -54,6 +54,8 @@ const DEFAULT_PERMISOS_ENCARGADO: PermisosRol = {
   configuracion: false,
 };
 
+export const ROLES_SIMULABLES = ['Super Admin', 'Administrador General', 'Supervisor', 'Encargado de Área'] as const;
+
 export const DEFAULTS_POR_ROL: Record<string, PermisosRol> = {
   'Super Admin':           DEFAULT_PERMISOS_ADMIN,
   'Administrador General': DEFAULT_PERMISOS_ADMIN,
@@ -67,7 +69,7 @@ export interface PermisosFull {
   savePermisos: (rol: string, permisos: PermisosRol) => Promise<void>;
 }
 
-export function usePermisos(): PermisosFull {
+function usePermisosState(): PermisosFull {
   const [loading, setLoading] = useState(true);
   const [permisosPorRol, setPermisosPorRol] = useState<Record<string, PermisosRol>>({
     ...DEFAULTS_POR_ROL,
@@ -106,4 +108,17 @@ export function usePermisos(): PermisosFull {
 
 export function permisosParaRol(permisosPorRol: Record<string, PermisosRol>, rol: string): PermisosRol {
   return permisosPorRol[rol] ?? DEFAULT_PERMISOS_ADMIN;
+}
+
+const PermisosContext = createContext<PermisosFull | undefined>(undefined);
+
+export function PermisosProvider({ children }: { children: ReactNode }) {
+  const value = usePermisosState();
+  return <PermisosContext.Provider value={value}>{children}</PermisosContext.Provider>;
+}
+
+export function usePermisos(): PermisosFull {
+  const ctx = useContext(PermisosContext);
+  if (!ctx) throw new Error('usePermisos must be used within PermisosProvider');
+  return ctx;
 }

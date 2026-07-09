@@ -21,7 +21,7 @@ import { TablaTarifas } from './pages/TablaTarifas';
 import OdooStock from './pages/OdooStock';
 import { supabase } from './lib/supabase';
 import { useAuthUser } from './lib/useAuthUser';
-import { usePermisos, permisosParaRol } from './lib/usePermisos';
+import { usePermisos, permisosParaRol, PermisosProvider } from './lib/usePermisos';
 import introAnim from './assets/login/logo-animado-texajo.gif';
 
 function DbErrorWatcher() {
@@ -38,6 +38,14 @@ function DbErrorWatcher() {
 }
 
 export default function App() {
+  return (
+    <PermisosProvider>
+      <AppInner />
+    </PermisosProvider>
+  );
+}
+
+function AppInner() {
   const [autenticado, setAutenticado] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const [mostrarIntro, setMostrarIntro] = useState(false);
@@ -48,9 +56,13 @@ export default function App() {
 
   const authUser = useAuthUser();
   const { permisosPorRol } = usePermisos();
-  const permisos = authUser ? permisosParaRol(permisosPorRol, authUser.rol) : null;
-  const esAdmin = authUser?.rol === 'Administrador General' || authUser?.rol === 'Super Admin';
-  const esSuperAdmin = authUser?.rol === 'Super Admin';
+  const esSuperAdminReal = authUser?.rol === 'Super Admin';
+  const [rolVista, setRolVista] = useState<string | null>(null);
+
+  const rolEfectivo = (esSuperAdminReal && rolVista) ? rolVista : authUser?.rol;
+  const permisos = rolEfectivo ? permisosParaRol(permisosPorRol, rolEfectivo) : null;
+  const esAdmin = rolEfectivo === 'Administrador General' || rolEfectivo === 'Super Admin';
+  const esSuperAdmin = rolEfectivo === 'Super Admin';
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -203,6 +215,9 @@ export default function App() {
               <Header
                 onMenuClick={() => setSidebarMobileOpen(prev => !prev)}
                 authUser={authUser}
+                esSuperAdminReal={esSuperAdminReal}
+                rolVista={rolVista}
+                onCambiarRolVista={setRolVista}
               />
               <main className="flex-1 overflow-y-auto px-3 py-4 sm:px-6 sm:py-6 lg:px-12 lg:py-10">
                 <div className="mx-auto max-w-7xl">

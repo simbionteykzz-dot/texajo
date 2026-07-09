@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Shield, Save, RotateCcw, CheckSquare, Square } from 'lucide-react';
 import { usePermisos, SECCIONES, DEFAULTS_POR_ROL, type PermisosRol, type SeccionKey } from '../lib/usePermisos';
 
-const ROLES_EDITABLES = ['Supervisor', 'Encargado de Área'];
+const ROLES_EDITABLES = ['Administrador General', 'Supervisor', 'Encargado de Área'];
 
 export function PanelAdmin() {
   const { loading, permisosPorRol, savePermisos } = usePermisos();
@@ -109,9 +109,9 @@ export function PanelAdmin() {
         </div>
       )}
 
-      {/* Nota sobre Admin */}
+      {/* Nota sobre Super Admin */}
       <div className="border-l-4 px-4 py-3 text-xs" style={{ borderColor: '#B6762A', background: '#FDF8F0', color: '#7A5020' }}>
-        <strong>Administrador General</strong> siempre tiene acceso completo a todas las secciones y no puede ser restringido.
+        <strong>Super Admin</strong> siempre tiene acceso completo a todas las secciones y no puede ser restringido.
       </div>
 
       {/* Tabla de permisos por rol */}
