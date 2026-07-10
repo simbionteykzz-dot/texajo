@@ -460,12 +460,24 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       .then(realId => {
         if (realId && realId !== v.id) {
           // Actualizar el id local con el integer real de Supabase
+          const filasHuerfanas = stateRef.current.seguimientoFilas.filter(f => f.corteId === v.id);
+          const boletasHuerfanas = stateRef.current.boletaLineas.filter(b => b.corteId === v.id);
           set(p => ({
             ...p,
             cortes: p.cortes.map(c => c.id === v.id ? { ...c, id: realId } : c),
             seguimientoFilas: p.seguimientoFilas.map(f => f.corteId === v.id ? { ...f, corteId: realId } : f),
             boletaLineas: p.boletaLineas.map(b => b.corteId === v.id ? { ...b, corteId: realId } : b),
           }));
+          // Las filas de seguimiento/boletas ya insertadas en Supabase con el id temporal
+          // quedaron con un corte_id corrupto (safeInt sobre un UUID) — re-persistir con el id real.
+          for (const f of filasHuerfanas) {
+            db.seguimientoFilas.update(f.id, { corteId: realId }, { ...f, corteId: realId })
+              .catch(err => logDbError('UPDATE', 'seguimientoFilas', err));
+          }
+          for (const b of boletasHuerfanas) {
+            db.boletaLineas.update(b.id, { corteId: realId }, { ...b, corteId: realId })
+              .catch(err => logDbError('UPDATE', 'boletaLineas', err));
+          }
         }
       })
       .catch(err => logDbError('INSERT', 'cortes', err));

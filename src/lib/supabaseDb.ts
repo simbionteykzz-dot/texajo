@@ -155,7 +155,7 @@ const fromCorte = (v: Corte) => {
 };
 const fromSeguimientoFila = (v: SeguimientoFila) => ({ id: v.id, corte_id: safeInt(v.corteId), n_corte: v.nCorte, producto_id: safeInt(v.productoId), fecha: v.fecha, color_id: safeInt(v.colorId), talla: v.talla, cantidad: v.cantidad, asignaciones: v.asignaciones, pct_avance: v.pctAvance, porcentaje_avance: v.pctAvance, estado: v.estado, total_pago: v.totalPago });
 const fromSeguimientoFilaInsert = (v: SeguimientoFila) => {
-  return { corte_id: safeInt(v.corteId), n_corte: v.nCorte, producto_id: safeInt(v.productoId), fecha: v.fecha, color_id: safeInt(v.colorId), talla: v.talla, cantidad: v.cantidad, asignaciones: v.asignaciones, pct_avance: v.pctAvance, porcentaje_avance: v.pctAvance, estado: v.estado, total_pago: v.totalPago };
+  return { id: v.id, corte_id: safeInt(v.corteId), n_corte: v.nCorte, producto_id: safeInt(v.productoId), fecha: v.fecha, color_id: safeInt(v.colorId), talla: v.talla, cantidad: v.cantidad, asignaciones: v.asignaciones, pct_avance: v.pctAvance, porcentaje_avance: v.pctAvance, estado: v.estado, total_pago: v.totalPago };
 };
 const fromBoletaLinea = (v: BoletaLinea) => ({ id: v.id, operario_id: safeInt(v.operarioId), corte_id: v.corteId || null, n_corte: v.nCorte, producto_id: v.productoId ? safeInt(v.productoId) : null, color_id: v.colorId ? safeInt(v.colorId) : null, talla: v.talla ?? null, tarifa_id: v.tarifaId ? safeInt(v.tarifaId) : null, operacion: v.operacion, orden: v.orden, tarifa: v.tarifa, cant_prendas: v.cantPrendas, importe: v.importe, periodo: v.periodo, fecha_registro: v.fechaRegistro ?? null, estado_pago: v.estadoPago, fecha_pago: v.fechaPago ?? null });
 const fromBoletaLineaInsert = (v: BoletaLinea) => ({ id: v.id, operario_id: safeInt(v.operarioId), corte_id: v.corteId || null, n_corte: v.nCorte, producto_id: v.productoId ? safeInt(v.productoId) : null, color_id: v.colorId ? safeInt(v.colorId) : null, talla: v.talla ?? null, tarifa_id: v.tarifaId ? safeInt(v.tarifaId) : null, operacion: v.operacion, orden: v.orden, tarifa: v.tarifa, cant_prendas: v.cantPrendas, importe: v.importe, periodo: v.periodo, fecha_registro: v.fechaRegistro ?? null, estado_pago: v.estadoPago, fecha_pago: v.fechaPago ?? null });
@@ -447,7 +447,7 @@ export const db = {
     },
   },
   seguimientoFilas: {
-    add: (v: SeguimientoFila): Promise<string | null> => dbInsert('seguimiento_filas', v, fromSeguimientoFilaInsert),
+    add: (v: SeguimientoFila): Promise<string | null> => dbInsert('seguimiento_filas', v, fromSeguimientoFilaInsert, true),
     update: async (id: string, u: Partial<SeguimientoFila>, cur: SeguimientoFila) => {
       const merged = { ...cur, ...u } as SeguimientoFila;
       const mapped = fromSeguimientoFila(merged);
