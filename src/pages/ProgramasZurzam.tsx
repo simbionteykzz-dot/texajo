@@ -422,6 +422,21 @@ export function ProgramasZurzam() {
                     <span className="text-xs text-gray-500">{clienteMap.get(prog.clienteId)}</span>
                     <span className="text-xs text-gray-400">{prog.fecha}</span>
                     <span className="text-xs text-gray-400">{prog.kgObjetivo} kg</span>
+                    {prog.estado !== 'CERRADO' && prog.diasEntrega > 0 && (() => {
+                      const fechaLimite = new Date(prog.fecha);
+                      fechaLimite.setDate(fechaLimite.getDate() + prog.diasEntrega);
+                      fechaLimite.setHours(0, 0, 0, 0);
+                      const hoy = new Date();
+                      hoy.setHours(0, 0, 0, 0);
+                      const diasRestantes = Math.round((fechaLimite.getTime() - hoy.getTime()) / 86400000);
+                      if (diasRestantes < 0) {
+                        return <span className="inline-block px-2 py-0.5 text-[9px] font-black uppercase bg-red-100 text-red-700">Vencido hace {Math.abs(diasRestantes)}d</span>;
+                      }
+                      if (diasRestantes <= 3) {
+                        return <span className="inline-block px-2 py-0.5 text-[9px] font-black uppercase bg-yellow-100 text-yellow-700">{diasRestantes === 0 ? 'Vence hoy' : `Vence en ${diasRestantes}d`}</span>;
+                      }
+                      return <span className="inline-block px-2 py-0.5 text-[9px] font-bold uppercase bg-gray-100 text-gray-500">Entrega en {diasRestantes}d</span>;
+                    })()}
                   </button>
                   <div className="flex items-center gap-3">
                     <select value={prog.estado}

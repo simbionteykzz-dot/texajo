@@ -66,8 +66,25 @@ export function Header({ onMenuClick, authUser, esSuperAdminReal, rolVista, onCa
   const telasCriticas = telas.filter(t => (stockData.get(t.id) || 0) <= umbral);
   const deudasPendientes = cobrosDiarios.filter(c => c.estado === 'PENDIENTE');
 
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  const DIAS_AVISO_PREVIO = 3;
+  const programasConPlazo = programasZurzam
+    .filter(p => p.estado !== 'CERRADO' && p.diasEntrega > 0)
+    .map(p => {
+      const fechaLimite = new Date(p.fecha);
+      fechaLimite.setDate(fechaLimite.getDate() + p.diasEntrega);
+      fechaLimite.setHours(0, 0, 0, 0);
+      const diasRestantes = Math.round((fechaLimite.getTime() - hoy.getTime()) / 86400000);
+      return { programa: p, diasRestantes };
+    });
+  const programasVencidos = programasConPlazo.filter(x => x.diasRestantes < 0);
+  const programasPorVencer = programasConPlazo.filter(x => x.diasRestantes >= 0 && x.diasRestantes <= DIAS_AVISO_PREVIO);
+
   const notifications = [
     ...telasCriticas.map(t => ({ id: t.id, title: 'Stock crítico', message: `${t.nombre} - ${stockData.get(t.id)} rollos restantes`, type: 'critical' })),
+    ...programasVencidos.map(x => ({ id: x.programa.id, title: 'Entrega Zurzam vencida', message: `${x.programa.nombre} — vencida hace ${Math.abs(x.diasRestantes)} día(s)`, type: 'critical' })),
+    ...programasPorVencer.map(x => ({ id: x.programa.id, title: 'Entrega Zurzam próxima', message: `${x.programa.nombre} — ${x.diasRestantes === 0 ? 'vence hoy' : `vence en ${x.diasRestantes} día(s)`}`, type: 'warning' })),
     ...deudasPendientes.slice(0, 3).map(c => ({ id: c.id, title: 'Cobro Pendiente', message: `Factura ${c.nFactura || c.nCorte} (S/. ${c.bruto.toFixed(2)})`, type: 'warning' })),
   ];
   if (deudasPendientes.length > 3) {
