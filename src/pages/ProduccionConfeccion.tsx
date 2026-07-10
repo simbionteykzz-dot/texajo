@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { motion } from 'motion/react';
 import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
-import { Download, Plus, X, ChevronDown, ChevronRight, FileText, Trash2, CheckCircle, RotateCcw, MoreHorizontal } from 'lucide-react';
+import { Download, Plus, X, ChevronDown, ChevronRight, FileText, Trash2, CheckCircle, RotateCcw, MoreHorizontal, Shirt, Scissors, Users, Calendar, Clock, PackageSearch } from 'lucide-react';
 import { SeguimientoFila, SeguimientoAsignacion, BoletaLinea } from '../types';
 import { ModuleInfoBox } from '../components/ModuleInfoBox';
 import { exportRowsToXlsx, exportTableToPdf, exportHojaSeguimientoPdf, exportHojaSeguimientoXlsx } from '../lib/export';
@@ -1043,14 +1043,23 @@ export function ProduccionConfeccion() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.28, ease: 'easeOut' }}
     >
-      <div className="flex items-start justify-between">
-        <div>
-          <h2 className="text-2xl font-black uppercase tracking-tight">Seguimiento Confección</h2>
-          <p className="text-xs text-gray-500 mt-1">Asignación de operarios por operación y talla</p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <span
+            className="hidden sm:flex h-11 w-11 flex-shrink-0 items-center justify-center"
+            style={{ background: '#7B5EA715', border: '1px solid #7B5EA740' }}
+          >
+            <Shirt className="h-5 w-5" style={{ color: '#7B5EA7' }} />
+          </span>
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.22em]" style={{ color: '#9A8F87' }}>Producción</p>
+            <h2 className="font-serif text-2xl font-bold leading-tight" style={{ color: '#1a1a1a' }}>Seguimiento Confección</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Asignación de operarios por operación y talla</p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <ModuleInfoBox
-            accent="#B89B5E"
+            accent="#7B5EA7"
             titulo="Seguimiento Confección"
             descripcion="Asigna operarios a cada operación de confección por talla y corte. Calcula el avance porcentual y el pago por destajo generado. Agrupa las filas por corte con vista expandible."
             items={[
@@ -1066,30 +1075,34 @@ export function ProduccionConfeccion() {
           <button onClick={exportarSeguimientoPdf} className="btn-secondary flex items-center gap-2">
             <FileText className="h-4 w-4" /> PDF
           </button>
-<button onClick={() => setShowForm(true)} className="btn-primary flex items-center gap-2">
+          <button onClick={() => setShowForm(true)} className="btn-primary flex items-center gap-2">
             <Plus className="h-4 w-4" /> Nueva Fila
           </button>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-gray-200">
+      <div className="flex flex-wrap gap-1 border-b" style={{ borderColor: '#DDD8CF' }}>
         {([
-          { id: 'seguimiento', label: 'Por Corte' },
-          { id: 'porProducto', label: 'Por Producto' },
-        ] as { id: 'seguimiento' | 'porProducto'; label: string }[]).map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`text-[11px] font-bold uppercase tracking-widest px-4 py-2 border-b-2 transition-colors ${
-              activeTab === tab.id
-                ? 'border-[#1a1a1a] text-[#1a1a1a]'
-                : 'border-transparent text-gray-400 hover:text-gray-600'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+          { id: 'seguimiento', label: 'Por Corte', icon: Scissors },
+          { id: 'porProducto', label: 'Por Producto', icon: Shirt },
+        ] as { id: 'seguimiento' | 'porProducto'; label: string; icon: typeof Scissors }[]).map(tab => {
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest px-4 py-2.5 border-b-2 transition-colors"
+              style={{
+                borderColor: isActive ? '#1a1a1a' : 'transparent',
+                color: isActive ? '#1a1a1a' : '#9A8F87',
+              }}
+            >
+              <tab.icon className="h-3.5 w-3.5" style={{ color: isActive ? '#7B5EA7' : 'currentColor' }} />
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
 
       {activeTab === 'seguimiento' && <>
@@ -1114,7 +1127,8 @@ export function ProduccionConfeccion() {
         {(filterCorteId || filterDesde || filterHasta) && (
           <button
             onClick={() => { setFilterCorteId(''); setFilterDesde(''); setFilterHasta(''); }}
-            className="btn-secondary text-xs h-8 px-3 self-end"
+            className="text-[11px] font-bold uppercase tracking-widest px-2 self-end h-8"
+            style={{ color: '#9A8F87' }}
           >
             Limpiar filtros
           </button>
@@ -1122,7 +1136,13 @@ export function ProduccionConfeccion() {
       </div>
 
       {cortesConSeguimiento.length === 0 ? (
-        <p className="text-sm text-gray-400 italic">Sin cortes activos.</p>
+        <div className="flex flex-col items-center justify-center py-16 gap-2" style={{ border: '1px dashed #DDD8CF' }}>
+          <span className="h-10 w-10 flex items-center justify-center" style={{ background: '#7B5EA718' }}>
+            <Shirt className="h-5 w-5" style={{ color: '#7B5EA7' }} />
+          </span>
+          <p className="text-sm font-bold text-gray-500">Sin cortes activos</p>
+          <p className="text-xs text-gray-400">Los cortes completados aparecerán aquí para su seguimiento.</p>
+        </div>
       ) : (
         <div className="space-y-3">
           {cortesConSeguimiento.map(corte => {
@@ -1141,53 +1161,55 @@ export function ProduccionConfeccion() {
               setEditFechas(prev => ({ ...prev, [corte.id]: { inicio, entrega } }));
             };
 
+            const avanceColor = avgAvance === 100 ? '#2F7A4D' : avgAvance >= 50 ? '#4B7FA3' : '#B6762A';
+            const entregaVencida = fechasGuardadas.entrega && fechasGuardadas.entrega < new Date().toISOString().slice(0, 10) && avgAvance < 100;
+
             return (
-              <div key={corte.id} className="bg-white border border-gray-200">
+              <div key={corte.id} className="bg-white" style={{ border: '1px solid #DDD8CF', borderLeft: `3px solid ${avanceColor}` }}>
                 <div
-                  className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 cursor-pointer"
+                  className="w-full flex flex-wrap items-center justify-between gap-3 px-5 py-4 hover:bg-gray-50 cursor-pointer transition-colors"
                   onClick={() => setExpandedCorte(isOpen ? null : corte.id)}
                 >
-                  <div className="flex items-center gap-4">
-                    {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                    <span className="font-black text-sm">{corte.nCorte}</span>
-                    <span className="text-xs text-gray-500">{capWords(productoMap.get(corte.productoId)?.nombre ?? '')}</span>
-                    <span className="text-xs text-gray-400">{colorMap.get(corte.colorId)}</span>
-                    <span className="text-xs text-gray-400">{corte.totalPrendas} prendas</span>
+                  <div className="flex items-center gap-4 flex-wrap">
+                    {isOpen ? <ChevronDown className="h-4 w-4 flex-shrink-0" style={{ color: '#7B5EA7' }} /> : <ChevronRight className="h-4 w-4 flex-shrink-0 text-gray-400" />}
+                    <span className="font-mono font-black text-sm" style={{ color: '#1a1a1a' }}>{corte.nCorte}</span>
+                    <span className="text-xs font-bold text-gray-600">{capWords(productoMap.get(corte.productoId)?.nombre ?? '')}</span>
+                    <span className="text-xs text-gray-400">{capWords(colorMap.get(corte.colorId) ?? '')}</span>
+                    <span className="text-xs font-mono text-gray-400">{corte.totalPrendas} prendas</span>
                     {fechasGuardadas.inicio && (
-                      <span className="text-[10px] text-gray-400 font-mono">
-                        Inicio: {fechasGuardadas.inicio}
+                      <span className="flex items-center gap-1 text-[10px] text-gray-400 font-mono">
+                        <Clock className="h-3 w-3" /> {fechasGuardadas.inicio}
                       </span>
                     )}
                     {fechasGuardadas.entrega && (
-                      <span className={`text-[10px] font-mono font-bold ${
-                        fechasGuardadas.entrega < new Date().toISOString().slice(0,10) && avgAvance < 100
-                          ? 'text-red-500'
-                          : 'text-orange-500'
-                      }`}>
-                        Entrega: {fechasGuardadas.entrega}
+                      <span
+                        className="flex items-center gap-1 text-[10px] font-mono font-bold"
+                        style={{ color: entregaVencida ? '#C0362C' : '#B6762A' }}
+                      >
+                        <Calendar className="h-3 w-3" /> {fechasGuardadas.entrega}
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-gray-500">{filas.length} filas</span>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <span className="text-[11px] text-gray-400 font-mono">{filas.length} filas</span>
                     <div className="flex items-center gap-2">
-                      <div className="w-24 h-1.5 bg-gray-200">
-                        <div className="h-full bg-black" style={{ width: `${avgAvance}%` }} />
+                      <div className="w-24 h-1.5 overflow-hidden" style={{ background: '#EAE6DD' }}>
+                        <div className="h-full transition-all" style={{ width: `${avgAvance}%`, background: avanceColor }} />
                       </div>
-                      <span className="text-xs font-bold">{avgAvance}%</span>
+                      <span className="text-xs font-bold font-mono tabular-nums" style={{ color: avanceColor }}>{avgAvance}%</span>
                     </div>
                     {filas.length > 0 && (
                       <>
                       <button
                         onClick={e => { e.stopPropagation(); const d = buildHojaData(corte.id); if (d) exportHojaSeguimientoPdf(d, pdfFont); }}
-                        className="flex items-center gap-1 text-[11px] text-gray-500 hover:text-gray-800 px-1 py-0.5 rounded hover:bg-gray-100"
+                        className="flex items-center gap-1 text-[11px] text-gray-500 hover:text-gray-800 px-1.5 py-0.5 transition-colors"
                         title="Exportar hoja de seguimiento PDF"
                       >
                         <FileText className="h-3 w-3" /><span>PDF</span>
                       </button>
                       <button
                         onClick={e => { e.stopPropagation(); const d = buildHojaData(corte.id); if (d) exportHojaSeguimientoXlsx(d); }}
-                        className="flex items-center gap-1 text-[11px] text-gray-500 hover:text-gray-800 px-1 py-0.5 rounded hover:bg-gray-100"
+                        className="flex items-center gap-1 text-[11px] text-gray-500 hover:text-gray-800 px-1.5 py-0.5 transition-colors"
                         title="Exportar hoja de seguimiento Excel"
                       >
                         <Download className="h-3 w-3" /><span>Excel</span>
@@ -1196,8 +1218,8 @@ export function ProduccionConfeccion() {
                     )}
                     {esAdmin && filas.length > 0 && (
                       confirmDeleteCorte === corte.id ? (
-                        <span className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                          <span className="text-[11px] text-red-600 font-bold">¿Eliminar {filas.length} fila{filas.length > 1 ? 's' : ''}?</span>
+                        <span className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+                          <span className="text-[11px] font-bold" style={{ color: '#C0362C' }}>¿Eliminar {filas.length} fila{filas.length > 1 ? 's' : ''}?</span>
                           <button
                             onClick={() => {
                               filas.forEach(f => deleteSeguimientoFila(f.id));
@@ -1205,17 +1227,19 @@ export function ProduccionConfeccion() {
                               setConfirmDeleteCorte(null);
                               addToast(`Seguimiento de corte eliminado (${filas.length} filas)`, 'success');
                             }}
-                            className="text-[11px] font-bold text-red-600 hover:text-red-800 uppercase px-1"
+                            className="text-[11px] font-bold uppercase px-1"
+                            style={{ color: '#C0362C' }}
                           >Sí</button>
                           <button
                             onClick={() => setConfirmDeleteCorte(null)}
-                            className="text-[11px] text-gray-500 hover:text-gray-700 px-1"
+                            className="text-[11px] text-gray-400 hover:text-gray-600 px-1"
                           >No</button>
                         </span>
                       ) : (
                         <button
                           onClick={e => { e.stopPropagation(); setConfirmDeleteCorte(corte.id); }}
-                          className="flex items-center gap-1 text-[11px] text-red-400 hover:text-red-600 px-1 py-0.5 rounded hover:bg-red-50"
+                          className="flex items-center gap-1 text-[11px] px-1.5 py-0.5 transition-colors"
+                          style={{ color: '#C0362C99' }}
                           title="Eliminar todo el seguimiento de este corte"
                         >
                           <Trash2 className="h-3 w-3" />
@@ -1227,10 +1251,12 @@ export function ProduccionConfeccion() {
                 </div>
 
                 {isOpen && (
-                  <div className="border-t border-gray-200">
+                  <div style={{ borderTop: '1px solid #DDD8CF' }}>
                     {/* Barra de fechas */}
-                    <div className="flex items-center gap-4 px-5 py-2 bg-gray-50 border-b border-gray-100" onClick={e => e.stopPropagation()}>
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Fechas</span>
+                    <div className="flex flex-wrap items-center gap-4 px-5 py-2.5" style={{ background: '#FAF8F4', borderBottom: '1px solid #EFECE5' }} onClick={e => e.stopPropagation()}>
+                      <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                        <Calendar className="h-3 w-3" /> Fechas
+                      </span>
                       <div className="flex items-center gap-1.5">
                         <label className="text-[10px] text-gray-500 whitespace-nowrap">Inicio:</label>
                         <input
@@ -1241,7 +1267,8 @@ export function ProduccionConfeccion() {
                             setEditFechas(prev => ({ ...prev, [corte.id]: { ...fechasEdit, inicio: v } }));
                           }}
                           onBlur={e => guardarFechas(e.target.value, fechasEdit.entrega)}
-                          className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5 bg-white focus:outline-none focus:border-gray-400"
+                          className="text-[10px] px-1.5 py-0.5 bg-white focus:outline-none"
+                          style={{ border: '1px solid #DDD8CF' }}
                         />
                       </div>
                       <div className="flex items-center gap-1.5">
@@ -1254,20 +1281,25 @@ export function ProduccionConfeccion() {
                             setEditFechas(prev => ({ ...prev, [corte.id]: { ...fechasEdit, entrega: v } }));
                           }}
                           onBlur={e => guardarFechas(fechasEdit.inicio, e.target.value)}
-                          className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5 bg-white focus:outline-none focus:border-gray-400"
+                          className="text-[10px] px-1.5 py-0.5 bg-white focus:outline-none"
+                          style={{ border: '1px solid #DDD8CF' }}
                         />
                       </div>
                       {(fechasEdit.inicio !== fechasGuardadas.inicio || fechasEdit.entrega !== fechasGuardadas.entrega) && (
                         <button
                           onClick={() => guardarFechas(fechasEdit.inicio, fechasEdit.entrega)}
-                          className="text-[10px] font-bold text-blue-600 border border-blue-200 bg-blue-50 px-2 py-0.5 rounded hover:bg-blue-100"
+                          className="text-[10px] font-bold px-2 py-0.5 transition-colors"
+                          style={{ color: '#4B7FA3', border: '1px solid #4B7FA355', background: '#4B7FA30D' }}
                         >
                           Guardar
                         </button>
                       )}
                     </div>
                     {filas.length === 0 ? (
-                      <p className="px-5 py-4 text-sm text-gray-400 italic">Sin filas creadas para este corte.</p>
+                      <div className="flex flex-col items-center justify-center py-10 gap-2">
+                        <PackageSearch className="h-5 w-5 text-gray-300" />
+                        <p className="text-xs text-gray-400 italic">Sin filas creadas para este corte.</p>
+                      </div>
                     ) : (() => {
                       const tarifas = tarifasDelCorte(corte.id);
                       const filasOrdenadas = (() => {
@@ -1295,16 +1327,12 @@ export function ProduccionConfeccion() {
                       return (
                         <>
                           <div className="overflow-x-auto">
-                          <table className="min-w-full text-xs">
+                          <table className="min-w-full text-xs" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
                             <thead>
-                              <tr className="border-b border-gray-100 bg-gray-50">
-                                <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500">Color</th>
-                                <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500">Operarios</th>
-                                <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500">Talla</th>
-                                <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500">Cantidad</th>
-                                <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500">Avance</th>
-                                <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500">Total Pago</th>
-                                <th></th>
+                              <tr style={{ background: '#1a1a1a' }}>
+                                {['Color', 'Operarios', 'Talla', 'Cantidad', 'Avance', 'Total Pago', ''].map(h => (
+                                  <th key={h} className="px-3 py-2.5 text-left font-mono text-[10px] font-bold uppercase tracking-widest" style={{ color: '#f9f7f2' }}>{h}</th>
+                                ))}
                               </tr>
                             </thead>
                             <tbody>
@@ -1313,23 +1341,28 @@ export function ProduccionConfeccion() {
                                 const asignados = primerFila.asignaciones.filter(a => a.operarioId).length;
                                 const totalOps = primerFila.asignaciones.length;
                                 return grupo.filas.map((fila, idx) => {
+                                  // Colores explícitos por estado de fila (NO usar nth-child: el rowSpan del
+                                  // grupo de color rompe la correspondencia índice↔fila real).
                                   const rowBg = fila.estado === 'LISTO'
-                                    ? 'bg-green-50 hover:bg-green-100'
+                                    ? '#2F7A4D0D'
                                     : fila.pctAvance > 0
-                                      ? 'bg-amber-50 hover:bg-amber-100'
-                                      : 'bg-red-50 hover:bg-red-100';
+                                      ? '#B6762A0D'
+                                      : '#C0362C0A';
+                                  const rowBorder = idx < grupo.filas.length - 1 ? '1px dashed #EFECE5' : '1px solid #DDD8CF';
                                   return (
-                                  <tr key={fila.id} className={`${rowBg} ${idx < grupo.filas.length - 1 ? 'border-b border-dashed border-gray-100' : 'border-b border-gray-200'}`}>
+                                  <tr key={fila.id} style={{ background: rowBg, borderBottom: rowBorder }} className="transition-colors hover:brightness-95">
                                     {idx === 0 && (
                                       <td
-                                        className="px-3 py-2 font-black whitespace-nowrap align-middle"
+                                        className="px-3 py-2.5 font-bold whitespace-nowrap align-middle"
+                                        style={{ color: '#1a1a1a' }}
                                         rowSpan={grupo.filas.length}
                                       >
-                                        <div className="flex flex-col gap-1 items-start">
-                                          <span>{colorMap.get(grupo.colorId) ?? grupo.colorId}</span>
+                                        <div className="flex flex-col gap-1.5 items-start">
+                                          <span>{capWords(colorMap.get(grupo.colorId) ?? grupo.colorId)}</span>
                                           <button
                                             onClick={() => reconstruirBoletasColor(corte.id, grupo.colorId)}
-                                            className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest text-blue-600 border border-blue-200 bg-blue-50 px-1.5 py-0.5 rounded hover:bg-blue-100 whitespace-nowrap"
+                                            className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 transition-colors whitespace-nowrap"
+                                            style={{ color: '#4B7FA3', border: '1px solid #4B7FA355', background: '#4B7FA30D' }}
                                             title="Recalcular boletas de destajo para este color, solo tallas confirmadas"
                                           >
                                             <RotateCcw className="h-2.5 w-2.5" />
@@ -1339,40 +1372,44 @@ export function ProduccionConfeccion() {
                                       </td>
                                     )}
                                     {idx === 0 && (
-                                      <td className="px-3 py-2 align-middle" rowSpan={grupo.filas.length}>
+                                      <td className="px-3 py-2.5 align-middle" rowSpan={grupo.filas.length}>
                                         <button
                                           onClick={() => abrirModalAsignarColor(corte.id, grupo.colorId)}
-                                          className={`flex items-center gap-1.5 text-[10px] border px-2 py-1 rounded hover:bg-gray-100 whitespace-nowrap ${
+                                          className="flex items-center gap-1.5 text-[10px] px-2 py-1 transition-colors whitespace-nowrap"
+                                          style={
                                             asignados === totalOps && totalOps > 0
-                                              ? 'border-green-300 text-green-700 bg-green-50'
+                                              ? { color: '#2F7A4D', border: '1px solid #2F7A4D55', background: '#2F7A4D0D' }
                                               : asignados > 0
-                                                ? 'border-yellow-300 text-yellow-700 bg-yellow-50'
-                                                : 'border-gray-200 text-gray-500'
-                                          }`}
+                                                ? { color: '#B6762A', border: '1px solid #B6762A55', background: '#B6762A0D' }
+                                                : { color: '#6B6058', border: '1px solid #DDD8CF' }
+                                          }
                                         >
+                                          <Users className="h-3 w-3" />
                                           <span>{asignados}/{totalOps} ops</span>
                                         </button>
                                       </td>
                                     )}
-                                    <td className="px-3 py-2 font-bold text-center">{fila.talla}</td>
-                                    <td className="px-3 py-2 font-mono text-right">{fila.cantidad}</td>
-                                    <td className="px-3 py-2">
+                                    <td className="px-3 py-2.5 font-bold text-center" style={{ color: '#1a1a1a' }}>{fila.talla}</td>
+                                    <td className="px-3 py-2.5 font-mono text-right">{fila.cantidad}</td>
+                                    <td className="px-3 py-2.5">
                                       {(() => {
                                         const opActual = fila.asignaciones
                                           .slice()
                                           .sort((a, b) => a.orden - b.orden)
                                           .find(a => !a.confirmado);
+                                        const avanceColorFila = fila.pctAvance === 100 ? '#2F7A4D' : fila.pctAvance >= 50 ? '#4B7FA3' : '#B6762A';
                                         return (
                                           <div className="flex flex-col gap-1">
                                             <div className="flex items-center gap-2">
-                                              <div className="w-16 h-1.5 bg-gray-200">
-                                                <div className="h-full bg-black" style={{ width: `${fila.pctAvance}%` }} />
+                                              <div className="w-16 h-1.5 overflow-hidden" style={{ background: '#EAE6DD' }}>
+                                                <div className="h-full transition-all" style={{ width: `${fila.pctAvance}%`, background: avanceColorFila }} />
                                               </div>
-                                              <span className="text-[10px]">{fila.pctAvance}%</span>
+                                              <span className="text-[10px] font-mono font-bold" style={{ color: avanceColorFila }}>{fila.pctAvance}%</span>
                                               {fila.estado === 'LISTO' ? (
                                                 <button
                                                   onClick={() => abrirModalAvance(corte.id, grupo.colorId, fila.talla)}
-                                                  className="flex items-center gap-1 text-[10px] border border-green-400 bg-green-100 text-green-800 px-1.5 py-0.5 rounded hover:bg-green-200 whitespace-nowrap"
+                                                  className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 transition-colors whitespace-nowrap"
+                                                  style={{ color: '#2F7A4D', border: '1px solid #2F7A4D55', background: '#2F7A4D15' }}
                                                   title="Ver/editar avance confirmado"
                                                 >
                                                   <CheckCircle className="h-2.5 w-2.5" />
@@ -1381,7 +1418,8 @@ export function ProduccionConfeccion() {
                                               ) : (
                                                 <button
                                                   onClick={() => abrirModalAvance(corte.id, grupo.colorId, fila.talla)}
-                                                  className="flex items-center gap-1 text-[10px] border border-gray-300 text-gray-600 px-1.5 py-0.5 rounded hover:bg-gray-100 whitespace-nowrap"
+                                                  className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 transition-colors whitespace-nowrap"
+                                                  style={{ color: '#6B6058', border: '1px solid #DDD8CF' }}
                                                   title="Confirmar avance de operaciones para esta talla"
                                                 >
                                                   <CheckCircle className="h-2.5 w-2.5" />
@@ -1396,7 +1434,8 @@ export function ProduccionConfeccion() {
                                                 <div className="relative">
                                                   <button
                                                     onClick={() => setMenuAbierto(abierto ? null : menuKey)}
-                                                    className="flex items-center text-[10px] border border-gray-200 text-gray-400 px-1 py-0.5 rounded hover:bg-gray-100 hover:text-gray-600"
+                                                    className="flex items-center text-[10px] px-1 py-0.5 transition-colors"
+                                                    style={{ color: '#9A8F87', border: '1px solid #DDD8CF' }}
                                                     title="Más opciones"
                                                   >
                                                     <MoreHorizontal className="h-3 w-3" />
@@ -1404,7 +1443,7 @@ export function ProduccionConfeccion() {
                                                   {abierto && (
                                                     <>
                                                       <div className="fixed inset-0 z-10" onClick={() => setMenuAbierto(null)} />
-                                                      <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-gray-200 rounded shadow-lg py-1 min-w-[140px]">
+                                                      <div className="absolute right-0 top-full mt-1 z-20 bg-white py-1 min-w-[140px]" style={{ border: '1px solid #DDD8CF', boxShadow: '0 8px 24px -8px rgba(26,26,26,0.25)' }}>
                                                         <button
                                                           onClick={() => abrirModalEditOps(corte.id, grupo.colorId, fila.talla)}
                                                           className="w-full text-left px-3 py-1.5 text-[11px] text-gray-700 hover:bg-gray-50 whitespace-nowrap"
@@ -1420,8 +1459,8 @@ export function ProduccionConfeccion() {
                                             </div>
                                             {fila.estado !== 'LISTO' && opActual && (
                                               <div className="flex items-center gap-1">
-                                                <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse flex-shrink-0" />
-                                                <span className="text-[9px] text-blue-700 font-bold truncate max-w-[120px]">
+                                                <span className="inline-block h-1.5 w-1.5 rounded-full animate-pulse flex-shrink-0" style={{ background: '#4B7FA3' }} />
+                                                <span className="text-[9px] font-bold truncate max-w-[120px]" style={{ color: '#4B7FA3' }}>
                                                   {opActual.orden}. {opActual.operacion}
                                                 </span>
                                               </div>
@@ -1430,9 +1469,9 @@ export function ProduccionConfeccion() {
                                         );
                                       })()}
                                     </td>
-                                    <td className="px-3 py-2 font-mono text-right font-bold">S/ {fila.totalPago.toFixed(2)}</td>
+                                    <td className="px-3 py-2.5 font-mono text-right font-bold" style={{ color: '#1a1a1a' }}>S/ {fila.totalPago.toFixed(2)}</td>
                                     {esAdmin && (
-                                    <td className="px-3 py-2">
+                                    <td className="px-3 py-2.5">
                                       {confirmDelete === fila.id ? (
                                         <span className="flex items-center gap-1 whitespace-nowrap">
                                           <button onClick={() => {
@@ -1441,7 +1480,7 @@ export function ProduccionConfeccion() {
                                             if (restantes.length === 0) boletaLineas.filter(b => b.corteId === fila.corteId).forEach(b => deleteBoletaLinea(b.id));
                                             setConfirmDelete(null);
                                             addToast('Fila eliminada', 'success');
-                                          }} className="text-[10px] font-bold text-red-600 hover:text-red-800 uppercase">Sí</button>
+                                          }} className="text-[10px] font-bold uppercase" style={{ color: '#C0362C' }}>Sí</button>
                                           <span className="text-gray-300">/</span>
                                           <button onClick={() => setConfirmDelete(null)} className="text-[10px] font-bold text-gray-400 hover:text-gray-600 uppercase">No</button>
                                         </span>
@@ -1491,16 +1530,26 @@ export function ProduccionConfeccion() {
             </div>
             {filtroProductoId && resumenPorProducto && (
               <div className="flex gap-4 pb-1 text-xs">
-                <span className="text-gray-500">Total prendas: <span className="font-black text-gray-800">{resumenPorProducto.total}</span></span>
-                <span className="text-gray-500">Avance prom: <span className="font-black text-gray-800">{resumenPorProducto.avgAvance}%</span></span>
+                <span className="text-gray-500">Total prendas: <span className="font-black" style={{ color: '#1a1a1a' }}>{resumenPorProducto.total}</span></span>
+                <span className="text-gray-500">Avance prom: <span className="font-black" style={{ color: '#1a1a1a' }}>{resumenPorProducto.avgAvance}%</span></span>
               </div>
             )}
           </div>
 
           {!filtroProductoId ? (
-            <p className="text-sm text-gray-400 italic">Selecciona un producto para ver su seguimiento.</p>
+            <div className="flex flex-col items-center justify-center py-16 gap-2" style={{ border: '1px dashed #DDD8CF' }}>
+              <span className="h-10 w-10 flex items-center justify-center" style={{ background: '#7B5EA718' }}>
+                <Shirt className="h-5 w-5" style={{ color: '#7B5EA7' }} />
+              </span>
+              <p className="text-sm font-bold text-gray-500">Selecciona un producto</p>
+              <p className="text-xs text-gray-400">Verás todo su seguimiento de confección aquí.</p>
+            </div>
           ) : filasPorProducto.length === 0 ? (
-            <p className="text-sm text-gray-400 italic">Sin filas de seguimiento para este producto.</p>
+            <div className="flex flex-col items-center justify-center py-16 gap-2" style={{ border: '1px dashed #DDD8CF' }}>
+              <PackageSearch className="h-8 w-8 text-gray-300" />
+              <p className="text-sm font-bold text-gray-500">Sin filas de seguimiento</p>
+              <p className="text-xs text-gray-400">Este producto aún no tiene cortes en seguimiento.</p>
+            </div>
           ) : (
             <div className="texajo-table-shell">
               <div className="texajo-table-scroll">
@@ -1515,34 +1564,35 @@ export function ProduccionConfeccion() {
                   <tbody>
                     {filasPorProducto.map(fila => {
                       const corte = corteMap.get(fila.corteId);
+                      const avanceColorFila = fila.pctAvance === 100 ? '#2F7A4D' : fila.pctAvance >= 50 ? '#4B7FA3' : '#B6762A';
+                      const estadoColor = fila.estado === 'LISTO' ? '#2F7A4D' : fila.estado === 'EN_PROCESO' ? '#4B7FA3' : fila.estado === 'ANULADO' ? '#C0362C' : '#9A8F87';
                       return (
                         <tr key={fila.id}>
                           <td className="font-bold font-mono">{fila.nCorte}</td>
                           <td className="font-mono whitespace-nowrap">{fila.fecha}</td>
-                          <td className="whitespace-nowrap">{colorMap.get(fila.colorId) ?? fila.colorId}</td>
+                          <td className="whitespace-nowrap">{capWords(colorMap.get(fila.colorId) ?? fila.colorId)}</td>
                           <td className="font-bold text-center">{fila.talla}</td>
                           <td className="font-mono text-right">{fila.cantidad}</td>
                           <td>
                             <div className="flex items-center gap-2">
-                              <div className="w-16 h-1.5 bg-gray-200">
-                                <div className="h-full bg-black" style={{ width: `${fila.pctAvance}%` }} />
+                              <div className="w-16 h-1.5 overflow-hidden" style={{ background: '#EAE6DD' }}>
+                                <div className="h-full transition-all" style={{ width: `${fila.pctAvance}%`, background: avanceColorFila }} />
                               </div>
-                              <span className="text-[10px] font-mono">{fila.pctAvance}%</span>
+                              <span className="text-[10px] font-mono font-bold" style={{ color: avanceColorFila }}>{fila.pctAvance}%</span>
                             </div>
                           </td>
                           <td>
-                            <span className={`inline-block px-2 py-0.5 text-[10px] font-bold uppercase ${
-                              fila.estado === 'LISTO' ? 'bg-green-100 text-green-800' :
-                              fila.estado === 'EN_PROCESO' ? 'bg-blue-100 text-blue-800' :
-                              'bg-gray-100 text-gray-700'
-                            }`}>{fila.estado}</span>
+                            <span
+                              className="inline-block px-2 py-0.5 text-[10px] font-bold uppercase"
+                              style={{ background: `${estadoColor}18`, color: estadoColor }}
+                            >{fila.estado.replace('_', ' ')}</span>
                           </td>
                           <td className="font-mono text-right font-bold">S/ {fila.totalPago.toFixed(2)}</td>
                         </tr>
                       );
                     })}
                   </tbody>
-                  <tfoot className="border-t-2 border-gray-300 bg-gray-50">
+                  <tfoot>
                     <tr>
                       <td colSpan={4} className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">Total</td>
                       <td className="font-mono text-right font-black">{resumenPorProducto?.total}</td>
@@ -1566,17 +1616,22 @@ export function ProduccionConfeccion() {
         const confirmadas = Object.values(avanceOps).filter(Boolean).length;
         const pctPreview = tarifasModal.length > 0 ? Math.round((confirmadas / tarifasModal.length) * 100) : 0;
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setModalAvance(null)}>
-            <div className="bg-white w-full max-w-sm rounded shadow-xl" onClick={e => e.stopPropagation()}>
-              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-                <div>
-                  <p className="font-black text-sm">Confirmar avance</p>
-                  <p className="text-[11px] text-gray-500 mt-0.5">
-                    {colorMap.get(colorId)} — Talla {talla} — {filaModal?.cantidad ?? 0} prendas
-                  </p>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setModalAvance(null)}>
+            <div className="bg-white w-full max-w-sm" style={{ border: '1px solid #DDD8CF' }} onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between gap-3 px-5 py-4" style={{ background: '#FFFDF9', borderBottom: '3px solid #2F7A4D' }}>
+                <div className="flex items-center gap-2.5">
+                  <span className="h-8 w-8 flex-shrink-0 flex items-center justify-center" style={{ background: '#2F7A4D18' }}>
+                    <CheckCircle className="h-4 w-4" style={{ color: '#2F7A4D' }} />
+                  </span>
+                  <div>
+                    <p className="font-serif font-bold text-sm" style={{ color: '#1a1a1a' }}>Confirmar avance</p>
+                    <p className="text-[11px] text-gray-500 mt-0.5">
+                      {capWords(colorMap.get(colorId) ?? '')} — Talla {talla} — {filaModal?.cantidad ?? 0} prendas
+                    </p>
+                  </div>
                 </div>
-                <button onClick={() => setModalAvance(null)} className="text-gray-400 hover:text-gray-600">
-                  <X className="h-4 w-4" />
+                <button onClick={() => setModalAvance(null)} className="text-gray-400 hover:text-gray-700 transition-colors flex-shrink-0">
+                  <X className="h-5 w-5" />
                 </button>
               </div>
               <div className="px-5 py-4 space-y-2 max-h-[55vh] overflow-y-auto">
@@ -1593,18 +1648,19 @@ export function ProduccionConfeccion() {
                   return (
                     <label
                       key={t.id}
-                      className={`flex items-center gap-3 px-3 py-2.5 rounded border cursor-pointer transition-colors ${checked ? 'border-green-300 bg-green-50' : 'border-gray-200 bg-white hover:bg-gray-50'}`}
+                      className="flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors"
+                      style={checked ? { border: '1px solid #2F7A4D55', background: '#2F7A4D0D' } : { border: '1px solid #DDD8CF', background: '#fff' }}
                     >
                       <input
                         type="checkbox"
                         checked={checked}
                         onChange={e => setAvanceOps(prev => ({ ...prev, [t.id]: e.target.checked }))}
-                        className="h-3.5 w-3.5 accent-green-600 flex-shrink-0"
+                        className="h-3.5 w-3.5 accent-[#2F7A4D] flex-shrink-0"
                       />
                       <span className="text-[10px] text-gray-400 font-mono w-4 flex-shrink-0">{t.orden}.</span>
-                      <span className={`text-[11px] font-bold flex-1 ${checked ? 'text-green-800' : 'text-gray-700'}`}>{t.operacion}</span>
+                      <span className="text-[11px] font-bold flex-1" style={{ color: checked ? '#2F7A4D' : '#3f3a35' }}>{t.operacion}</span>
                       {nombresOps.length > 0 && (
-                        <span className="text-[10px] text-gray-400 whitespace-nowrap">{nombresOps.join(', ')}</span>
+                        <span className="text-[10px] text-gray-400 whitespace-nowrap">{nombresOps.map(capWords).join(', ')}</span>
                       )}
                     </label>
                   );
@@ -1612,18 +1668,25 @@ export function ProduccionConfeccion() {
               </div>
               {/* Preview avance */}
               <div className="px-5 pb-3 flex items-center gap-3">
-                <div className="flex-1 h-1.5 bg-gray-200 rounded">
-                  <div className="h-full bg-black rounded transition-all" style={{ width: `${pctPreview}%` }} />
+                <div className="flex-1 h-1.5 overflow-hidden" style={{ background: '#EAE6DD' }}>
+                  <div
+                    className="h-full transition-all"
+                    style={{ width: `${pctPreview}%`, background: pctPreview === 100 ? '#2F7A4D' : pctPreview > 0 ? '#4B7FA3' : '#B6762A' }}
+                  />
                 </div>
-                <span className="text-[11px] font-black tabular-nums w-10 text-right">{pctPreview}%</span>
-                <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${
-                  pctPreview === 100 ? 'bg-green-100 text-green-800' :
-                  pctPreview > 0 ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600'
-                }`}>
+                <span className="text-[11px] font-black font-mono tabular-nums w-10 text-right">{pctPreview}%</span>
+                <span
+                  className="text-[10px] font-bold uppercase px-2 py-0.5"
+                  style={
+                    pctPreview === 100 ? { background: '#2F7A4D18', color: '#2F7A4D' } :
+                    pctPreview > 0 ? { background: '#4B7FA318', color: '#4B7FA3' } :
+                    { background: '#DDD8CF55', color: '#6B6058' }
+                  }
+                >
                   {pctPreview === 100 ? 'Listo' : pctPreview > 0 ? 'En proceso' : 'Pendiente'}
                 </span>
               </div>
-              <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100">
+              <div className="flex justify-end gap-2 px-5 py-4" style={{ borderTop: '1px solid #EFECE5' }}>
                 <button onClick={() => setModalAvance(null)} className="btn-secondary text-xs">Cancelar</button>
                 <button onClick={guardarModalAvance} className="btn-primary text-xs">Confirmar</button>
               </div>
@@ -1639,17 +1702,22 @@ export function ProduccionConfeccion() {
         const filaModal = seguimientoFilas.find(f => f.corteId === corteId && f.colorId === colorId && f.talla === talla);
         const cantFila = filaModal?.cantidad ?? 0;
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setModalEditOps(null)}>
-            <div className="bg-white w-full max-w-sm rounded shadow-xl" onClick={e => e.stopPropagation()}>
-              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-                <div>
-                  <p className="font-black text-sm">Editar operarios</p>
-                  <p className="text-[11px] text-gray-500 mt-0.5">
-                    {colorMap.get(colorId)} — Talla {talla} — {cantFila} prendas
-                  </p>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setModalEditOps(null)}>
+            <div className="bg-white w-full max-w-sm" style={{ border: '1px solid #DDD8CF' }} onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between gap-3 px-5 py-4" style={{ background: '#FFFDF9', borderBottom: '3px solid #4B7FA3' }}>
+                <div className="flex items-center gap-2.5">
+                  <span className="h-8 w-8 flex-shrink-0 flex items-center justify-center" style={{ background: '#4B7FA318' }}>
+                    <Users className="h-4 w-4" style={{ color: '#4B7FA3' }} />
+                  </span>
+                  <div>
+                    <p className="font-serif font-bold text-sm" style={{ color: '#1a1a1a' }}>Editar operarios</p>
+                    <p className="text-[11px] text-gray-500 mt-0.5">
+                      {capWords(colorMap.get(colorId) ?? '')} — Talla {talla} — {cantFila} prendas
+                    </p>
+                  </div>
                 </div>
-                <button onClick={() => setModalEditOps(null)} className="text-gray-400 hover:text-gray-600">
-                  <X className="h-4 w-4" />
+                <button onClick={() => setModalEditOps(null)} className="text-gray-400 hover:text-gray-700 transition-colors flex-shrink-0">
+                  <X className="h-5 w-5" />
                 </button>
               </div>
               <div className="px-5 py-4 space-y-3 max-h-[55vh] overflow-y-auto">
@@ -1659,12 +1727,12 @@ export function ProduccionConfeccion() {
                   const totalAsignado = ops.reduce((s, o) => s + (o.cantidad || 0), 0);
                   const descuadre = totalAsignado !== cantFila && ops.some(o => o.operarioId);
                   return (
-                    <div key={t.id} className="rounded border border-gray-200 bg-white">
-                      <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-100">
+                    <div key={t.id} className="bg-white" style={{ border: '1px solid #DDD8CF' }}>
+                      <div className="flex items-center gap-2 px-3 py-2" style={{ borderBottom: '1px solid #EFECE5', background: '#FAF8F4' }}>
                         <span className="text-[10px] text-gray-400 font-mono w-4 flex-shrink-0">{t.orden}.</span>
-                        <span className="text-[11px] font-bold text-gray-700 flex-1">{t.operacion}</span>
+                        <span className="text-[11px] font-bold flex-1" style={{ color: '#1a1a1a' }}>{t.operacion}</span>
                         {descuadre && (
-                          <span className="text-[9px] text-amber-600 font-bold whitespace-nowrap">{totalAsignado}/{cantFila}</span>
+                          <span className="text-[9px] font-bold whitespace-nowrap" style={{ color: '#B6762A' }}>{totalAsignado}/{cantFila}</span>
                         )}
                       </div>
                       <div className="px-3 py-2 space-y-1">
@@ -1680,12 +1748,13 @@ export function ProduccionConfeccion() {
                                   return { ...prev, [t.id]: list };
                                 });
                               }}
-                              className="flex-1 text-[10px] border border-gray-200 rounded px-1.5 py-0.5 bg-white min-w-0"
+                              className="flex-1 text-[10px] px-1.5 py-0.5 bg-white min-w-0"
+                              style={{ border: '1px solid #DDD8CF' }}
                             >
                               <option value="">— sin operario —</option>
                               {operarios.filter(o => o.estado === 'ACTIVO').map(o => (
                                 <option key={o.id} value={o.id}>
-                                  {(o.nombre ?? o.codigo).split(',')[1]?.trim().split(/\s+/)[0] ?? (o.nombre ?? o.codigo).split(/\s+/)[0]} ({o.codigo})
+                                  {capWords((o.nombre ?? o.codigo).split(',')[1]?.trim().split(/\s+/)[0] ?? (o.nombre ?? o.codigo).split(/\s+/)[0])} ({o.codigo})
                                 </option>
                               ))}
                             </select>
@@ -1714,7 +1783,8 @@ export function ProduccionConfeccion() {
                                   return { ...prev, [t.id]: list };
                                 });
                               }}
-                              className="w-14 text-[10px] border border-gray-200 rounded px-1.5 py-0.5 text-right font-mono"
+                              className="w-14 text-[10px] px-1.5 py-0.5 text-right font-mono"
+                              style={{ border: '1px solid #DDD8CF' }}
                             />
                             {ops.length > 1 && (
                               <button
@@ -1728,7 +1798,7 @@ export function ProduccionConfeccion() {
                                   }
                                   return { ...prev, [t.id]: list };
                                 })}
-                                className="text-gray-300 hover:text-red-400 flex-shrink-0"
+                                className="text-gray-300 hover:text-red-400 flex-shrink-0 transition-colors"
                               >
                                 <X className="h-3 w-3" />
                               </button>
@@ -1745,7 +1815,7 @@ export function ProduccionConfeccion() {
                             newList.push({ operarioId: '', cantidad: base });
                             return { ...prev, [t.id]: newList };
                           })}
-                          className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-gray-700 mt-0.5"
+                          className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-gray-700 mt-0.5 transition-colors"
                         >
                           <Plus className="h-3 w-3" />
                           <span>Agregar operario</span>
@@ -1755,7 +1825,7 @@ export function ProduccionConfeccion() {
                   );
                 })}
               </div>
-              <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100">
+              <div className="flex justify-end gap-2 px-5 py-4" style={{ borderTop: '1px solid #EFECE5' }}>
                 <button onClick={() => setModalEditOps(null)} className="btn-secondary text-xs">Cancelar</button>
                 <button onClick={guardarModalEditOps} className="btn-primary text-xs">Guardar</button>
               </div>
@@ -1766,11 +1836,18 @@ export function ProduccionConfeccion() {
 
       {/* Modal nueva fila */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white border border-gray-300 w-full max-w-lg max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 flex-shrink-0">
-              <h3 className="text-sm font-black uppercase tracking-widest">Nueva Fila de Seguimiento</h3>
-              <button onClick={() => setShowForm(false)}><X className="h-4 w-4" /></button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white w-full max-w-lg max-h-[90vh] flex flex-col" style={{ border: '1px solid #DDD8CF' }}>
+            <div className="flex items-center justify-between gap-3 px-6 py-4 flex-shrink-0" style={{ background: '#FFFDF9', borderBottom: '3px solid #7B5EA7' }}>
+              <div className="flex items-center gap-2.5">
+                <span className="h-8 w-8 flex-shrink-0 flex items-center justify-center" style={{ background: '#7B5EA718' }}>
+                  <Plus className="h-4 w-4" style={{ color: '#7B5EA7' }} />
+                </span>
+                <h3 className="font-serif font-bold text-sm" style={{ color: '#1a1a1a' }}>Nueva Fila de Seguimiento</h3>
+              </div>
+              <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-gray-700 transition-colors">
+                <X className="h-5 w-5" />
+              </button>
             </div>
             <form onSubmit={handleAddFila} className="p-6 space-y-4 overflow-y-auto flex-1">
               <F label="Corte">
@@ -1812,7 +1889,7 @@ export function ProduccionConfeccion() {
                       Cantidades por Color
                     </label>
                     {detalles.map(det => {
-                      const nombreColor = colorMap.get(det.colorId) ?? det.colorId;
+                      const nombreColor = capWords(colorMap.get(det.colorId) ?? det.colorId);
                       const cants = form.cantsPorColor[det.colorId] ?? { S: '', M: '', L: '', XL: '' };
                       const setCant = (talla: 'S' | 'M' | 'L' | 'XL', val: string) =>
                         setForm(f => ({
@@ -1823,11 +1900,11 @@ export function ProduccionConfeccion() {
                           },
                         }));
                       return (
-                        <div key={det.colorId} className="border border-gray-200 p-3 bg-gray-50">
-                          <p className="text-xs font-bold text-gray-700 mb-2 uppercase tracking-wide">
+                        <div key={det.colorId} className="p-3" style={{ border: '1px solid #DDD8CF', background: '#FAF8F4' }}>
+                          <p className="text-xs font-bold mb-2 uppercase tracking-wide" style={{ color: '#1a1a1a' }}>
                             {nombreColor}
                             {det.tonalidad && (
-                              <span className="ml-1.5 text-[10px] font-mono text-gray-400 bg-gray-200 px-1.5 py-0.5 rounded">
+                              <span className="ml-1.5 text-[10px] font-mono text-gray-400 px-1.5 py-0.5" style={{ background: '#EAE6DD' }}>
                                 Tn-{det.tonalidad}
                               </span>
                             )}
@@ -1867,17 +1944,22 @@ export function ProduccionConfeccion() {
         const filasDelColor = seguimientoFilas.filter(f => f.corteId === corteId && f.colorId === colorId);
         const totalPrendas = filasDelColor.reduce((s, f) => s + f.cantidad, 0);
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setModalColor(null)}>
-            <div className="bg-white w-full max-w-md rounded shadow-xl" onClick={e => e.stopPropagation()}>
-              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-                <div>
-                  <p className="font-black text-sm">Asignar operarios</p>
-                  <p className="text-[11px] text-gray-500 mt-0.5">
-                    {colorMap.get(colorId)} — {totalPrendas} prendas ({filasDelColor.map(f => f.talla).join(', ')})
-                  </p>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setModalColor(null)}>
+            <div className="bg-white w-full max-w-md" style={{ border: '1px solid #DDD8CF' }} onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between gap-3 px-5 py-4" style={{ background: '#FFFDF9', borderBottom: '3px solid #7B5EA7' }}>
+                <div className="flex items-center gap-2.5">
+                  <span className="h-8 w-8 flex-shrink-0 flex items-center justify-center" style={{ background: '#7B5EA718' }}>
+                    <Users className="h-4 w-4" style={{ color: '#7B5EA7' }} />
+                  </span>
+                  <div>
+                    <p className="font-serif font-bold text-sm" style={{ color: '#1a1a1a' }}>Asignar operarios</p>
+                    <p className="text-[11px] text-gray-500 mt-0.5">
+                      {capWords(colorMap.get(colorId) ?? '')} — {totalPrendas} prendas ({filasDelColor.map(f => f.talla).join(', ')})
+                    </p>
+                  </div>
                 </div>
-                <button onClick={() => setModalColor(null)} className="text-gray-400 hover:text-gray-600">
-                  <X className="h-4 w-4" />
+                <button onClick={() => setModalColor(null)} className="text-gray-400 hover:text-gray-700 transition-colors flex-shrink-0">
+                  <X className="h-5 w-5" />
                 </button>
               </div>
               {/* Selector de color para PDF */}
@@ -1887,19 +1969,19 @@ export function ProduccionConfeccion() {
                   {Object.entries(COLOR_PALETTE).map(([nombre, hex]) => (
                     <button
                       key={hex}
-                      title={nombre}
+                      title={capWords(nombre)}
                       onClick={() => setModalHex(hex)}
-                      className="w-6 h-6 rounded border-2 transition-transform hover:scale-110"
+                      className="w-6 h-6 transition-transform hover:scale-110"
                       style={{
                         backgroundColor: hex,
-                        borderColor: modalHex === hex ? '#000' : 'transparent',
+                        border: modalHex === hex ? '2px solid #1a1a1a' : '2px solid transparent',
                         outline: modalHex === hex ? '1px solid #fff' : 'none',
                         outlineOffset: '-3px',
                       }}
                     />
                   ))}
                   {/* Picker libre */}
-                  <label title="Elegir color personalizado" className="w-6 h-6 rounded border-2 border-dashed border-gray-300 flex items-center justify-center cursor-pointer hover:border-gray-500 overflow-hidden">
+                  <label title="Elegir color personalizado" className="w-6 h-6 border-2 border-dashed border-gray-300 flex items-center justify-center cursor-pointer hover:border-gray-500 overflow-hidden">
                     <input
                       type="color"
                       value={modalHex}
@@ -1911,7 +1993,7 @@ export function ProduccionConfeccion() {
                 </div>
                 {/* Preview */}
                 <div className="flex items-center gap-2">
-                  <div className="w-5 h-5 rounded border border-gray-200" style={{ backgroundColor: modalHex }} />
+                  <div className="w-5 h-5" style={{ backgroundColor: modalHex, border: '1px solid #DDD8CF' }} />
                   <span className="text-[10px] text-gray-500 font-mono">{modalHex}</span>
                 </div>
               </div>
@@ -1942,19 +2024,20 @@ export function ProduccionConfeccion() {
                   };
 
                   return (
-                    <div key={t.id} className="space-y-1.5 border border-gray-100 rounded p-2">
+                    <div key={t.id} className="space-y-1.5 p-2" style={{ border: '1px solid #EFECE5' }}>
                       {/* Fila principal: operación + selector global */}
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] font-mono text-gray-400 w-5 text-right flex-shrink-0">{t.orden}.</span>
-                        <span className="text-[11px] font-bold text-gray-700 w-28 truncate flex-shrink-0">{t.operacion}</span>
+                        <span className="text-[11px] font-bold w-28 truncate flex-shrink-0" style={{ color: '#1a1a1a' }}>{t.operacion}</span>
                         <select
                           value={hayExcepcion ? '' : globalId}
                           onChange={e => aplicarGlobalATallas(e.target.value)}
-                          className="text-[11px] border border-gray-200 bg-white px-2 py-0.5 rounded flex-1 min-w-0"
+                          className="text-[11px] bg-white px-2 py-0.5 flex-1 min-w-0"
+                          style={{ border: '1px solid #DDD8CF' }}
                         >
                           <option value="">{hayExcepcion ? '— mixto —' : '— sin asignar —'}</option>
                           {operarios.filter(o => o.estado === 'ACTIVO').map(o => (
-                            <option key={o.id} value={o.id}>{o.nombre ?? o.codigo}</option>
+                            <option key={o.id} value={o.id}>{capWords(o.nombre ?? o.codigo)}</option>
                           ))}
                         </select>
                       </div>
@@ -1966,7 +2049,7 @@ export function ProduccionConfeccion() {
                           const esDiferente = opId && opId !== globalId;
                           return (
                             <div key={ta} className="flex items-center gap-1.5">
-                              <span className={`text-[10px] font-black w-5 ${esDiferente ? 'text-blue-600' : 'text-gray-400'}`}>{ta}</span>
+                              <span className="text-[10px] font-black w-5" style={{ color: esDiferente ? '#4B7FA3' : '#9A8F87' }}>{ta}</span>
                               <span className="text-[10px] text-gray-400 font-mono w-8 text-right">{fila.cantidad}p</span>
                               <select
                                 value={opId}
@@ -1981,11 +2064,12 @@ export function ProduccionConfeccion() {
                                     [t.id]: { ...(prev[t.id] ?? {}), [ta]: [fila.cantidad] },
                                   }));
                                 }}
-                                className={`text-[11px] border rounded px-2 py-0.5 flex-1 min-w-0 ${esDiferente ? 'border-blue-300 bg-blue-50' : 'border-gray-200 bg-white'}`}
+                                className="text-[11px] px-2 py-0.5 flex-1 min-w-0"
+                                style={esDiferente ? { border: '1px solid #4B7FA355', background: '#4B7FA30D' } : { border: '1px solid #DDD8CF', background: '#fff' }}
                               >
                                 <option value="">— sin asignar —</option>
                                 {operarios.filter(o => o.estado === 'ACTIVO').map(o => (
-                                  <option key={o.id} value={o.id}>{o.nombre ?? o.codigo}</option>
+                                  <option key={o.id} value={o.id}>{capWords(o.nombre ?? o.codigo)}</option>
                                 ))}
                               </select>
                             </div>
@@ -1996,7 +2080,7 @@ export function ProduccionConfeccion() {
                   );
                 })}
               </div>
-              <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100">
+              <div className="flex justify-end gap-2 px-5 py-4" style={{ borderTop: '1px solid #EFECE5' }}>
                 <button onClick={() => setModalColor(null)} className="btn-secondary text-xs">Cancelar</button>
                 <button onClick={guardarModalAsignar} className="btn-primary text-xs">Guardar</button>
               </div>

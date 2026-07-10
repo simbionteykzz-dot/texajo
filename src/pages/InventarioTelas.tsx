@@ -4,9 +4,10 @@ import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
 import { useEsAdmin } from '../lib/useEsAdmin';
 import { useEsSupervisor } from '../lib/useEsSupervisor';
-import { Download, Plus, X, FileText, Trash2, Pencil } from 'lucide-react';
+import { Download, Plus, X, FileText, Trash2, Pencil, Boxes, ArrowLeftRight, AlertTriangle, CalendarRange, Tag } from 'lucide-react';
 import { TipoMovimientoTela, CategoriaColor, Tela, Color } from '../types';
 import { ModuleInfoBox } from '../components/ModuleInfoBox';
+import { TutorialModal } from '../components/TutorialModal';
 import { exportRowsToXlsx, exportTableToPdf } from '../lib/export';
 import { newId } from '../lib/storage';
 import { mockColores } from '../data';
@@ -317,7 +318,7 @@ export function InventarioTelas() {
         map.get(m.telaId)!.push(m);
       });
       return Array.from(map.entries())
-        .map(([key, rows]) => ({ key, label: telaMap.get(key)?.nombre ?? key, rows }))
+        .map(([key, rows]) => ({ key, label: capWords(telaMap.get(key)?.nombre ?? key), rows }))
         .sort((a, b) => a.label.localeCompare(b.label));
     }
     return [{ key: 'all', label: 'Historial de Movimientos', rows: movsFiltrados }];
@@ -428,8 +429,8 @@ export function InventarioTelas() {
   const buildRows = () => movsFiltrados.map((m) => ({
     Fecha: m.fecha,
     Tipo: TIPO_LABEL[m.tipo] ?? m.tipo,
-    Tela: telaMap.get(m.telaId)?.nombre ?? m.telaId,
-    Color: colorMap.get(m.colorId)?.nombre ?? m.colorId,
+    Tela: capWords(telaMap.get(m.telaId)?.nombre ?? m.telaId),
+    Color: capWords(colorMap.get(m.colorId)?.nombre ?? m.colorId),
     Rollos: m.rollos,
     Kg: m.kgTotal,
     PrecioKg: m.precioKg,
@@ -477,10 +478,19 @@ export function InventarioTelas() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.28, ease: 'easeOut' }}
     >
-      <div className="flex items-start justify-between">
-        <div>
-          <h2 className="text-2xl font-black uppercase tracking-tight">Inventario de Telas</h2>
-          <p className="text-xs text-gray-500 mt-1">Movimientos y stock por tela/color</p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <span
+            className="hidden sm:flex h-11 w-11 flex-shrink-0 items-center justify-center"
+            style={{ background: '#4B7FA315', border: '1px solid #4B7FA340' }}
+          >
+            <Boxes className="h-5 w-5" style={{ color: '#4B7FA3' }} />
+          </span>
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.22em]" style={{ color: '#9A8F87' }}>Almacén</p>
+            <h2 className="font-serif text-2xl font-bold leading-tight" style={{ color: '#1a1a1a' }}>Inventario de Telas</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Movimientos y stock por tela/color</p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <ModuleInfoBox
@@ -492,6 +502,67 @@ export function InventarioTelas() {
               { label: 'Matriz Color × Tela', detail: 'Vista cruzada del stock con semáforo crítico/bajo/ok' },
               { label: 'Tab Críticos', detail: 'Lista filtrada de combinaciones bajo el umbral de alerta' },
               { label: 'Histórico Mensual', detail: 'Ingresos, consumo y balance por mes (últimos 24)' },
+            ]}
+          />
+          <TutorialModal
+            accent="#4B7FA3"
+            titulo="Cómo funciona el Inventario de Telas"
+            steps={[
+              {
+                titulo: '1. Las pestañas',
+                contenido: (
+                  <ul className="list-disc pl-4 space-y-1">
+                    <li><strong>Stock Actual:</strong> cuadrícula de tela × color con el stock disponible y su estado (OK / Bajo / Crítico).</li>
+                    <li><strong>Movimientos:</strong> historial de todo lo que entra y sale del inventario.</li>
+                    <li><strong>Críticos:</strong> solo las combinaciones que están por debajo del umbral crítico.</li>
+                    <li><strong>Histórico Mensual:</strong> resumen de ingresos vs. consumo de los últimos 24 meses.</li>
+                    <li><strong>Catálogos:</strong> administra los tipos de tela y colores disponibles.</li>
+                  </ul>
+                ),
+              },
+              {
+                titulo: '2. Disponible vs. Físico vs. Comprometido',
+                contenido: (
+                  <p>
+                    El <strong>stock físico</strong> es lo que hay realmente en el almacén. Cuando un corte pasa a estado <strong>"En Proceso"</strong>,
+                    sus rollos se reservan como <strong>comprometidos</strong> aunque todavía no se hayan descontado del inventario.
+                    El <strong>disponible</strong> (lo que se muestra en la matriz) es <em>físico − comprometido</em> — así nunca planificas con
+                    tela que ya está asignada a otro corte.
+                  </p>
+                ),
+              },
+              {
+                titulo: '3. Registrar un movimiento',
+                contenido: (
+                  <ol className="list-decimal pl-4 space-y-1">
+                    <li>Presiona <strong>"Registrar Movimiento"</strong> (solo Supervisor/Admin lo ven).</li>
+                    <li>Elige el <strong>tipo</strong>: Ingreso, A Corte, Reproceso, Muestra o Ajuste +/−.</li>
+                    <li>Selecciona la <strong>tela y el color</strong> — verás el stock actual como referencia antes de confirmar.</li>
+                    <li>Ingresa los <strong>rollos</strong>; los kg se sugieren automáticamente (rollos × kg/rollo de la tela), pero puedes ajustarlos.</li>
+                    <li>Si es un <strong>Ingreso</strong>, el precio por kg se sugiere según la tela y la categoría del color, y puedes registrar proveedor y N° de factura.</li>
+                  </ol>
+                ),
+              },
+              {
+                titulo: '4. Qué suma y qué resta',
+                contenido: (
+                  <p>
+                    <strong>Suman</strong> al stock: Ingreso, De Reproceso, Ajuste +.<br />
+                    <strong>Restan</strong> del stock: A Corte, A Reproceso, Muestra, Ajuste −.<br />
+                    El sistema bloquea el movimiento si el resultado dejaría el stock en negativo.
+                  </p>
+                ),
+              },
+              {
+                titulo: '5. Alertas de stock bajo',
+                contenido: (
+                  <p>
+                    Cada combinación tela+color se marca <span className="font-bold text-yellow-600">BAJO</span> o{' '}
+                    <span className="font-bold text-red-600">CRÍTICO</span> según los umbrales configurados en el módulo de Configuración.
+                    Las combinaciones críticas también aparecen agrupadas en la pestaña <strong>Críticos</strong> para revisión rápida.
+                  </p>
+                ),
+              },
             ]}
           />
           <button onClick={exportarMovimientos} className="btn-secondary flex items-center gap-2">
@@ -509,26 +580,40 @@ export function InventarioTelas() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-gray-200">
+      <div className="flex flex-wrap gap-1 border-b" style={{ borderColor: '#DDD8CF' }}>
         {([
-          { id: 'matriz', label: 'Stock Actual' },
-          { id: 'movimientos', label: 'Movimientos' },
-          { id: 'criticos', label: `Críticos${criticosList.length > 0 ? ` (${criticosList.length})` : ''}` },
-          { id: 'historico', label: 'Histórico Mensual' },
-          { id: 'catalogos', label: 'Catálogos' },
-        ] as { id: InvTab; label: string }[]).map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`text-[11px] font-bold uppercase tracking-widest px-4 py-2 border-b-2 transition-colors ${
-              activeTab === tab.id
-                ? 'border-[#1a1a1a] text-[#1a1a1a]'
-                : 'border-transparent text-gray-400 hover:text-gray-600'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+          { id: 'matriz', label: 'Stock Actual', icon: Boxes },
+          { id: 'movimientos', label: 'Movimientos', icon: ArrowLeftRight },
+          { id: 'criticos', label: 'Críticos', icon: AlertTriangle, count: criticosList.length, alert: true },
+          { id: 'historico', label: 'Histórico Mensual', icon: CalendarRange },
+          { id: 'catalogos', label: 'Catálogos', icon: Tag },
+        ] as { id: InvTab; label: string; icon: typeof Boxes; count?: number; alert?: boolean }[]).map(tab => {
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest px-4 py-2.5 border-b-2 transition-colors"
+              style={{
+                borderColor: isActive ? '#1a1a1a' : 'transparent',
+                color: isActive ? '#1a1a1a' : '#9A8F87',
+              }}
+            >
+              <tab.icon className="h-3.5 w-3.5" style={{ color: isActive ? '#4B7FA3' : 'currentColor' }} />
+              {tab.label}
+              {!!tab.count && (
+                <span
+                  className="inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 text-[9px] font-black rounded-full"
+                  style={tab.alert
+                    ? { background: '#C0362C', color: '#fff' }
+                    : { background: '#e5e2da', color: '#6B6058' }}
+                >
+                  {tab.count}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* Tab: Movimientos */}
@@ -560,11 +645,11 @@ export function InventarioTelas() {
         <div className="flex flex-wrap items-end gap-3">
           <select value={filterTela} onChange={e => setFilterTela(e.target.value)} className="input-base text-xs w-40">
             <option value="">Todas las telas</option>
-            {telas.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+            {telas.map(t => <option key={t.id} value={t.id}>{capWords(t.nombre)}</option>)}
           </select>
           <select value={filterColor} onChange={e => setFilterColor(e.target.value)} className="input-base text-xs w-40">
             <option value="">Todos los colores</option>
-            {coloresVisibles.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+            {coloresVisibles.map(c => <option key={c.id} value={c.id}>{capWords(c.nombre)}</option>)}
           </select>
 
           {/* Botones de segmentación */}
@@ -625,8 +710,8 @@ export function InventarioTelas() {
                                 'bg-gray-100 text-gray-700'
                               }`}>{TIPO_LABEL[m.tipo] ?? m.tipo}</span>
                             </td>
-                            <td className="whitespace-nowrap">{telaMap.get(m.telaId)?.nombre ?? m.telaId}</td>
-                            <td className="whitespace-nowrap">{colorMap.get(m.colorId)?.nombre ?? m.colorId}</td>
+                            <td className="whitespace-nowrap">{capWords(telaMap.get(m.telaId)?.nombre ?? m.telaId)}</td>
+                            <td className="whitespace-nowrap">{capWords(colorMap.get(m.colorId)?.nombre ?? m.colorId)}</td>
                             <td className="font-mono text-right">{m.rollos}</td>
                             <td className="font-mono text-right">{m.kgTotal.toFixed(1)}</td>
                             {esAdmin && <td className="font-mono text-right">{m.precioKg.toFixed(2)}</td>}
@@ -678,15 +763,34 @@ export function InventarioTelas() {
         <div>
           {esAdmin && (() => {
             const valorTotal = stockSummary.reduce((acc, s) => s.precioKg !== null ? acc + s.kgTotal * s.precioKg : acc, 0);
-            return valorTotal > 0 ? (
-              <div className="border border-[#B66F35] bg-[#FDF8F3] p-3 mb-6">
-                <p className="text-[10px] font-bold uppercase text-[#B66F35] tracking-widest">Valor Total Inventario</p>
-                <p className="text-2xl font-black text-[#B66F35] mt-1">S/ {valorTotal.toFixed(0)}</p>
+            const totalRollosGlobal = stockSummary.reduce((s, x) => s + x.disponible, 0);
+            const totalKgGlobal = stockSummary.reduce((s, x) => s + x.kgTotal, 0);
+            if (valorTotal <= 0) return null;
+            return (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-px mb-6" style={{ background: '#DDD8CF' }}>
+                <div className="bg-white p-4">
+                  <p className="text-[9px] font-bold uppercase tracking-[0.18em]" style={{ color: '#9A8F87' }}>Valor Total Inventario</p>
+                  <p className="text-2xl font-black mt-1" style={{ color: '#B66F35' }}>S/ {valorTotal.toLocaleString('es-PE', { maximumFractionDigits: 0 })}</p>
+                </div>
+                <div className="bg-white p-4">
+                  <p className="text-[9px] font-bold uppercase tracking-[0.18em]" style={{ color: '#9A8F87' }}>Rollos Disponibles</p>
+                  <p className="text-2xl font-black mt-1 text-[#1a1a1a]">{totalRollosGlobal.toLocaleString('es-PE')}</p>
+                </div>
+                <div className="bg-white p-4">
+                  <p className="text-[9px] font-bold uppercase tracking-[0.18em]" style={{ color: '#9A8F87' }}>Kg Totales</p>
+                  <p className="text-2xl font-black mt-1 text-[#1a1a1a]">{totalKgGlobal.toLocaleString('es-PE', { maximumFractionDigits: 0 })}</p>
+                </div>
               </div>
-            ) : null;
+            );
           })()}
           {matrizData.telasSorted.length === 0 ? (
-            <p className="text-sm text-gray-400 italic">Sin telas configuradas. Agrégalas en el tab Catálogos.</p>
+            <div className="flex flex-col items-center justify-center py-16 gap-2" style={{ border: '1px dashed #DDD8CF' }}>
+              <span className="h-10 w-10 flex items-center justify-center" style={{ background: '#4B7FA318' }}>
+                <Boxes className="h-5 w-5" style={{ color: '#4B7FA3' }} />
+              </span>
+              <p className="text-sm font-bold text-gray-500">Sin telas configuradas</p>
+              <p className="text-xs text-gray-400">Agrégalas en la pestaña Catálogos.</p>
+            </div>
           ) : (
             <div className="space-y-8">
               {matrizData.telasSorted.map(t => {
@@ -706,52 +810,57 @@ export function InventarioTelas() {
                 const coloresActivos = coloresConDatos.filter(x => x.fisicos > 0).length;
 
                 return (
-                  <div key={t.id} className="border border-gray-200 bg-white">
+                  <div key={t.id} className="bg-white" style={{ border: '1px solid #DDD8CF' }}>
                     {/* Header de tela */}
-                    <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 bg-[#f9f7f2]">
-                      <div className="flex items-center gap-3">
-                        <span className="inline-block w-3 h-3 bg-[#4B7FA3]" />
-                        <span className="text-sm font-black uppercase tracking-widest text-[#1a1a1a]">{t.nombre}</span>
-                        {t.composicion && <span className="text-[10px] text-gray-400 font-normal">{t.composicion}</span>}
+                    <div
+                      className="flex flex-wrap items-center justify-between gap-2 px-5 py-3.5"
+                      style={{ background: '#f9f7f2', borderBottom: '1px solid #DDD8CF', borderLeft: '3px solid #4B7FA3' }}
+                    >
+                      <div className="flex items-baseline gap-3">
+                        <span className="font-serif text-base font-bold" style={{ color: '#1a1a1a' }}>{capWords(t.nombre)}</span>
+                        {t.composicion && <span className="text-[10px] text-gray-400 font-normal">{capWords(t.composicion)}</span>}
                       </div>
-                      <div className="flex items-center gap-4 text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                      <div className="flex items-center gap-4 text-[10px] font-bold uppercase tracking-widest" style={{ color: '#9A8F87' }}>
                         <span>{coloresActivos} color{coloresActivos !== 1 ? 'es' : ''} con stock</span>
-                        <span className="text-[#4B7FA3]">{totalRollos} rollos</span>
+                        <span style={{ color: '#4B7FA3' }}>{totalRollos} rollos</span>
                         <span className="text-gray-400">{totalKg.toFixed(0)} kg</span>
                         {esAdmin && (() => {
                           const valor = coloresConDatos.reduce((s, x) => x.precioKg !== null ? s + x.kgFisicos * x.precioKg : s, 0);
-                          return valor > 0 ? <span className="text-[#B66F35]">S/ {valor.toFixed(0)}</span> : null;
+                          return valor > 0 ? <span style={{ color: '#B66F35' }}>S/ {valor.toFixed(0)}</span> : null;
                         })()}
                       </div>
                     </div>
 
                     {/* Grid de colores */}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-px bg-gray-200">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-px" style={{ background: '#EAE6DD' }}>
                       {coloresConDatos.map(({ c, fisicos, comprometidos, disponible, kgFisicos, precioKg }) => {
                         const isCrit = fisicos > 0 && disponible <= config.umbralCritico;
                         const isBajo = fisicos > 0 && !isCrit && disponible <= config.umbralBajo;
                         const isEmpty = fisicos === 0;
+                        const stateColor = isEmpty ? '#DDD8CF' : isCrit ? '#C0362C' : isBajo ? '#B6762A' : '#2F7A4D';
                         return (
                           <div
                             key={c.id}
-                            className={`bg-white p-3 flex flex-col gap-1 ${isEmpty ? 'opacity-35' : ''}`}
+                            className={`bg-white p-3 flex flex-col gap-1 ${isEmpty ? 'opacity-40' : ''}`}
+                            style={{ borderLeft: `3px solid ${stateColor}` }}
                           >
                             <div className="flex items-start justify-between gap-1">
-                              <span className="text-[11px] font-bold leading-tight text-[#1a1a1a]">{c.nombre}</span>
+                              <span className="text-[11px] font-bold leading-tight" style={{ color: '#1a1a1a' }}>{capWords(c.nombre)}</span>
                               {!isEmpty && (
-                                isCrit
-                                  ? <span className="shrink-0 inline-block px-1.5 py-0.5 text-[9px] font-black uppercase bg-red-100 text-red-700">CRIT</span>
-                                  : isBajo
-                                    ? <span className="shrink-0 inline-block px-1.5 py-0.5 text-[9px] font-black uppercase bg-yellow-100 text-yellow-700">BAJO</span>
-                                    : <span className="shrink-0 inline-block px-1.5 py-0.5 text-[9px] font-black uppercase bg-green-100 text-green-700">OK</span>
+                                <span
+                                  className="shrink-0 inline-block px-1.5 py-0.5 text-[9px] font-black uppercase"
+                                  style={{ background: `${stateColor}18`, color: stateColor }}
+                                >
+                                  {isCrit ? 'Crít' : isBajo ? 'Bajo' : 'Ok'}
+                                </span>
                               )}
                             </div>
-                            <div className={`text-2xl font-black leading-none mt-1 ${isCrit ? 'text-red-600' : isBajo ? 'text-yellow-600' : isEmpty ? 'text-gray-300' : 'text-[#1a1a1a]'}`}>
+                            <div className="text-2xl font-black leading-none mt-1" style={{ color: isEmpty ? '#DDD8CF' : stateColor }}>
                               {disponible}
                               <span className="text-[10px] font-normal text-gray-400 ml-1">disp.</span>
                             </div>
                             {!isEmpty && comprometidos > 0 && (
-                              <div className="text-[10px] text-blue-600 font-bold">{comprometidos} en corte</div>
+                              <div className="text-[10px] font-bold" style={{ color: '#4B7FA3' }}>{comprometidos} en corte</div>
                             )}
                             <div className="text-[10px] text-gray-400 mt-auto">
                               {isEmpty ? 'Sin stock' : `${fisicos} fís. · ${kgFisicos.toFixed(0)} kg`}
@@ -776,9 +885,12 @@ export function InventarioTelas() {
       {activeTab === 'criticos' && (
         <div>
           {criticosList.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-sm font-bold text-green-700">Sin ítems críticos</p>
-              <p className="text-xs text-gray-400 mt-1">Todos los stocks están por encima del umbral crítico ({config.umbralCritico} rollos).</p>
+            <div className="flex flex-col items-center justify-center py-16 gap-2" style={{ border: '1px dashed #DDD8CF' }}>
+              <span className="h-10 w-10 flex items-center justify-center" style={{ background: '#2F7A4D18' }}>
+                <Boxes className="h-5 w-5" style={{ color: '#2F7A4D' }} />
+              </span>
+              <p className="text-sm font-bold" style={{ color: '#2F7A4D' }}>Sin ítems críticos</p>
+              <p className="text-xs text-gray-400">Todos los stocks están por encima del umbral crítico ({config.umbralCritico} rollos).</p>
             </div>
           ) : (
             <div className="texajo-table-shell">
@@ -794,8 +906,8 @@ export function InventarioTelas() {
                   <tbody>
                     {criticosList.map(s => (
                       <tr key={`${s.telaId}|${s.colorId}`}>
-                        <td className="font-bold">{telaMap.get(s.telaId)?.nombre ?? s.telaId}</td>
-                        <td>{colorMap.get(s.colorId)?.nombre ?? s.colorId}</td>
+                        <td className="font-bold">{capWords(telaMap.get(s.telaId)?.nombre ?? s.telaId)}</td>
+                        <td>{capWords(colorMap.get(s.colorId)?.nombre ?? s.colorId)}</td>
                         <td className="font-mono text-right font-black text-red-700">{s.disponible}</td>
                         <td className="font-mono text-right text-blue-600">{s.comprometidos > 0 ? s.comprometidos : '—'}</td>
                         <td className="font-mono text-right text-gray-500">{s.rollos}</td>
@@ -875,8 +987,8 @@ export function InventarioTelas() {
                   <tbody>
                     {[...telas].sort((a, b) => a.nombre.localeCompare(b.nombre)).map(t => (
                       <tr key={t.id}>
-                        <td className="font-bold">{t.nombre}</td>
-                        <td className="text-gray-500">{t.composicion || '—'}</td>
+                        <td className="font-bold">{capWords(t.nombre)}</td>
+                        <td className="text-gray-500">{t.composicion ? capWords(t.composicion) : '—'}</td>
                         <td className="font-mono text-right">{t.kgPorRollo}</td>
                         <td className="text-gray-400 max-w-[14rem] truncate">{t.notas || '—'}</td>
                         {esAdmin && (
@@ -957,7 +1069,7 @@ export function InventarioTelas() {
                         });
                     })().map(c => (
                       <tr key={c.id}>
-                        <td className="font-bold">{resolveNombreColor(c.nombre)}</td>
+                        <td className="font-bold">{capWords(resolveNombreColor(c.nombre))}</td>
                         <td>
                           <span className={`inline-block px-2 py-0.5 text-[10px] font-bold uppercase ${
                             c.categoria === 'OSCURO' ? 'bg-gray-800 text-white' :

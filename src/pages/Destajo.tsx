@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { motion } from 'motion/react';
 import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
-import { Download, Plus, X, FileText, Receipt, Users, BarChart2, AlertTriangle, ChevronDown, ChevronRight, Trash2, Scissors } from 'lucide-react';
+import { Download, Plus, X, FileText, Receipt, Users, BarChart2, AlertTriangle, ChevronDown, ChevronRight, Trash2, Scissors, CreditCard } from 'lucide-react';
 import { BoletaLinea, TipoDescuentoBoleta } from '../types';
 import { ModuleInfoBox } from '../components/ModuleInfoBox';
 import { exportRowsToXlsx, exportTableToPdf } from '../lib/export';
@@ -716,13 +716,25 @@ export function Destajo() {
     >
       {/* Encabezado + tabs */}
       <div>
-        <div className="flex items-start justify-between">
-          <div>
-            <h2 className="text-2xl font-black uppercase tracking-tight">Destajo</h2>
-            <p className="text-xs text-gray-500 mt-1">Pago por destajo — prendas × tarifa con descuentos configurables por operario</p>
+        <div
+          className="flex flex-wrap items-start justify-between gap-4 pb-5"
+          style={{ borderBottom: '3px solid #7B5EA7' }}
+        >
+          <div className="flex items-center gap-4">
+            <span
+              className="hidden sm:flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full"
+              style={{ background: '#7B5EA7', boxShadow: '0 10px 24px -10px #7B5EA7AA' }}
+            >
+              <CreditCard className="h-6 w-6" style={{ color: '#F5F2EA' }} />
+            </span>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em]" style={{ color: '#7B5EA7' }}>Módulo de Pagos</p>
+              <h2 className="font-serif text-3xl font-bold leading-tight" style={{ color: '#1a1a1a' }}>Destajo</h2>
+              <p className="text-xs text-gray-500 mt-0.5">Prendas × tarifa, con descuentos configurables por operario</p>
+            </div>
           </div>
           <ModuleInfoBox
-            accent="#3E8C5F"
+            accent="#7B5EA7"
             titulo="Destajo"
             descripcion="Liquida el pago de cada operario por período. Calcula el importe como prendas × tarifa, aplica descuentos (adelantos, préstamos, faltas) y genera una boleta imprimible por operario."
             items={[
@@ -733,26 +745,30 @@ export function Destajo() {
             ]}
           />
         </div>
+
         {/* Sección boletas huérfanas */}
         {boletasHuerfanas.length > 0 && (
-          <div className="mt-4 border border-amber-200 bg-amber-50 rounded">
+          <div className="mt-4 rounded-md overflow-hidden" style={{ border: '1px solid #B6762A55' }}>
             <button
               className="w-full flex items-center gap-2 px-4 py-2.5 text-left"
+              style={{ background: '#B6762A12' }}
               onClick={() => setHuerfanasExpanded(v => !v)}
             >
-              <AlertTriangle className="h-3.5 w-3.5 text-amber-500 flex-shrink-0" />
-              <span className="text-[11px] font-bold text-amber-800 flex-1">
+              <span className="flex items-center justify-center h-6 w-6 rounded-full flex-shrink-0" style={{ background: '#B6762A22' }}>
+                <AlertTriangle className="h-3.5 w-3.5" style={{ color: '#B6762A' }} />
+              </span>
+              <span className="text-[11px] font-bold flex-1" style={{ color: '#8A5C1E' }}>
                 {boletasHuerfanas.length} línea{boletasHuerfanas.length !== 1 ? 's' : ''} sin respaldo en seguimiento
               </span>
-              <span className="text-[10px] text-amber-600 mr-2">Estas boletas no tienen una operación confirmada en Confección</span>
-              {huerfanasExpanded ? <ChevronDown className="h-3.5 w-3.5 text-amber-500" /> : <ChevronRight className="h-3.5 w-3.5 text-amber-500" />}
+              <span className="text-[10px] mr-2 hidden md:inline" style={{ color: '#B6762A' }}>Estas boletas no tienen una operación confirmada en Confección</span>
+              {huerfanasExpanded ? <ChevronDown className="h-3.5 w-3.5" style={{ color: '#B6762A' }} /> : <ChevronRight className="h-3.5 w-3.5" style={{ color: '#B6762A' }} />}
             </button>
             {huerfanasExpanded && (
-              <div className="px-4 pb-3 space-y-2">
+              <div className="px-4 pb-3 pt-1 space-y-2" style={{ background: '#FFFFFF' }}>
                 <div className="overflow-x-auto">
                   <table className="w-full text-[11px]">
                     <thead>
-                      <tr className="text-[10px] font-bold uppercase tracking-widest text-amber-700 border-b border-amber-200">
+                      <tr className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#8A5C1E', borderBottom: '1px solid #B6762A40' }}>
                         <th className="text-left py-1 pr-3">N° Corte</th>
                         <th className="text-left py-1 pr-3">Operario</th>
                         <th className="text-left py-1 pr-3">Color</th>
@@ -766,7 +782,7 @@ export function Destajo() {
                       {boletasHuerfanas.map(b => {
                         const op = operarioMap.get(b.operarioId);
                         return (
-                          <tr key={b.id} className="border-b border-amber-100 last:border-0">
+                          <tr key={b.id} className="last:border-0" style={{ borderBottom: '1px solid #B6762A25' }}>
                             <td className="py-1 pr-3 font-mono">{b.nCorte}</td>
                             <td className="py-1 pr-3">{op?.nombre ?? op?.codigo ?? b.operarioId}</td>
                             <td className="py-1 pr-3">{colorMap.get(b.colorId) ?? b.colorId}</td>
@@ -784,7 +800,8 @@ export function Destajo() {
                   <div className="flex justify-end pt-1">
                     <button
                       onClick={eliminarHuerfanas}
-                      className="flex items-center gap-1.5 text-[11px] font-bold text-red-600 border border-red-200 bg-white hover:bg-red-50 px-3 py-1.5 rounded"
+                      className="flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 transition-colors rounded"
+                      style={{ color: '#C0362C', border: '1px solid #C0362C55', background: '#FFFFFF' }}
                     >
                       <Trash2 className="h-3 w-3" /> Eliminar todas
                     </button>
@@ -795,25 +812,39 @@ export function Destajo() {
           </div>
         )}
 
-        <div className="flex gap-1 mt-4 border-b border-[#DDD8CF]">
+        {/* Tabs — pills */}
+        <div className="flex flex-wrap gap-2 mt-5">
           {([
-            { key: 'boleta', label: 'Mi Boleta', icon: Receipt },
-            { key: 'resumen', label: 'Resumen', icon: BarChart2 },
-            { key: 'general', label: 'Vista General', icon: Users },
-            { key: 'porcorte', label: 'Por Corte', icon: Scissors },
-          ] as const).map(({ key, label, icon: Icon }) => (
-            <button
-              key={key}
-              onClick={() => setActiveTab(key)}
-              className={`flex items-center gap-2 px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-b-2 -mb-px transition-colors ${
-                activeTab === key
-                  ? 'border-[#B66F35] text-[#1a1a1a]'
-                  : 'border-transparent text-gray-400 hover:text-gray-600'
-              }`}
-            >
-              <Icon className="h-3.5 w-3.5" />{label}
-            </button>
-          ))}
+            { key: 'boleta', label: 'Mi Boleta', icon: Receipt, count: selectedOperario ? lineasFiltradas.length : undefined },
+            { key: 'resumen', label: 'Resumen', icon: BarChart2, count: resumenPorOperario.length },
+            { key: 'general', label: 'Vista General', icon: Users, count: lineasGenerales.length },
+            { key: 'porcorte', label: 'Por Corte', icon: Scissors, count: pcCorteId ? pcResumenFiltrado.length : undefined },
+          ] as const).map(({ key, label, icon: Icon, count }) => {
+            const isActive = activeTab === key;
+            return (
+              <button
+                key={key}
+                onClick={() => setActiveTab(key)}
+                className="flex items-center gap-2 px-4 py-2 text-[11px] font-bold uppercase tracking-widest rounded-full transition-all"
+                style={isActive
+                  ? { background: '#7B5EA7', color: '#F5F2EA', boxShadow: '0 6px 16px -6px #7B5EA799' }
+                  : { background: '#FFFFFF', color: '#6B6058', border: '1px solid #DDD8CF' }}
+              >
+                <Icon className="h-3.5 w-3.5" style={{ color: isActive ? '#F5F2EA' : '#7B5EA7' }} />
+                {label}
+                {count !== undefined && (
+                  <span
+                    className="inline-flex items-center justify-center min-w-[1.2rem] h-[1.2rem] px-1 text-[9px] font-black rounded-full"
+                    style={isActive
+                      ? { background: 'rgba(255,255,255,0.25)', color: '#F5F2EA' }
+                      : { background: '#F0EBF6', color: '#7B5EA7' }}
+                  >
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -845,74 +876,85 @@ export function Destajo() {
             )}
           </div>
           {resumenPorOperario.length === 0 ? (
-            <p className="text-sm text-gray-400 italic">Sin datos para este período.</p>
+            <div className="flex flex-col items-center justify-center py-16 gap-2 rounded-md" style={{ border: '1px dashed #DDD8CF' }}>
+              <span className="h-10 w-10 flex items-center justify-center rounded-full" style={{ background: '#7B5EA718' }}>
+                <BarChart2 className="h-5 w-5" style={{ color: '#7B5EA7' }} />
+              </span>
+              <p className="text-sm font-bold text-gray-500">Sin datos para este período</p>
+            </div>
           ) : (
-            <div className="bg-white border border-gray-200 overflow-x-auto">
-              <table className="min-w-full text-xs">
-                <thead>
-                  <tr className="border-b border-gray-200 bg-gray-50">
-                    {['Operario', 'Prendas', 'Líneas', 'Total Bruto', 'Pagado', 'Pendiente', 'Acción'].map(h => (
-                      <th key={h} className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-widest text-gray-500 whitespace-nowrap">{h}</th>
-                    ))}
-                    <th className="px-3 py-2 text-[10px] text-gray-400 font-normal normal-case tracking-normal">← clic fila para ver detalle</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {resumenPorOperario.map(r => {
-                    const op = operarioMap.get(r.operarioId);
-                    return (
-                      <tr key={r.operarioId} className="hover:bg-gray-50 cursor-pointer" onClick={() => setDetalleOperarioId(r.operarioId)}>
-                        <td className="px-3 py-2">
-                          <div className="font-bold">{op?.nombre ?? r.operarioId}</div>
-                          <div className="text-[10px] text-gray-400 font-mono">{op?.codigo}</div>
-                        </td>
-                        <td className="px-3 py-2 font-mono text-right">{r.prendas.toLocaleString()}</td>
-                        <td className="px-3 py-2 font-mono text-right">{r.nLineas}</td>
-                        <td className="px-3 py-2 font-mono text-right font-bold">S/ {r.total.toFixed(2)}</td>
-                        <td className="px-3 py-2 font-mono text-right text-green-700">S/ {r.pagado.toFixed(2)}</td>
-                        <td className="px-3 py-2 font-mono text-right text-yellow-700">S/ {r.pendiente.toFixed(2)}</td>
-                        <td className="px-3 py-2">
-                          {r.pendiente > 0 && (
-                            <button
-                              onClick={() => {
-                                const hoy = new Date().toISOString().slice(0, 10);
-                                const usaRango = rDesde || rHasta;
-                                boletaLineas
-                                  .filter(b => {
-                                    if (b.operarioId !== r.operarioId || b.estadoPago !== 'PENDIENTE') return false;
-                                    if (usaRango) {
-                                      if (rDesde && b.periodo.slice(0, 7) < rDesde.slice(0, 7)) return false;
-                                      if (rHasta && b.periodo.slice(0, 7) > rHasta.slice(0, 7)) return false;
-                                      return true;
-                                    }
-                                    return b.periodo.slice(0, 7) === rPeriodo.slice(0, 7);
-                                  })
-                                  .forEach(b => updateBoletaLinea(b.id, { estadoPago: 'PAGADO', fechaPago: hoy }));
-                                addToast(`${op?.nombre ?? r.operarioId} marcado como pagado`, 'success');
-                              }}
-                              className="text-[10px] font-bold uppercase text-green-700 border border-green-300 px-2 py-0.5 hover:bg-green-50 whitespace-nowrap"
-                            >Marcar Pagado</button>
-                          )}
-                          {r.pendiente === 0 && r.total > 0 && (
-                            <span className="text-[10px] font-bold uppercase text-green-700">✓ Pagado</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t-2 border-gray-200">
-                    <td className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">Total</td>
-                    <td className="px-3 py-2 font-mono text-right font-bold">{resumenPorOperario.reduce((s, r) => s + r.prendas, 0).toLocaleString()}</td>
-                    <td className="px-3 py-2 font-mono text-right">{resumenPorOperario.reduce((s, r) => s + r.nLineas, 0)}</td>
-                    <td className="px-3 py-2 font-mono text-right font-black">S/ {resumenPorOperario.reduce((s, r) => s + r.total, 0).toFixed(2)}</td>
-                    <td className="px-3 py-2 font-mono text-right font-bold text-green-700">S/ {resumenPorOperario.reduce((s, r) => s + r.pagado, 0).toFixed(2)}</td>
-                    <td className="px-3 py-2 font-mono text-right font-bold text-yellow-700">S/ {resumenPorOperario.reduce((s, r) => s + r.pendiente, 0).toFixed(2)}</td>
-                    <td />
-                  </tr>
-                </tfoot>
-              </table>
+            <div className="texajo-table-shell">
+              <div className="texajo-table-scroll">
+                <table className="texajo-table texajo-table--wide">
+                  <thead>
+                    <tr>
+                      <th className="text-left">Operario</th>
+                      <th className="text-right">Prendas</th>
+                      <th className="text-right">Líneas</th>
+                      <th className="text-right">Total Bruto</th>
+                      <th className="text-right">Pagado</th>
+                      <th className="text-right">Pendiente</th>
+                      <th className="text-left">Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {resumenPorOperario.map(r => {
+                      const op = operarioMap.get(r.operarioId);
+                      return (
+                        <tr key={r.operarioId} className="cursor-pointer" onClick={() => setDetalleOperarioId(r.operarioId)}>
+                          <td>
+                            <div className="font-bold">{op?.nombre ?? r.operarioId}</div>
+                            <div className="text-[10px] text-gray-400 font-mono">{op?.codigo}</div>
+                          </td>
+                          <td className="font-mono text-right">{r.prendas.toLocaleString()}</td>
+                          <td className="font-mono text-right">{r.nLineas}</td>
+                          <td className="font-mono text-right font-bold">S/ {r.total.toFixed(2)}</td>
+                          <td className="font-mono text-right" style={{ color: '#2F7A4D' }}>S/ {r.pagado.toFixed(2)}</td>
+                          <td className="font-mono text-right" style={{ color: '#B6762A' }}>S/ {r.pendiente.toFixed(2)}</td>
+                          <td onClick={e => e.stopPropagation()}>
+                            {r.pendiente > 0 && (
+                              <button
+                                onClick={() => {
+                                  const hoy = new Date().toISOString().slice(0, 10);
+                                  const usaRango = rDesde || rHasta;
+                                  boletaLineas
+                                    .filter(b => {
+                                      if (b.operarioId !== r.operarioId || b.estadoPago !== 'PENDIENTE') return false;
+                                      if (usaRango) {
+                                        if (rDesde && b.periodo.slice(0, 7) < rDesde.slice(0, 7)) return false;
+                                        if (rHasta && b.periodo.slice(0, 7) > rHasta.slice(0, 7)) return false;
+                                        return true;
+                                      }
+                                      return b.periodo.slice(0, 7) === rPeriodo.slice(0, 7);
+                                    })
+                                    .forEach(b => updateBoletaLinea(b.id, { estadoPago: 'PAGADO', fechaPago: hoy }));
+                                  addToast(`${op?.nombre ?? r.operarioId} marcado como pagado`, 'success');
+                                }}
+                                className="text-[10px] font-bold uppercase px-2 py-0.5 whitespace-nowrap transition-colors rounded-full"
+                                style={{ color: '#7B5EA7', border: '1px solid #7B5EA755' }}
+                              >Marcar Pagado</button>
+                            )}
+                            {r.pendiente === 0 && r.total > 0 && (
+                              <EstadoBadge pagado />
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Total</td>
+                      <td className="font-mono text-right font-bold">{resumenPorOperario.reduce((s, r) => s + r.prendas, 0).toLocaleString()}</td>
+                      <td className="font-mono text-right">{resumenPorOperario.reduce((s, r) => s + r.nLineas, 0)}</td>
+                      <td className="font-mono text-right font-black">S/ {resumenPorOperario.reduce((s, r) => s + r.total, 0).toFixed(2)}</td>
+                      <td className="font-mono text-right font-bold" style={{ color: '#2F7A4D' }}>S/ {resumenPorOperario.reduce((s, r) => s + r.pagado, 0).toFixed(2)}</td>
+                      <td className="font-mono text-right font-bold" style={{ color: '#B6762A' }}>S/ {resumenPorOperario.reduce((s, r) => s + r.pendiente, 0).toFixed(2)}</td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
             </div>
           )}
         </div>
@@ -972,7 +1014,7 @@ export function Destajo() {
 
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => { setDetalleOperarioId(null); setExpandedLineaId(null); }}>
-            <div className="bg-white w-full max-w-4xl rounded shadow-xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="bg-white w-full max-w-4xl rounded shadow-xl max-h-[85vh] flex flex-col" style={{ borderTop: '4px solid #7B5EA7' }} onClick={e => e.stopPropagation()}>
               {/* Header */}
               <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
                 <div>
@@ -1050,11 +1092,7 @@ export function Destajo() {
                               <td className="px-3 py-2 font-mono text-right">{b.cantPrendas.toLocaleString()}</td>
                               <td className="px-3 py-2 font-mono text-right font-black text-[#1A1A1A]">S/ {b.importe.toFixed(2)}</td>
                               <td className="px-3 py-2">
-                                <span className={`inline-block px-2 py-0.5 font-mono font-bold text-[9px] uppercase tracking-wide rounded ${
-                                  b.estadoPago === 'PAGADO' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
-                                }`}>
-                                  {b.estadoPago}
-                                </span>
+                                <EstadoBadge pagado={b.estadoPago === 'PAGADO'} />
                               </td>
                               <td className="px-3 py-2 font-mono text-gray-400 text-[10px]">{b.fechaPago ?? '—'}</td>
                               <td className="px-3 py-2">
@@ -1092,11 +1130,7 @@ export function Destajo() {
                                   <td className="px-3 py-1.5 font-mono text-right font-bold text-[11px]">{cantOperario}</td>
                                   <td className="px-3 py-1.5 font-mono text-right font-black text-[11px]">S/ {(cantOperario * b.tarifa).toFixed(2)}</td>
                                   <td className="px-3 py-1.5">
-                                    {yaPagada ? (
-                                      <span className="inline-block px-2 py-0.5 font-mono font-bold text-[9px] uppercase tracking-wide rounded bg-green-100 text-green-700">Pagado</span>
-                                    ) : (
-                                      <span className="inline-block px-2 py-0.5 font-mono font-bold text-[9px] uppercase tracking-wide rounded bg-yellow-100 text-yellow-700">Pendiente</span>
-                                    )}
+                                    <EstadoBadge pagado={yaPagada} small />
                                   </td>
                                   <td className="px-3 py-1.5 font-mono text-gray-400 text-[10px]">{subLinea?.fechaPago ?? '—'}</td>
                                   <td className="px-3 py-1.5">
@@ -1237,9 +1271,9 @@ export function Destajo() {
                   <tbody>
                     {lineasGenerales.map(b => {
                       const op = operarioMap.get(b.operarioId);
-                      const rowBgG = b.estadoPago === 'PAGADO' ? 'bg-green-50 opacity-60' : 'bg-amber-50 hover:bg-amber-100';
+                      const pagado = b.estadoPago === 'PAGADO';
                       return (
-                        <tr key={b.id} className={rowBgG}>
+                        <tr key={b.id} style={{ background: pagado ? '#2F7A4D0A' : '#B6762A0A', opacity: pagado ? 0.7 : 1 }}>
                           <td className="font-mono text-xs">{b.periodo}</td>
                           <td>
                             <div className="font-bold text-[11px]">{op?.nombre ?? b.operarioId}</div>
@@ -1253,13 +1287,7 @@ export function Destajo() {
                           <td className="text-right font-mono">{b.cantPrendas}</td>
                           <td className="text-right font-mono font-bold">S/ {b.importe.toFixed(2)}</td>
                           <td className="text-center">
-                            <span className={`text-[10px] font-bold uppercase px-2 py-0.5 ${
-                              b.estadoPago === 'PAGADO'
-                                ? 'bg-green-100 text-green-700'
-                                : 'bg-yellow-100 text-yellow-700'
-                            }`}>
-                              {b.estadoPago}
-                            </span>
+                            <EstadoBadge pagado={pagado} />
                           </td>
                           <td className="px-2">
                             {confirmDelete === b.id ? (
@@ -1468,23 +1496,21 @@ export function Destajo() {
                 const lineasOp = boletaLineas.filter(b => b.operarioId === opRow.operarioId && b.corteId === pcCorteId && tarifaIdsOp.has(b.tarifaId) && b.importe > 0);
                 const tienePendiente = lineasOp.length === 0 || lineasOp.some(b => b.estadoPago === 'PENDIENTE');
                 return (
-                  <div key={opRow.operarioId} className="bg-white border border-[#DDD8CF]">
+                  <div key={opRow.operarioId} className="bg-white border border-[#DDD8CF] rounded-md overflow-hidden">
                     {/* Cabecera operario */}
-                    <div className="flex items-center justify-between bg-[#1C1915] px-4 py-2.5">
+                    <div className="flex items-center justify-between px-4 py-2.5" style={{ background: '#2E1F3D' }}>
                       <div className="flex items-center gap-2">
                         <span className="text-[11px] font-black uppercase tracking-wide text-[#F5F2EA]">
                           {op?.nombre ?? opRow.operarioId}
                         </span>
                         {op?.codigo && (
-                          <span className="text-[10px] font-mono text-[#6B6058]">{op.codigo}</span>
+                          <span className="text-[10px] font-mono text-[#B7A8C9]">{op.codigo}</span>
                         )}
-                        <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${tienePendiente ? 'bg-yellow-500/20 text-yellow-300' : 'bg-green-500/20 text-green-300'}`}>
-                          {tienePendiente ? 'PENDIENTE' : 'PAGADO'}
-                        </span>
+                        <EstadoBadge pagado={!tienePendiente} small />
                       </div>
                       <div className="flex items-center gap-4 text-[10px] font-mono">
-                        <span className="text-[#6B6058]">{opRow.totalPrendas.toLocaleString()} prendas</span>
-                        <span className="font-bold text-[#B66F35]">S/ {opRow.totalImporte.toFixed(2)}</span>
+                        <span className="text-[#B7A8C9]">{opRow.totalPrendas.toLocaleString()} prendas</span>
+                        <span className="font-bold text-[#C9A9E8]">S/ {opRow.totalImporte.toFixed(2)}</span>
                       </div>
                     </div>
 
@@ -1543,7 +1569,7 @@ export function Destajo() {
                               Total operario
                             </td>
                             <td className="px-3 py-1.5 font-mono font-black text-right">{opRow.totalPrendas.toLocaleString()}</td>
-                            <td className="px-3 py-1.5 font-mono font-black text-right text-[#B66F35]">S/ {opRow.totalImporte.toFixed(2)}</td>
+                            <td className="px-3 py-1.5 font-mono font-black text-right text-[#7B5EA7]">S/ {opRow.totalImporte.toFixed(2)}</td>
                             <td />
                           </tr>
                         </tfoot>
@@ -1561,7 +1587,7 @@ export function Destajo() {
                 const pcTotalNeto = pcTotalBruto - pcDescuento1;
                 return (
                   <div className="flex justify-end">
-                    <div className="bg-white border border-[#DDD8CF] px-5 py-3 flex items-center gap-8">
+                    <div className="bg-white border border-[#DDD8CF] rounded-md px-5 py-3 flex items-center gap-8" style={{ borderTop: '3px solid #7B5EA7' }}>
                       <div className="text-center">
                         <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Total Prendas</p>
                         <p className="text-lg font-black font-mono">{pcTotalPrendas.toLocaleString()}</p>
@@ -1578,7 +1604,7 @@ export function Destajo() {
                           </div>
                           <div className="text-center border-l border-[#DDD8CF] pl-8">
                             <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Neto a Pagar</p>
-                            <p className="text-xl font-black font-mono text-[#B66F35]">S/ {pcTotalNeto.toFixed(2)}</p>
+                            <p className="text-xl font-black font-mono text-[#7B5EA7]">S/ {pcTotalNeto.toFixed(2)}</p>
                           </div>
                         </>
                       )}
@@ -1748,7 +1774,7 @@ export function Destajo() {
                         <td className="px-3 py-2 font-mono text-right font-bold">{b.cantPrendas}</td>
                         <td className="px-3 py-2 font-mono text-right font-bold">S/ {b.importe.toFixed(2)}</td>
                         <td className="px-3 py-2">
-                          <span className={`text-[10px] font-bold uppercase ${b.estadoPago === 'PAGADO' ? 'text-green-700' : 'text-yellow-700'}`}>{b.estadoPago}</span>
+                          <EstadoBadge pagado={b.estadoPago === 'PAGADO'} />
                         </td>
                         <td className="px-3 py-2">
                           {b.estadoPago === 'PENDIENTE' && (
@@ -1861,7 +1887,7 @@ export function Destajo() {
                           </td>
                           <td className="px-3 py-2 font-mono text-right font-bold">S/ {(tieneTallas ? importePendiente : importeReal).toFixed(2)}</td>
                           <td className="px-3 py-2">
-                            <span className={`text-[10px] font-bold uppercase ${b.estadoPago === 'PAGADO' ? 'text-green-700' : 'text-yellow-700'}`}>{b.estadoPago}</span>
+                            <EstadoBadge pagado={b.estadoPago === 'PAGADO'} />
                           </td>
                           <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
                             <div className="flex items-center gap-2">
@@ -1957,10 +1983,7 @@ export function Destajo() {
                               <td className="px-3 py-1.5 font-mono text-right font-bold">{cantOperario}</td>
                               <td className="px-3 py-1.5 font-mono text-right font-black">S/ {(cantOperario * b.tarifa).toFixed(2)}</td>
                               <td className="px-3 py-1.5">
-                                {yaPagada
-                                  ? <span className="text-[10px] font-bold uppercase text-green-700">Pagado</span>
-                                  : <span className="text-[10px] font-bold uppercase text-yellow-700">Pendiente</span>
-                                }
+                                <EstadoBadge pagado={yaPagada} small />
                               </td>
                               <td className="px-3 py-1.5">
                                 {!yaPagada && (
@@ -2015,7 +2038,7 @@ export function Destajo() {
 
           {(lineasFiltradas.length > 0 || descuentosFiltrados.length > 0) && selectedOperario && (
             <div className="mt-4 flex justify-end">
-              <div className="bg-white border border-gray-200 p-4 w-72 space-y-2">
+              <div className="bg-white border border-gray-200 rounded-md p-4 w-72 space-y-2" style={{ borderTop: '3px solid #7B5EA7' }}>
                 {/* Bruto */}
                 <div className="flex justify-between text-xs">
                   <span className="text-gray-500 font-bold uppercase">Bruto Destajo</span>
@@ -2047,7 +2070,7 @@ export function Destajo() {
                 {/* Neto */}
                 <div className="flex justify-between text-sm font-black border-t border-gray-200 pt-2">
                   <span className="uppercase">Neto a Pagar</span>
-                  <span className="font-mono text-[#173A25]">S/ {totalNeto.toFixed(2)}</span>
+                  <span className="font-mono text-[#7B5EA7]">S/ {totalNeto.toFixed(2)}</span>
                 </div>
 
                 {pagadas.length > 0 && (
@@ -2352,5 +2375,19 @@ function F({ label, children }: { label: string; children: React.ReactNode }) {
       <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">{label}</label>
       {children}
     </div>
+  );
+}
+
+/** Badge de estado de pago — pill con punto, mismos colores semánticos de siempre (#2F7A4D pagado / #B6762A pendiente) */
+function EstadoBadge({ pagado, small }: { pagado: boolean; small?: boolean }) {
+  const color = pagado ? '#2F7A4D' : '#B6762A';
+  return (
+    <span
+      className={`inline-flex items-center gap-1 font-bold uppercase tracking-wide rounded-full ${small ? 'text-[8px] px-1.5 py-0.5' : 'text-[9px] px-2 py-0.5'}`}
+      style={{ background: `${color}16`, color }}
+    >
+      <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: color }} />
+      {pagado ? 'Pagado' : 'Pendiente'}
+    </span>
   );
 }

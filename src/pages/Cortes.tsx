@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
-import { Download, Plus, X, CheckCircle, Clock, XCircle, FileText, Trash2, ChevronDown, ChevronRight, Save, Play, StopCircle } from 'lucide-react';
+import { Download, Plus, X, CheckCircle, Clock, XCircle, FileText, Trash2, ChevronDown, ChevronRight, Save, Play, StopCircle, Scissors, Pencil, Ban, RotateCcw } from 'lucide-react';
 import { Corte, CorteColorDetalle, SeguimientoAsignacion, SeguimientoFila, MovimientoTela } from '../types';
 import { ModuleInfoBox } from '../components/ModuleInfoBox';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -73,10 +73,16 @@ const emptyForm = (): CorteForm => ({
   traslado: false, notas: '',
 });
 
+const ESTADO_COLOR: Record<string, string> = {
+  EN_PROCESO: '#4B7FA3',
+  COMPLETADO: '#2F7A4D',
+  ANULADO: '#C0362C',
+};
+
 const ESTADO_ICON: Record<string, React.ReactNode> = {
-  EN_PROCESO: <Clock className="h-3 w-3 text-blue-600" />,
-  COMPLETADO: <CheckCircle className="h-3 w-3 text-green-600" />,
-  ANULADO: <XCircle className="h-3 w-3 text-red-500" />,
+  EN_PROCESO: <Clock className="h-3 w-3" style={{ color: ESTADO_COLOR.EN_PROCESO }} />,
+  COMPLETADO: <CheckCircle className="h-3 w-3" style={{ color: ESTADO_COLOR.COMPLETADO }} />,
+  ANULADO: <XCircle className="h-3 w-3" style={{ color: ESTADO_COLOR.ANULADO }} />,
 };
 
 export function Cortes() {
@@ -94,22 +100,19 @@ export function Cortes() {
   const [editingCorteId, setEditingCorteId] = useState<string | null>(null);
   const [filterEstado, setFilterEstado] = useState('');
   const [filterCliente, setFilterCliente] = useState('');
+  const [filterProducto, setFilterProducto] = useState('');
   const [form, setForm] = useState<CorteForm>(emptyForm());
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [confirmAnular, setConfirmAnular] = useState<string | null>(null);
   const [confirmReactivar, setConfirmReactivar] = useState<string | null>(null);
   const [completandoId, setCompletandoId] = useState<string | null>(null);
+  const [detalleCorteId, setDetalleCorteId] = useState<string | null>(null);
   const [tiempoModal, setTiempoModal] = useState<{ open: boolean; tipo: 'inicio' | 'fin' }>({ open: false, tipo: 'inicio' });
   const [tiempoCorteId, setTiempoCorteId] = useState(''); // corte seleccionado en el modal
   const [mostrarTodosProductos, setMostrarTodosProductos] = useState(true);
-  const [expandedCortes, setExpandedCortes] = useState<Set<string>>(new Set());
   const [expandedOps, setExpandedOps] = useState<Set<string>>(new Set());
   const toggleOps = (key: string) =>
     setExpandedOps(prev => { const s = new Set(prev); s.has(key) ? s.delete(key) : s.add(key); return s; });
-  const toggleExpand = (id: string) =>
-    setExpandedCortes(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
-
-
 
   const corteToForm = (c: Corte): CorteForm => {
     const detalles = c.coloresDetalle && c.coloresDetalle.length > 0
@@ -155,6 +158,12 @@ export function Cortes() {
 
   const clienteMap = useMemo(() => new Map(clientes.map(c => [c.id, c.nombre])), [clientes]);
   const productoMap = useMemo(() => new Map(productos.map(p => [p.id, p])), [productos]);
+  const productosConCortes = useMemo(() => {
+    const idsUsados = new Set(cortes.map(c => c.productoId));
+    return productos
+      .filter(p => idsUsados.has(p.id))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre));
+  }, [productos, cortes]);
   const colorMap = useMemo(() => {
     const map = new Map<string, string>();
     for (const c of colores) map.set(c.id, resolveNombreColorCortes(c.nombre));
@@ -197,9 +206,9 @@ export function Cortes() {
 
   const cortesFiltrados = useMemo(() =>
     [...cortes]
-      .filter(c => (!filterEstado || c.estado === filterEstado) && (!filterCliente || c.clienteId === filterCliente))
+      .filter(c => (!filterEstado || c.estado === filterEstado) && (!filterCliente || c.clienteId === filterCliente) && (!filterProducto || c.productoId === filterProducto))
       .sort((a, b) => b.fecha.localeCompare(a.fecha)),
-    [cortes, filterEstado, filterCliente]);
+    [cortes, filterEstado, filterCliente, filterProducto]);
 
   // Detecta si los props globales difieren de los guardados en el producto
   const propsModificadas = useMemo(() => {
@@ -581,10 +590,19 @@ export function Cortes() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.28, ease: 'easeOut' }}
     >
-      <div className="flex items-start justify-between">
-        <div>
-          <h2 className="text-2xl font-black uppercase tracking-tight">Cortes</h2>
-          <p className="text-xs text-gray-500 mt-1">Registro y seguimiento de órdenes de corte</p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <span
+            className="hidden sm:flex h-11 w-11 flex-shrink-0 items-center justify-center"
+            style={{ background: '#C4612A15', border: '1px solid #C4612A40' }}
+          >
+            <Scissors className="h-5 w-5" style={{ color: '#C4612A' }} />
+          </span>
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.22em]" style={{ color: '#9A8F87' }}>Producción</p>
+            <h2 className="font-serif text-2xl font-bold leading-tight" style={{ color: '#1a1a1a' }}>Cortes</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Registro y seguimiento de órdenes de corte</p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <ModuleInfoBox
@@ -601,7 +619,8 @@ export function Cortes() {
           {esAdmin && (
             <button
               onClick={() => { setTiempoModal({ open: true, tipo: 'inicio' }); setTiempoCorteId(''); }}
-              className="btn-secondary flex items-center gap-2 text-green-700 border-green-300 hover:bg-green-50"
+              className="flex items-center gap-2 px-3 py-1.5 text-[11px] font-bold uppercase tracking-widest border transition-colors"
+              style={{ color: '#2F7A4D', borderColor: '#2F7A4D55', background: '#2F7A4D0D' }}
             >
               <Play className="h-4 w-4" /> Iniciar Corte
             </button>
@@ -609,7 +628,8 @@ export function Cortes() {
           {esAdmin && (
             <button
               onClick={() => { setTiempoModal({ open: true, tipo: 'fin' }); setTiempoCorteId(''); }}
-              className="btn-secondary flex items-center gap-2 text-red-700 border-red-300 hover:bg-red-50"
+              className="flex items-center gap-2 px-3 py-1.5 text-[11px] font-bold uppercase tracking-widest border transition-colors"
+              style={{ color: '#C0362C', borderColor: '#C0362C55', background: '#C0362C0D' }}
             >
               <StopCircle className="h-4 w-4" /> Finalizar Corte
             </button>
@@ -638,336 +658,253 @@ export function Cortes() {
           <option value="">Todos los clientes</option>
           {clientes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
         </select>
+        <select value={filterProducto} onChange={e => setFilterProducto(e.target.value)} className="input-base text-xs w-44">
+          <option value="">Todos los productos</option>
+          {productosConCortes.map(p => <option key={p.id} value={p.id}>{capWords(p.nombre)}</option>)}
+        </select>
+        {(filterEstado || filterCliente || filterProducto) && (
+          <button
+            onClick={() => { setFilterEstado(''); setFilterCliente(''); setFilterProducto(''); }}
+            className="text-[11px] font-bold uppercase tracking-widest px-2"
+            style={{ color: '#9A8F87' }}
+          >
+            Limpiar filtros
+          </button>
+        )}
       </div>
 
       {cortesFiltrados.length === 0 ? (
-        <p className="text-sm text-gray-400 italic">Sin cortes registrados.</p>
+        <div className="flex flex-col items-center justify-center py-16 gap-2" style={{ border: '1px dashed #DDD8CF' }}>
+          <span className="h-10 w-10 flex items-center justify-center" style={{ background: '#C4612A18' }}>
+            <Scissors className="h-5 w-5" style={{ color: '#C4612A' }} />
+          </span>
+          <p className="text-sm font-bold text-gray-500">Sin cortes registrados</p>
+          <p className="text-xs text-gray-400">Presiona "Nuevo Corte" para empezar.</p>
+        </div>
       ) : (
-        <div className="bg-white border border-gray-200 overflow-x-auto">
-          <table className="min-w-full text-xs border-collapse">
-            <thead>
-              <tr className="border-b-2 border-gray-300 bg-gray-50">
-                <th className="px-2 py-1 text-left text-[9px] font-bold uppercase tracking-widest text-gray-500 whitespace-nowrap">N° Corte</th>
-                <th className="px-2 py-1 text-left text-[9px] font-bold uppercase tracking-widest text-gray-500 whitespace-nowrap">Fecha</th>
-                <th className="px-2 py-1 text-left text-[9px] font-bold uppercase tracking-widest text-gray-500 whitespace-nowrap">Cliente</th>
-                <th className="px-2 py-1 text-left text-[9px] font-bold uppercase tracking-widest text-gray-500 whitespace-nowrap">Producto</th>
-                <th className="px-2 py-1 text-left text-[9px] font-bold uppercase tracking-widest text-gray-500 whitespace-nowrap">Color</th>
-                <th className="px-2 py-1 text-center text-[9px] font-bold uppercase tracking-widest text-gray-500">S</th>
-                <th className="px-2 py-1 text-center text-[9px] font-bold uppercase tracking-widest text-gray-500">M</th>
-                <th className="px-2 py-1 text-center text-[9px] font-bold uppercase tracking-widest text-gray-500">L</th>
-                <th className="px-2 py-1 text-center text-[9px] font-bold uppercase tracking-widest text-gray-500">XL</th>
-                <th className="px-2 py-1 text-right text-[9px] font-bold uppercase tracking-widest text-gray-500">Total</th>
-                <th className="px-2 py-1 text-right text-[9px] font-bold uppercase tracking-widest text-gray-500">Kg</th>
-                <th className="px-2 py-1 text-left text-[9px] font-bold uppercase tracking-widest text-gray-500 min-w-[90px]">Avance</th>
-                {esAdmin && <th className="px-2 py-1 text-right text-[9px] font-bold uppercase tracking-widest text-gray-500">Costo MO</th>}
-                <th className="px-2 py-1 text-left text-[9px] font-bold uppercase tracking-widest text-gray-500">Estado</th>
-                <th className="px-2 py-1 text-left text-[9px] font-bold uppercase tracking-widest text-gray-500">Pago Cli.</th>
-                <th className="px-2 py-1 text-left text-[9px] font-bold uppercase tracking-widest text-gray-500">Planilla</th>
-                <th className="px-2 py-1 text-left text-[9px] font-bold uppercase tracking-widest text-gray-500">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {cortesFiltrados.map((c, corteIdx) => {
-                const detalles = c.coloresDetalle && c.coloresDetalle.length > 0
-                  ? c.coloresDetalle
-                  : [{ colorId: c.colorId, tonalidad: c.tonalidad, cantS: c.cantS, cantM: c.cantM, cantL: c.cantL, cantXL: c.cantXL, kgUsados: c.kgUsados, rollosUsados: c.rollosUsados }];
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          {cortesFiltrados.map(c => {
+            const detalles = c.coloresDetalle && c.coloresDetalle.length > 0
+              ? c.coloresDetalle
+              : [{ colorId: c.colorId, tonalidad: c.tonalidad, cantS: c.cantS, cantM: c.cantM, cantL: c.cantL, cantXL: c.cantXL, kgUsados: c.kgUsados, rollosUsados: c.rollosUsados }];
+            const tieneColores = detalles.length > 1;
 
-                const filas = detalles.map(det => ({
-                  colorId: det.colorId,
-                  tonalidad: det.tonalidad,
-                  cantS: det.cantS,
-                  cantM: det.cantM,
-                  cantL: det.cantL,
-                  cantXL: det.cantXL,
-                  totalColor: det.cantS + det.cantM + det.cantL + det.cantXL,
-                  kgUsados: det.kgUsados ?? 0,
-                }));
+            const filasSegsAll = seguimientoFilas.filter(sf => sf.corteId === c.id);
+            const pctGlobal = filasSegsAll.length > 0
+              ? Math.round(filasSegsAll.reduce((s, sf) => s + (sf.pctAvance ?? 0), 0) / filasSegsAll.length)
+              : null;
 
-                const expanded = expandedCortes.has(c.id);
-                const tieneColores = filas.length > 1;
-                const bgCorte = corteIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50/60';
-                const totalColumnas = esAdmin ? 16 : 15; // sin Costo MO si no es admin
-                const borderTop = 'border-t-2 border-gray-300';
+            const resumenColores = (() => {
+              const seen = new Set<string>();
+              return detalles
+                .map(f => (colorMap.get(f.colorId) ?? f.colorId) + (f.tonalidad ? ` Tn-${f.tonalidad}` : ''))
+                .filter(label => { if (seen.has(label)) return false; seen.add(label); return true; })
+                .join(' · ');
+            })();
 
-                // Avance global del corte (promedio de todos los colores)
-                const filasSegsAll = seguimientoFilas.filter(sf => sf.corteId === c.id);
-                const pctGlobal = filasSegsAll.length > 0
-                  ? Math.round(filasSegsAll.reduce((s, sf) => s + (sf.pctAvance ?? 0), 0) / filasSegsAll.length)
-                  : null;
+            const estadoColor = ESTADO_COLOR[c.estado];
 
-                // Resumen de colores para la fila collapsed — deduplicar por nombre+tonalidad
-                const resumenColores = (() => {
-                  const seen = new Set<string>();
-                  return filas
-                    .map(f => (colorMap.get(f.colorId) ?? f.colorId) + (f.tonalidad ? ` Tn-${f.tonalidad}` : ''))
-                    .filter(label => { if (seen.has(label)) return false; seen.add(label); return true; })
-                    .join(' · ');
-                })();
+            return (
+              <button
+                key={c.id}
+                onClick={() => setDetalleCorteId(c.id)}
+                className="bg-white text-left flex flex-col transition-shadow hover:shadow-lg"
+                style={{ border: '1px solid #DDD8CF', borderLeft: `3px solid ${estadoColor}` }}
+              >
+                <div className="flex items-start justify-between gap-2 px-4 pt-3.5 pb-2">
+                  <div>
+                    <p className="font-mono font-black text-sm" style={{ color: '#1a1a1a' }}>{c.nCorte}</p>
+                    <p className="text-[10px] text-gray-400 font-mono mt-0.5">{c.fecha}</p>
+                  </div>
+                  <span
+                    className="inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-black uppercase flex-shrink-0"
+                    style={{ background: `${estadoColor}18`, color: estadoColor }}
+                  >
+                    {ESTADO_ICON[c.estado]}
+                    {c.estado.replace('_', ' ')}
+                  </span>
+                </div>
 
-                return (
-                  <React.Fragment key={c.id}>
-                    {/* ── Fila principal (siempre visible) ── */}
-                    <tr
-                      className={`${borderTop} ${bgCorte} hover:bg-amber-50/50 transition-colors cursor-pointer select-none`}
-                      onClick={() => toggleExpand(c.id)}
+                <div className="px-4 pb-3 flex-1 space-y-1">
+                  <p className="text-xs font-bold truncate" style={{ color: '#1a1a1a' }}>{clienteMap.get(c.clienteId) ?? c.clienteId}</p>
+                  <p className="text-[11px] text-gray-500 truncate">{capWords(productoMap.get(c.productoId)?.nombre ?? c.productoId)}</p>
+                  <p className="text-[10px] text-gray-400 truncate">
+                    {tieneColores ? <span className="font-bold" style={{ color: '#C4612A' }}>{detalles.length} colores</span> : resumenColores}
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between gap-3 px-4 py-2.5" style={{ borderTop: '1px solid #EFECE5', background: '#FAF8F4' }}>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="font-mono font-black text-base" style={{ color: '#1a1a1a' }}>{c.totalPrendas}</span>
+                    <span className="text-[9px] uppercase tracking-wide text-gray-400 font-bold">prendas</span>
+                  </div>
+                  {pctGlobal !== null ? (
+                    <div className="flex items-center gap-1.5 flex-1 max-w-[100px]">
+                      <div className="flex-1 h-1.5 overflow-hidden" style={{ background: '#EAE6DD' }}>
+                        <div
+                          className="h-full transition-all"
+                          style={{ width: `${pctGlobal}%`, background: pctGlobal === 100 ? '#2F7A4D' : pctGlobal >= 50 ? '#4B7FA3' : '#B6762A' }}
+                        />
+                      </div>
+                      <span className="text-[9px] font-bold font-mono tabular-nums" style={{ color: pctGlobal === 100 ? '#2F7A4D' : '#6B6058' }}>{pctGlobal}%</span>
+                    </div>
+                  ) : <span className="text-[9px] text-gray-300 italic">Sin avance</span>}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Modal de detalle de corte */}
+      {detalleCorteId && (() => {
+        const c = cortes.find(x => x.id === detalleCorteId);
+        if (!c) return null;
+
+        const detalles = c.coloresDetalle && c.coloresDetalle.length > 0
+          ? c.coloresDetalle
+          : [{ colorId: c.colorId, tonalidad: c.tonalidad, cantS: c.cantS, cantM: c.cantM, cantL: c.cantL, cantXL: c.cantXL, kgUsados: c.kgUsados, rollosUsados: c.rollosUsados }];
+        const filas = detalles.map(det => ({
+          colorId: det.colorId, tonalidad: det.tonalidad,
+          cantS: det.cantS, cantM: det.cantM, cantL: det.cantL, cantXL: det.cantXL,
+          totalColor: det.cantS + det.cantM + det.cantL + det.cantXL,
+          kgUsados: det.kgUsados ?? 0,
+        }));
+        const tieneColores = filas.length > 1;
+
+        const filasSegsAll = seguimientoFilas.filter(sf => sf.corteId === c.id);
+        const pctGlobal = filasSegsAll.length > 0
+          ? Math.round(filasSegsAll.reduce((s, sf) => s + (sf.pctAvance ?? 0), 0) / filasSegsAll.length)
+          : null;
+
+        const metrosTotales = c.tendidas > 0 && c.mtsPorTendida > 0 ? c.tendidas * c.mtsPorTendida : null;
+        const prendasPorKg = c.kgUsados > 0 && c.totalPrendas > 0 ? c.totalPrendas / c.kgUsados : null;
+        const kgPorPrenda = c.totalPrendas > 0 && c.kgUsados > 0 ? c.kgUsados / c.totalPrendas : null;
+        const prendasPorMetro = metrosTotales && metrosTotales > 0 ? c.totalPrendas / metrosTotales : null;
+        const kgPorMetro = metrosTotales && metrosTotales > 0 ? c.kgUsados / metrosTotales : null;
+        const metrosPorRollo = c.rollosUsados > 0 && metrosTotales ? metrosTotales / c.rollosUsados : null;
+        const prendasPorRollo = c.rollosUsados > 0 && c.totalPrendas > 0 ? c.totalPrendas / c.rollosUsados : null;
+        const m2PorPrenda = metrosTotales && c.ancho > 0 && c.totalPrendas > 0
+          ? (metrosTotales * c.ancho) / c.totalPrendas : null;
+
+        const estadoColor = ESTADO_COLOR[c.estado];
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setDetalleCorteId(null)}>
+            <div
+              className="bg-white w-full max-w-3xl max-h-[90vh] overflow-y-auto"
+              style={{ border: '1px solid #DDD8CF' }}
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Header del modal */}
+              <div
+                className="flex items-start justify-between gap-3 px-6 py-4 sticky top-0"
+                style={{ background: '#FFFDF9', borderBottom: `3px solid ${estadoColor}` }}
+              >
+                <div>
+                  <p className="font-mono font-black text-lg" style={{ color: '#1a1a1a' }}>Corte {c.nCorte}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{c.fecha} · {clienteMap.get(c.clienteId) ?? c.clienteId}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-black uppercase"
+                    style={{ background: `${estadoColor}18`, color: estadoColor }}
+                  >
+                    {ESTADO_ICON[c.estado]}
+                    {c.estado.replace('_', ' ')}
+                  </span>
+                  <button onClick={() => setDetalleCorteId(null)} className="text-gray-400 hover:text-gray-700 transition-colors">
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6 space-y-6">
+
+                {/* Acciones rápidas */}
+                {esAdmin && (
+                  <div className="flex flex-wrap items-center gap-2 pb-4" style={{ borderBottom: '1px solid #EFECE5' }}>
+                    {c.estado === 'EN_PROCESO' && (
+                      <button
+                        disabled={completandoId === c.id}
+                        onClick={() => {
+                          if (completandoId === c.id) return;
+                          const totalPrendas = (c.cantS ?? 0) + (c.cantM ?? 0) + (c.cantL ?? 0) + (c.cantXL ?? 0);
+                          if (totalPrendas === 0) { addToast('El corte no tiene prendas registradas', 'error'); return; }
+                          setCompletandoId(c.id);
+                          const ok = descontarInventario(c);
+                          if (!ok) { setCompletandoId(null); return; }
+                          updateCorte(c.id, { estado: 'COMPLETADO' });
+                          crearFilasSeguimiento(c);
+                          addToast(`Corte ${c.nCorte} completado — inventario descontado y seguimiento creado`, 'success');
+                          setTimeout(() => setCompletandoId(null), 2000);
+                        }}
+                        className="flex items-center gap-2 px-3 py-1.5 text-[11px] font-bold uppercase tracking-widest border transition-colors disabled:opacity-40"
+                        style={{ color: '#2F7A4D', borderColor: '#2F7A4D55', background: '#2F7A4D0D' }}
+                      >
+                        <CheckCircle className="h-3.5 w-3.5" /> {completandoId === c.id ? 'Guardando…' : 'Completar'}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => { setForm(corteToForm(c)); setEditingCorteId(c.id); setShowForm(true); setDetalleCorteId(null); }}
+                      className="flex items-center gap-2 px-3 py-1.5 text-[11px] font-bold uppercase tracking-widest border transition-colors"
+                      style={{ color: '#1a1a1a', borderColor: '#DDD8CF' }}
                     >
-                      {/* Chevron + N° Corte */}
-                      <td className="px-2 py-1 font-mono font-black text-xs text-gray-800 border-r border-gray-200 border-l-4 border-l-[#B66F35] whitespace-nowrap">
-                        <span className="flex items-center gap-1">
-                          {expanded
-                            ? <ChevronDown className="h-3 w-3 text-[#B66F35] flex-shrink-0" />
-                            : <ChevronRight className="h-3 w-3 text-gray-400 flex-shrink-0" />
-                          }
-                          {c.nCorte}
-                        </span>
-                      </td>
-                      <td className="px-2 py-1 text-xs font-mono whitespace-nowrap border-r border-gray-100">{c.fecha}</td>
-                      <td className="px-2 py-1 text-xs whitespace-nowrap border-r border-gray-100">{clienteMap.get(c.clienteId) ?? c.clienteId}</td>
-                      <td className="px-2 py-1 text-xs whitespace-nowrap border-r border-gray-100">{capWords(productoMap.get(c.productoId)?.nombre ?? c.productoId)}</td>
-                      {/* Colores: resumen collapsed o primer color si solo hay 1 */}
-                      <td className="px-2 py-1 border-r border-gray-100">
-                        {tieneColores && !expanded ? (
-                          <span className="text-[10px] text-gray-500 italic">{resumenColores}</span>
-                        ) : !tieneColores ? (
-                          <span className="text-xs font-medium text-gray-700">
-                            {colorMap.get(filas[0].colorId) ?? filas[0].colorId}
-                            {filas[0].tonalidad && <span className="ml-1 text-[10px] font-mono text-gray-400">Tn-{filas[0].tonalidad}</span>}
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-[#B66F35] font-bold">{filas.length} colores</span>
-                        )}
-                      </td>
-                      <td className="px-2 py-1 text-xs text-center font-mono">{c.cantS > 0 ? c.cantS : <span className="text-gray-300">—</span>}</td>
-                      <td className="px-2 py-1 text-xs text-center font-mono">{c.cantM > 0 ? c.cantM : <span className="text-gray-300">—</span>}</td>
-                      <td className="px-2 py-1 text-xs text-center font-mono">{c.cantL > 0 ? c.cantL : <span className="text-gray-300">—</span>}</td>
-                      <td className="px-2 py-1 text-xs text-center font-mono">{c.cantXL > 0 ? c.cantXL : <span className="text-gray-300">—</span>}</td>
-                      <td className="px-2 py-1 text-xs text-right font-mono font-bold">{c.totalPrendas}</td>
-                      <td className="px-2 py-1 text-xs text-right font-mono text-gray-500">{c.kgUsados > 0 ? c.kgUsados.toFixed(1) : '—'}</td>
-                      {/* Avance global */}
-                      <td className="px-2 py-1 min-w-[90px]">
-                        {pctGlobal !== null ? (
-                          <div className="flex items-center gap-1">
-                            <div className="flex-1 h-1 bg-gray-200 rounded-full overflow-hidden">
-                              <div
-                                className={`h-full transition-all ${pctGlobal === 100 ? 'bg-green-500' : pctGlobal >= 50 ? 'bg-blue-400' : 'bg-yellow-400'}`}
-                                style={{ width: `${pctGlobal}%` }}
-                              />
-                            </div>
-                            <span className={`text-[10px] font-bold font-mono tabular-nums ${pctGlobal === 100 ? 'text-green-600' : 'text-gray-600'}`}>{pctGlobal}%</span>
-                          </div>
-                        ) : <span className="text-[10px] text-gray-300 italic">—</span>}
-                      </td>
-                      {esAdmin && (
-                        <td className="px-2 py-1 text-xs font-mono text-right border-l border-gray-100">
-                          {c.costoMoCorte > 0 ? `S/ ${c.costoMoCorte.toFixed(2)}` : '—'}
-                        </td>
-                      )}
-                      <td className="px-2 py-1 border-l border-gray-100">
-                        <span className="flex items-center gap-1">
-                          {ESTADO_ICON[c.estado]}
-                          <span className="text-[10px] font-bold uppercase">{c.estado.replace('_', ' ')}</span>
-                        </span>
-                      </td>
-                      <td className="px-2 py-1 border-l border-gray-100" onClick={e => e.stopPropagation()}>
-                        {esAdmin ? (
-                          <select
-                            value={c.pagoCliente}
-                            onChange={e => updateCorte(c.id, { pagoCliente: e.target.value as 'PENDIENTE' | 'COBRADO' })}
-                            className={`text-[10px] font-bold uppercase border-0 bg-transparent cursor-pointer ${c.pagoCliente === 'COBRADO' ? 'text-green-700' : 'text-yellow-700'}`}
-                          >
-                            <option value="PENDIENTE">Pendiente</option>
-                            <option value="COBRADO">Cobrado</option>
-                          </select>
-                        ) : (
-                          <span className={`text-[10px] font-bold uppercase ${c.pagoCliente === 'COBRADO' ? 'text-green-700' : 'text-yellow-700'}`}>
-                            {c.pagoCliente === 'COBRADO' ? 'Cobrado' : 'Pendiente'}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-2 py-1 border-l border-gray-100" onClick={e => e.stopPropagation()}>
-                        {esAdmin ? (
-                          <select
-                            value={c.pagoPlanilla}
-                            onChange={e => updateCorte(c.id, { pagoPlanilla: e.target.value as 'PENDIENTE' | 'PAGADO' })}
-                            className={`text-[10px] font-bold uppercase border-0 bg-transparent cursor-pointer ${c.pagoPlanilla === 'PAGADO' ? 'text-green-700' : 'text-yellow-700'}`}
-                          >
-                            <option value="PENDIENTE">Pendiente</option>
-                            <option value="PAGADO">Pagado</option>
-                          </select>
-                        ) : (
-                          <span className={`text-[10px] font-bold uppercase ${c.pagoPlanilla === 'PAGADO' ? 'text-green-700' : 'text-yellow-700'}`}>
-                            {c.pagoPlanilla === 'PAGADO' ? 'Pagado' : 'Pendiente'}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-2 py-1 border-l border-gray-100" onClick={e => e.stopPropagation()}>
-                        <div className="flex flex-col gap-0.5">
-                          {esAdmin && c.estado === 'EN_PROCESO' && (
-                            <button
-                              disabled={completandoId === c.id}
-                              onClick={() => {
-                                if (completandoId === c.id) return;
-                                const totalPrendas = (c.cantS ?? 0) + (c.cantM ?? 0) + (c.cantL ?? 0) + (c.cantXL ?? 0);
-                                if (totalPrendas === 0) { addToast('El corte no tiene prendas registradas', 'error'); return; }
-                                setCompletandoId(c.id);
-                                const ok = descontarInventario(c);
-                                if (!ok) { setCompletandoId(null); return; }
-                                updateCorte(c.id, { estado: 'COMPLETADO' });
-                                crearFilasSeguimiento(c);
-                                addToast(`Corte ${c.nCorte} completado — inventario descontado y seguimiento creado`, 'success');
-                                setTimeout(() => setCompletandoId(null), 2000);
-                              }}
-                              className="text-[10px] font-bold uppercase text-blue-600 hover:text-blue-800 whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
-                            >{completandoId === c.id ? 'Guardando…' : 'Completar'}</button>
-                          )}
-                          {esAdmin && (
-                            <button
-                              onClick={() => {
-                                setForm(corteToForm(c));
-                                setEditingCorteId(c.id);
-                                setShowForm(true);
-                              }}
-                              className="text-[10px] font-bold uppercase text-gray-500 hover:text-[#B66F35] whitespace-nowrap"
-                              title="Editar corte"
-                            >Editar</button>
-                          )}
-                          {esAdmin && c.estado !== 'ANULADO' && (
-                            <button
-                              onClick={() => setConfirmAnular(c.id)}
-                              className="text-[10px] font-bold uppercase text-gray-500 hover:text-red-600 whitespace-nowrap"
-                              title="Anular corte"
-                            >Anular</button>
-                          )}
-                          {esAdmin && c.estado === 'ANULADO' && (
-                            <button
-                              onClick={() => setConfirmReactivar(c.id)}
-                              className="text-[10px] font-bold uppercase text-gray-500 hover:text-blue-600 whitespace-nowrap"
-                              title="Reactivar corte"
-                            >Reactivar</button>
-                          )}
-                          {esAdmin && (
-                            <button onClick={() => setConfirmDelete(c.id)} className="text-gray-300 hover:text-red-500 transition-colors">
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          )}
+                      <Pencil className="h-3.5 w-3.5" /> Editar
+                    </button>
+                    {c.estado !== 'ANULADO' ? (
+                      <button
+                        onClick={() => setConfirmAnular(c.id)}
+                        className="flex items-center gap-2 px-3 py-1.5 text-[11px] font-bold uppercase tracking-widest border transition-colors"
+                        style={{ color: '#B6762A', borderColor: '#B6762A55', background: '#B6762A0D' }}
+                      >
+                        <Ban className="h-3.5 w-3.5" /> Anular
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmReactivar(c.id)}
+                        className="flex items-center gap-2 px-3 py-1.5 text-[11px] font-bold uppercase tracking-widest border transition-colors"
+                        style={{ color: '#4B7FA3', borderColor: '#4B7FA355', background: '#4B7FA30D' }}
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" /> Reactivar
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setConfirmDelete(c.id)}
+                      className="ml-auto flex items-center gap-2 px-3 py-1.5 text-[11px] font-bold uppercase tracking-widest border transition-colors"
+                      style={{ color: '#C0362C', borderColor: '#C0362C55', background: '#C0362C0D' }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" /> Eliminar
+                    </button>
+                  </div>
+                )}
+
+                {/* Resumen: producto, tallas, pagos */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-1">Producto</p>
+                    <p className="text-sm font-bold" style={{ color: '#1a1a1a' }}>{capWords(productoMap.get(c.productoId)?.nombre ?? c.productoId)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-1">Avance de confección</p>
+                    {pctGlobal !== null ? (
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-1.5 overflow-hidden" style={{ background: '#EAE6DD' }}>
+                          <div className="h-full transition-all" style={{ width: `${pctGlobal}%`, background: pctGlobal === 100 ? '#2F7A4D' : pctGlobal >= 50 ? '#4B7FA3' : '#B6762A' }} />
                         </div>
-                      </td>
-                    </tr>
+                        <span className="text-xs font-bold font-mono tabular-nums" style={{ color: pctGlobal === 100 ? '#2F7A4D' : '#6B6058' }}>{pctGlobal}%</span>
+                      </div>
+                    ) : <span className="text-xs text-gray-300 italic">Sin seguimiento</span>}
+                  </div>
+                </div>
 
-                    {/* ── Fila de detalles físicos + métricas del corte ── */}
-                    {expanded && (() => {
-                      const metrosTotales = c.tendidas > 0 && c.mtsPorTendida > 0 ? c.tendidas * c.mtsPorTendida : null;
-                      const prendasPorKg = c.kgUsados > 0 && c.totalPrendas > 0 ? c.totalPrendas / c.kgUsados : null;
-                      const kgPorPrenda = c.totalPrendas > 0 && c.kgUsados > 0 ? c.kgUsados / c.totalPrendas : null;
-                      const prendasPorMetro = metrosTotales && metrosTotales > 0 ? c.totalPrendas / metrosTotales : null;
-                      const kgPorMetro = metrosTotales && metrosTotales > 0 ? c.kgUsados / metrosTotales : null;
-                      const metrosPorRollo = c.rollosUsados > 0 && metrosTotales ? metrosTotales / c.rollosUsados : null;
-                      const prendasPorRollo = c.rollosUsados > 0 && c.totalPrendas > 0 ? c.totalPrendas / c.rollosUsados : null;
-                      const m2PorPrenda = metrosTotales && c.ancho > 0 && c.totalPrendas > 0
-                        ? (metrosTotales * c.ancho) / c.totalPrendas : null;
-                      return (
-                        <tr className="border-t border-dashed border-gray-200 bg-[#FDFCF8]">
-                          <td colSpan={totalColumnas} className="px-4 py-3 border-l-4 border-l-[#B66F35]/20">
-                            <div className="flex flex-col gap-2.5">
-
-                              {/* Fila 1: datos físicos base */}
-                              <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
-                                <span className="text-[9px] font-bold uppercase tracking-widest text-gray-400 w-full">Datos físicos</span>
-                                {[
-                                  { label: 'Rollos', val: c.rollosUsados },
-                                  { label: 'Tendidas', val: c.tendidas },
-                                  { label: 'Mts/tendida', val: c.mtsPorTendida > 0 ? c.mtsPorTendida : null },
-                                  { label: 'Metros totales', val: metrosTotales ? metrosTotales.toFixed(1) + ' m' : null },
-                                  { label: 'Ancho', val: c.ancho > 0 ? c.ancho + ' m' : null },
-                                  { label: 'KG usados', val: c.kgUsados > 0 ? c.kgUsados.toFixed(2) + ' kg' : null },
-                                ].map(({ label, val }) => val != null && (
-                                  <div key={label} className="flex items-center gap-1">
-                                    <span className="text-[9px] uppercase tracking-wide text-gray-400 font-bold">{label}</span>
-                                    <span className="font-mono font-bold text-gray-800 text-[12px]">{val}</span>
-                                  </div>
-                                ))}
-                              </div>
-
-                              {/* Fila 2: métricas de rendimiento */}
-                              <div className="flex flex-wrap items-stretch gap-2">
-                                <span className="text-[9px] font-bold uppercase tracking-widest text-gray-400 w-full">Rendimiento de tela</span>
-                                {[
-                                  { label: 'Prendas / kg', val: prendasPorKg, fmt: (v: number) => v.toFixed(2), color: 'emerald', hint: 'prendas salen de 1 kg' },
-                                  { label: 'Kg / prenda', val: kgPorPrenda, fmt: (v: number) => v.toFixed(4) + ' kg', color: 'emerald', hint: 'tela consume cada prenda' },
-                                  { label: 'Prendas / metro', val: prendasPorMetro, fmt: (v: number) => v.toFixed(3), color: 'blue', hint: 'prendas por metro corrido' },
-                                  { label: 'Kg / metro', val: kgPorMetro, fmt: (v: number) => v.toFixed(4) + ' kg', color: 'blue', hint: 'gramaje real del tejido' },
-                                  { label: 'Metros / rollo', val: metrosPorRollo, fmt: (v: number) => v.toFixed(1) + ' m', color: 'violet', hint: 'longitud promedio por rollo' },
-                                  { label: 'Prendas / rollo', val: prendasPorRollo, fmt: (v: number) => v.toFixed(1), color: 'violet', hint: 'producción por rollo' },
-                                  { label: 'm² / prenda', val: m2PorPrenda, fmt: (v: number) => v.toFixed(4) + ' m²', color: 'amber', hint: 'área de tela por prenda' },
-                                ].filter(m => m.val !== null).map(({ label, val, fmt, color, hint }) => {
-                                  const colorMap2: Record<string, string> = {
-                                    emerald: 'bg-emerald-50 border-emerald-200 text-emerald-800',
-                                    blue: 'bg-blue-50 border-blue-200 text-blue-800',
-                                    violet: 'bg-violet-50 border-violet-200 text-violet-800',
-                                    amber: 'bg-amber-50 border-amber-200 text-amber-800',
-                                  };
-                                  const labelColor: Record<string, string> = {
-                                    emerald: 'text-emerald-500',
-                                    blue: 'text-blue-500',
-                                    violet: 'text-violet-500',
-                                    amber: 'text-amber-600',
-                                  };
-                                  return (
-                                    <div key={label} className={`flex flex-col items-center justify-center px-3 py-1.5 rounded border min-w-[110px] ${colorMap2[color]}`}>
-                                      <span className={`text-[9px] font-bold uppercase tracking-wider ${labelColor[color]}`}>{label}</span>
-                                      <span className="font-mono font-black text-[14px] mt-0.5">{fmt(val!)}</span>
-                                      <span className="text-[8px] text-gray-400 italic mt-0.5">{hint}</span>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-
-                              {/* Fila 3: personal + estado */}
-                              <div className="flex flex-wrap items-center gap-x-5 gap-y-1 pt-0.5 border-t border-gray-100">
-                                {c.cortador && <div className="flex items-center gap-1"><span className="text-[9px] uppercase tracking-wide text-gray-400 font-bold">Cortador</span><span className="text-gray-700 text-[11px]">{c.cortador}</span></div>}
-                                {c.ayudante && <div className="flex items-center gap-1"><span className="text-[9px] uppercase tracking-wide text-gray-400 font-bold">Ayudante</span><span className="text-gray-700 text-[11px]">{c.ayudante}</span></div>}
-                                {c.tendedor && <div className="flex items-center gap-1"><span className="text-[9px] uppercase tracking-wide text-gray-400 font-bold">Tendedor</span><span className="text-gray-700 text-[11px]">{c.tendedor}</span></div>}
-                                <div className="flex items-center gap-1">
-                                  <span className="text-[9px] uppercase tracking-wide text-gray-400 font-bold">Revisión</span>
-                                  <span className={`text-[10px] font-bold ${c.revision === 'VERIFICADO' ? 'text-green-600' : 'text-yellow-600'}`}>{c.revision}</span>
-                                </div>
-                                {c.traslado && <span className="text-[10px] font-bold text-blue-600">TRASLADO</span>}
-                                {c.notas && <div className="flex items-center gap-1"><span className="text-[9px] uppercase tracking-wide text-gray-400 font-bold">Notas</span><span className="text-gray-600 italic text-[11px]">{c.notas}</span></div>}
-                                {c.horaInicio && (
-                                  <div className="flex items-center gap-1">
-                                    <Play className="h-3 w-3 text-green-600" />
-                                    <span className="text-[9px] uppercase tracking-wide text-gray-400 font-bold">Inicio</span>
-                                    <span className="font-mono text-green-700 text-[11px] font-bold">{fmtHora(c.horaInicio)}</span>
-                                  </div>
-                                )}
-                                {c.horaFin && (
-                                  <div className="flex items-center gap-1">
-                                    <StopCircle className="h-3 w-3 text-red-500" />
-                                    <span className="text-[9px] uppercase tracking-wide text-gray-400 font-bold">Fin</span>
-                                    <span className="font-mono text-red-600 text-[11px] font-bold">{fmtHora(c.horaFin)}</span>
-                                  </div>
-                                )}
-                                {c.horaInicio && c.horaFin && (
-                                  <div className="flex items-center gap-1">
-                                    <Clock className="h-3 w-3 text-blue-500" />
-                                    <span className="text-[9px] uppercase tracking-wide text-gray-400 font-bold">Duración</span>
-                                    <span className="font-mono text-blue-700 text-[11px] font-bold">{(() => {
-                                      const mins = Math.round((new Date(c.horaFin).getTime() - new Date(c.horaInicio).getTime()) / 60000);
-                                      if (mins < 60) return `${mins} min`;
-                                      return `${Math.floor(mins / 60)}h ${mins % 60}min`;
-                                    })()}</span>
-                                  </div>
-                                )}
-                              </div>
-
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })()}
-
-                    {/* ── Filas de colores (solo si expandido y tiene más de 1) ── */}
-                    {expanded && tieneColores && filas.map((fila, fi) => {
+                {/* Colores + tallas */}
+                <div>
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-2">
+                    {tieneColores ? `Colores (${filas.length})` : 'Color'}
+                  </p>
+                  <div className="space-y-2">
+                    {filas.map((fila, fi) => {
                       const opsKey = `${c.id}-${fila.colorId}`;
                       const opsExpanded = expandedOps.has(opsKey);
                       const filasSegs = seguimientoFilas.filter(sf => sf.corteId === c.id && sf.colorId === fila.colorId);
@@ -984,7 +921,6 @@ export function Cortes() {
                       const fases = [...opMap.entries()].sort((a, b) => a[1].orden - b[1].orden).map(([op, v]) => ({ op, pct: Math.round((v.completadas / v.total) * 100) }));
                       const opActual = fases.find(f => f.pct < 100);
 
-                      // Para el desplegable: operaciones × tallas con operario y estado
                       const TALLAS = ['S', 'M', 'L', 'XL'] as const;
                       type OpDetalle = { talla: string; cantidad: number; operario: string; confirmado: boolean };
                       const opDetalles = new Map<string, { orden: number; filas: OpDetalle[] }>();
@@ -1000,141 +936,218 @@ export function Cortes() {
                       const opDetallesSorted = [...opDetalles.entries()].sort((a, b) => a[1].orden - b[1].orden);
 
                       return (
-                        <React.Fragment key={`${c.id}-det-${fi}`}>
-                          <tr className="border-t border-gray-200/60 bg-amber-50/20">
-                            {/* indent + chevron ops */}
-                            <td className="py-1.5 border-l-4 border-l-[#B66F35]/30 pl-2" colSpan={1}>
-                              {filasSegs.length > 0 && (
-                                <button onClick={() => toggleOps(opsKey)} className="p-0.5 rounded hover:bg-amber-100 transition-colors">
-                                  {opsExpanded
-                                    ? <ChevronDown className="h-3 w-3 text-[#B66F35]" />
-                                    : <ChevronRight className="h-3 w-3 text-gray-400" />}
-                                </button>
-                              )}
-                            </td>
-                            <td colSpan={3} />
-                            <td className="px-3 py-1.5 whitespace-nowrap text-gray-600 border-r border-gray-100">
-                              <span className="flex items-center gap-1 pl-2">
-                                <span className="w-1.5 h-1.5 rounded-full bg-[#B66F35]/50 flex-shrink-0" />
-                                {colorMap.get(fila.colorId) ?? fila.colorId}
-                                {fila.tonalidad && <span className="ml-1 text-[10px] font-mono text-gray-400">Tn-{fila.tonalidad}</span>}
-                              </span>
-                            </td>
-                            <td className="px-3 py-1.5 text-center font-mono text-gray-600">{fila.cantS > 0 ? fila.cantS : <span className="text-gray-300">—</span>}</td>
-                            <td className="px-3 py-1.5 text-center font-mono text-gray-600">{fila.cantM > 0 ? fila.cantM : <span className="text-gray-300">—</span>}</td>
-                            <td className="px-3 py-1.5 text-center font-mono text-gray-600">{fila.cantL > 0 ? fila.cantL : <span className="text-gray-300">—</span>}</td>
-                            <td className="px-3 py-1.5 text-center font-mono text-gray-600">{fila.cantXL > 0 ? fila.cantXL : <span className="text-gray-300">—</span>}</td>
-                            <td className="px-3 py-1.5 text-right font-mono font-bold text-gray-700">{fila.totalColor}</td>
-                            <td className="px-3 py-1.5 text-right font-mono text-gray-500">{fila.kgUsados > 0 ? fila.kgUsados.toFixed(1) : '—'}</td>
-                            <td className="px-3 py-1.5">
-                              {pctColor !== null ? (
-                                <div className="flex flex-col gap-0.5 min-w-[110px]">
-                                  <div className="flex items-center gap-1.5">
-                                    <div className="flex-1 h-1 bg-gray-200 rounded-full overflow-hidden">
-                                      <div className={`h-full transition-all ${pctColor === 100 ? 'bg-green-500' : pctColor >= 50 ? 'bg-blue-400' : 'bg-yellow-400'}`} style={{ width: `${pctColor}%` }} />
-                                    </div>
-                                    <span className={`text-[10px] font-bold font-mono tabular-nums ${pctColor === 100 ? 'text-green-600' : 'text-gray-600'}`}>{pctColor}%</span>
-                                  </div>
-                                  {opActual && (
-                                    <div className="flex items-center gap-1 mt-0.5">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse flex-shrink-0" />
-                                      <span className="text-[10px] font-bold text-blue-700">{opActual.op}</span>
-                                      <span className="text-[9px] text-blue-400 font-mono">{opActual.pct}%</span>
-                                    </div>
-                                  )}
-                                  {!opActual && fases.length > 0 && (
-                                    <span className="text-[9px] text-green-600 font-bold mt-0.5">✓ Todas completas</span>
-                                  )}
-                                </div>
-                              ) : <span className="text-[10px] text-gray-300 italic">Sin seguimiento</span>}
-                            </td>
-                            <td colSpan={5} />
-                          </tr>
+                        <div key={fi} style={{ border: '1px solid #EFECE5' }}>
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-3 py-2.5" style={{ background: '#FAF8F4' }}>
+                            <span className="text-xs font-bold flex items-center gap-1.5" style={{ color: '#1a1a1a' }}>
+                              <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#C4612A' }} />
+                              {colorMap.get(fila.colorId) ?? fila.colorId}
+                              {fila.tonalidad && <span className="text-[10px] font-mono text-gray-400">Tn-{fila.tonalidad}</span>}
+                            </span>
+                            <div className="flex items-center gap-3 text-[11px] font-mono text-gray-500">
+                              {(['cantS', 'cantM', 'cantL', 'cantXL'] as const).map((k, i) => (
+                                fila[k] > 0 && <span key={k}>{['S', 'M', 'L', 'XL'][i]}: <strong className="text-gray-700">{fila[k]}</strong></span>
+                              ))}
+                              <span>Total: <strong className="text-gray-700">{fila.totalColor}</strong></span>
+                              {fila.kgUsados > 0 && <span>{fila.kgUsados.toFixed(1)} kg</span>}
+                            </div>
+                            {pctColor !== null && (
+                              <div className="flex items-center gap-1.5 ml-auto">
+                                <span className="text-[10px] font-bold font-mono tabular-nums" style={{ color: pctColor === 100 ? '#2F7A4D' : '#6B6058' }}>{pctColor}%</span>
+                                {opActual && <span className="text-[10px] font-bold" style={{ color: '#4B7FA3' }}>{opActual.op}</span>}
+                                {!opActual && fases.length > 0 && <span className="text-[10px] font-bold" style={{ color: '#2F7A4D' }}>✓ Completo</span>}
+                              </div>
+                            )}
+                            {filasSegs.length > 0 && (
+                              <button onClick={() => toggleOps(opsKey)} className="p-0.5 hover:bg-white transition-colors">
+                                {opsExpanded ? <ChevronDown className="h-3.5 w-3.5" style={{ color: '#C4612A' }} /> : <ChevronRight className="h-3.5 w-3.5 text-gray-400" />}
+                              </button>
+                            )}
+                          </div>
 
-                          {/* ── Desplegable operaciones × tallas ── */}
                           {opsExpanded && opDetallesSorted.length > 0 && (
-                            <tr className="bg-gray-50/80 border-t border-dashed border-gray-200">
-                              <td colSpan={totalColumnas} className="px-0 py-0 border-l-4 border-l-[#B66F35]/10">
-                                <div className="ml-10 mr-4 my-1.5">
-                                  <table className="w-full text-[10px] border-collapse">
-                                    <thead>
-                                      <tr className="border-b border-gray-200">
-                                        <th className="py-1 px-2 text-left text-[9px] uppercase tracking-wide text-gray-400 font-bold w-8">#</th>
-                                        <th className="py-1 px-2 text-left text-[9px] uppercase tracking-wide text-gray-400 font-bold">Operación</th>
-                                        {TALLAS.map(t => <th key={t} className="py-1 px-2 text-center text-[9px] uppercase tracking-wide text-gray-400 font-bold w-14">{t}</th>)}
-                                        <th className="py-1 px-2 text-left text-[9px] uppercase tracking-wide text-gray-400 font-bold">Operario</th>
-                                        <th className="py-1 px-2 text-center text-[9px] uppercase tracking-wide text-gray-400 font-bold w-16">Estado</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {opDetallesSorted.map(([op, { orden, filas: opFilas }], oi) => {
-                                        const tallaMap = new Map(opFilas.map(f => [f.talla, f]));
-                                        const confirmadas = opFilas.filter(f => f.confirmado).map(f => f.talla);
-                                        const todasConfirmadas = TALLAS.filter(t => tallaMap.has(t)).every(t => tallaMap.get(t)!.confirmado);
-                                        const operarioNombre = opFilas[0]?.operario ?? '—';
-                                        return (
-                                          <tr key={op} className={`border-b border-gray-100 ${todasConfirmadas ? 'opacity-60' : ''}`}>
-                                            <td className="py-1 px-2 font-mono text-gray-400">{orden}</td>
-                                            <td className="py-1 px-2 font-bold text-gray-700">
-                                              <span className="flex items-center gap-1">
-                                                {!todasConfirmadas && opActual?.op === op && (
-                                                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse flex-shrink-0" />
-                                                )}
-                                                {todasConfirmadas && <span className="text-green-500 text-[9px]">✓</span>}
-                                                {op}
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-[10px] border-collapse">
+                                <thead>
+                                  <tr style={{ borderBottom: '1px solid #EFECE5' }}>
+                                    <th className="py-1.5 px-3 text-left text-[9px] uppercase tracking-wide text-gray-400 font-bold">Operación</th>
+                                    {TALLAS.map(t => <th key={t} className="py-1.5 px-2 text-center text-[9px] uppercase tracking-wide text-gray-400 font-bold w-12">{t}</th>)}
+                                    <th className="py-1.5 px-3 text-left text-[9px] uppercase tracking-wide text-gray-400 font-bold">Operario</th>
+                                    <th className="py-1.5 px-3 text-center text-[9px] uppercase tracking-wide text-gray-400 font-bold">Estado</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {opDetallesSorted.map(([op, { orden, filas: opFilas }]) => {
+                                    const tallaMap = new Map(opFilas.map(f => [f.talla, f]));
+                                    const confirmadas = opFilas.filter(f => f.confirmado).map(f => f.talla);
+                                    const todasConfirmadas = TALLAS.filter(t => tallaMap.has(t)).every(t => tallaMap.get(t)!.confirmado);
+                                    const operarioNombre = opFilas[0]?.operario ?? '—';
+                                    return (
+                                      <tr key={op} className={todasConfirmadas ? 'opacity-60' : ''} style={{ borderBottom: '1px solid #F5F2EA' }}>
+                                        <td className="py-1.5 px-3 font-bold text-gray-700">{op}</td>
+                                        {TALLAS.map(t => {
+                                          const sf = tallaMap.get(t);
+                                          if (!sf) return <td key={t} className="py-1.5 px-2 text-center text-gray-200">—</td>;
+                                          return (
+                                            <td key={t} className="py-1.5 px-2 text-center">
+                                              <span
+                                                className="inline-flex items-center justify-center w-9 py-0.5 text-[9px] font-mono font-bold"
+                                                style={sf.confirmado ? { background: '#2F7A4D18', color: '#2F7A4D' } : { background: '#B6762A18', color: '#B6762A' }}
+                                              >
+                                                {sf.cantidad}
                                               </span>
                                             </td>
-                                            {TALLAS.map(t => {
-                                              const sf = tallaMap.get(t);
-                                              if (!sf) return <td key={t} className="py-1 px-2 text-center text-gray-200">—</td>;
-                                              return (
-                                                <td key={t} className="py-1 px-2 text-center">
-                                                  <span className={`inline-flex items-center justify-center w-10 rounded text-[9px] font-mono font-bold py-0.5
-                                                    ${sf.confirmado ? 'bg-green-100 text-green-700' : 'bg-yellow-50 text-yellow-700'}`}>
-                                                    {sf.cantidad}
-                                                  </span>
-                                                </td>
-                                              );
-                                            })}
-                                            <td className="py-1 px-2 text-gray-600 whitespace-nowrap">{operarioNombre}</td>
-                                            <td className="py-1 px-2 text-center">
-                                              {todasConfirmadas
-                                                ? <span className="text-[9px] font-bold text-green-600">Confirmado</span>
-                                                : confirmadas.length > 0
-                                                  ? <span className="text-[9px] text-yellow-600 font-bold">{confirmadas.join(', ')} ✓</span>
-                                                  : <span className="text-[9px] text-gray-400">Pendiente</span>
-                                              }
-                                            </td>
-                                          </tr>
-                                        );
-                                      })}
-                                    </tbody>
-                                  </table>
-                                </div>
-                              </td>
-                            </tr>
+                                          );
+                                        })}
+                                        <td className="py-1.5 px-3 text-gray-600 whitespace-nowrap">{operarioNombre}</td>
+                                        <td className="py-1.5 px-3 text-center">
+                                          {todasConfirmadas
+                                            ? <span className="text-[9px] font-bold" style={{ color: '#2F7A4D' }}>Confirmado</span>
+                                            : confirmadas.length > 0
+                                              ? <span className="text-[9px] font-bold" style={{ color: '#B6762A' }}>{confirmadas.join(', ')} ✓</span>
+                                              : <span className="text-[9px] text-gray-400">Pendiente</span>
+                                          }
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
                           )}
-                        </React.Fragment>
+                        </div>
                       );
                     })}
-                  </React.Fragment>
-                );
-              })}
-            </tbody>
-            <tfoot>
-              <tr className="border-t-2 border-gray-300 bg-gray-50">
-                <td colSpan={10} className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">Total</td>
-                <td className="px-3 py-2 font-mono text-right font-bold">{cortesFiltrados.reduce((s, c) => s + c.totalPrendas, 0)}</td>
-                <td className="px-3 py-2 font-mono text-right font-bold">{cortesFiltrados.reduce((s, c) => s + c.kgUsados, 0).toFixed(1)}</td>
-                <td className="px-3 py-2 font-mono text-right font-bold">
-                  S/ {cortesFiltrados.reduce((s, c) => s + c.costoMoCorte, 0).toFixed(2)}
-                </td>
-                <td colSpan={4} />
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      )}
+                  </div>
+                </div>
+
+                {/* Datos físicos */}
+                <div>
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-2">Datos físicos</p>
+                  <div className="flex flex-wrap gap-x-5 gap-y-1">
+                    {[
+                      { label: 'Rollos', val: c.rollosUsados },
+                      { label: 'Tendidas', val: c.tendidas },
+                      { label: 'Mts/tendida', val: c.mtsPorTendida > 0 ? c.mtsPorTendida : null },
+                      { label: 'Metros totales', val: metrosTotales ? metrosTotales.toFixed(1) + ' m' : null },
+                      { label: 'Ancho', val: c.ancho > 0 ? c.ancho + ' m' : null },
+                      { label: 'KG usados', val: c.kgUsados > 0 ? c.kgUsados.toFixed(2) + ' kg' : null },
+                      esAdmin ? { label: 'Costo MO', val: c.costoMoCorte > 0 ? `S/ ${c.costoMoCorte.toFixed(2)}` : null } : null,
+                    ].filter(Boolean).map((item) => item && (
+                      <div key={item.label} className="flex items-center gap-1">
+                        <span className="text-[9px] uppercase tracking-wide text-gray-400 font-bold">{item.label}</span>
+                        <span className="font-mono font-bold text-gray-800 text-[12px]">{item.val}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Rendimiento de tela */}
+                <div>
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-2">Rendimiento de tela</p>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { label: 'Prendas / kg', val: prendasPorKg, fmt: (v: number) => v.toFixed(2), color: '#2F7A4D', hint: 'prendas salen de 1 kg' },
+                      { label: 'Kg / prenda', val: kgPorPrenda, fmt: (v: number) => v.toFixed(4) + ' kg', color: '#2F7A4D', hint: 'tela consume cada prenda' },
+                      { label: 'Prendas / metro', val: prendasPorMetro, fmt: (v: number) => v.toFixed(3), color: '#4B7FA3', hint: 'prendas por metro corrido' },
+                      { label: 'Kg / metro', val: kgPorMetro, fmt: (v: number) => v.toFixed(4) + ' kg', color: '#4B7FA3', hint: 'gramaje real del tejido' },
+                      { label: 'Metros / rollo', val: metrosPorRollo, fmt: (v: number) => v.toFixed(1) + ' m', color: '#7B5EA7', hint: 'longitud promedio por rollo' },
+                      { label: 'Prendas / rollo', val: prendasPorRollo, fmt: (v: number) => v.toFixed(1), color: '#7B5EA7', hint: 'producción por rollo' },
+                      { label: 'm² / prenda', val: m2PorPrenda, fmt: (v: number) => v.toFixed(4) + ' m²', color: '#B6762A', hint: 'área de tela por prenda' },
+                    ].filter(m => m.val !== null).map(({ label, val, fmt, color, hint }) => (
+                      <div key={label} className="flex flex-col items-center justify-center px-3 py-2 min-w-[110px]" style={{ background: `${color}0D`, border: `1px solid ${color}30` }}>
+                        <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color }}>{label}</span>
+                        <span className="font-mono font-black text-[14px] mt-0.5" style={{ color: '#1a1a1a' }}>{fmt(val!)}</span>
+                        <span className="text-[8px] text-gray-400 italic mt-0.5 text-center">{hint}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Personal + pagos + estado */}
+                <div>
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-2">Personal y pagos</p>
+                  <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+                    {c.cortador && <div className="flex items-center gap-1"><span className="text-[9px] uppercase tracking-wide text-gray-400 font-bold">Cortador</span><span className="text-gray-700 text-[11px]">{c.cortador}</span></div>}
+                    {c.ayudante && <div className="flex items-center gap-1"><span className="text-[9px] uppercase tracking-wide text-gray-400 font-bold">Ayudante</span><span className="text-gray-700 text-[11px]">{c.ayudante}</span></div>}
+                    {c.tendedor && <div className="flex items-center gap-1"><span className="text-[9px] uppercase tracking-wide text-gray-400 font-bold">Tendedor</span><span className="text-gray-700 text-[11px]">{c.tendedor}</span></div>}
+                    <div className="flex items-center gap-1">
+                      <span className="text-[9px] uppercase tracking-wide text-gray-400 font-bold">Revisión</span>
+                      <span className="text-[10px] font-bold" style={{ color: c.revision === 'VERIFICADO' ? '#2F7A4D' : '#B6762A' }}>{c.revision}</span>
+                    </div>
+                    {c.traslado && <span className="text-[10px] font-bold" style={{ color: '#4B7FA3' }}>TRASLADO</span>}
+                    <div className="flex items-center gap-1">
+                      <span className="text-[9px] uppercase tracking-wide text-gray-400 font-bold">Pago Cliente</span>
+                      {esAdmin ? (
+                        <select
+                          value={c.pagoCliente}
+                          onChange={e => updateCorte(c.id, { pagoCliente: e.target.value as 'PENDIENTE' | 'COBRADO' })}
+                          className="text-[10px] font-bold uppercase border-0 bg-transparent cursor-pointer"
+                          style={{ color: c.pagoCliente === 'COBRADO' ? '#2F7A4D' : '#B6762A' }}
+                        >
+                          <option value="PENDIENTE">Pendiente</option>
+                          <option value="COBRADO">Cobrado</option>
+                        </select>
+                      ) : (
+                        <span className="text-[10px] font-bold uppercase" style={{ color: c.pagoCliente === 'COBRADO' ? '#2F7A4D' : '#B6762A' }}>
+                          {c.pagoCliente === 'COBRADO' ? 'Cobrado' : 'Pendiente'}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[9px] uppercase tracking-wide text-gray-400 font-bold">Planilla</span>
+                      {esAdmin ? (
+                        <select
+                          value={c.pagoPlanilla}
+                          onChange={e => updateCorte(c.id, { pagoPlanilla: e.target.value as 'PENDIENTE' | 'PAGADO' })}
+                          className="text-[10px] font-bold uppercase border-0 bg-transparent cursor-pointer"
+                          style={{ color: c.pagoPlanilla === 'PAGADO' ? '#2F7A4D' : '#B6762A' }}
+                        >
+                          <option value="PENDIENTE">Pendiente</option>
+                          <option value="PAGADO">Pagado</option>
+                        </select>
+                      ) : (
+                        <span className="text-[10px] font-bold uppercase" style={{ color: c.pagoPlanilla === 'PAGADO' ? '#2F7A4D' : '#B6762A' }}>
+                          {c.pagoPlanilla === 'PAGADO' ? 'Pagado' : 'Pendiente'}
+                        </span>
+                      )}
+                    </div>
+                    {c.horaInicio && (
+                      <div className="flex items-center gap-1">
+                        <Play className="h-3 w-3" style={{ color: '#2F7A4D' }} />
+                        <span className="text-[9px] uppercase tracking-wide text-gray-400 font-bold">Inicio</span>
+                        <span className="font-mono text-[11px] font-bold" style={{ color: '#2F7A4D' }}>{fmtHora(c.horaInicio)}</span>
+                      </div>
+                    )}
+                    {c.horaFin && (
+                      <div className="flex items-center gap-1">
+                        <StopCircle className="h-3 w-3" style={{ color: '#C0362C' }} />
+                        <span className="text-[9px] uppercase tracking-wide text-gray-400 font-bold">Fin</span>
+                        <span className="font-mono text-[11px] font-bold" style={{ color: '#C0362C' }}>{fmtHora(c.horaFin)}</span>
+                      </div>
+                    )}
+                    {c.horaInicio && c.horaFin && (
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" style={{ color: '#4B7FA3' }} />
+                        <span className="text-[9px] uppercase tracking-wide text-gray-400 font-bold">Duración</span>
+                        <span className="font-mono text-[11px] font-bold" style={{ color: '#4B7FA3' }}>{(() => {
+                          const mins = Math.round((new Date(c.horaFin).getTime() - new Date(c.horaInicio).getTime()) / 60000);
+                          if (mins < 60) return `${mins} min`;
+                          return `${Math.floor(mins / 60)}h ${mins % 60}min`;
+                        })()}</span>
+                      </div>
+                    )}
+                  </div>
+                  {c.notas && (
+                    <p className="text-[11px] text-gray-600 italic mt-2">{c.notas}</p>
+                  )}
+                </div>
+
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
 
       {/* Modal form */}
       {showForm && (
