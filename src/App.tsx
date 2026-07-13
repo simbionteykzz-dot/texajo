@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
-import { HashRouter as Router, Routes, Route } from 'react-router-dom';
+import { useEffect, useState, type ReactNode } from 'react';
+import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider } from './store/AppContext';
 import { ToastProvider, useToast } from './components/ToastProvider';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { Login } from './pages/Login';
+import { AccesoDenegado } from './pages/AccesoDenegado';
 import { Dashboard } from './pages/Dashboard';
 import { InventarioTelas } from './pages/InventarioTelas';
 import { Cortes } from './pages/Cortes';
@@ -21,7 +22,7 @@ import { TablaTarifas } from './pages/TablaTarifas';
 import OdooStock from './pages/OdooStock';
 import { supabase } from './lib/supabase';
 import { useAuthUser } from './lib/useAuthUser';
-import { usePermisos, permisosParaRol, PermisosProvider } from './lib/usePermisos';
+import { usePermisos, permisosParaRol, PermisosProvider, type PermisosRol, type SeccionKey } from './lib/usePermisos';
 import introAnim from './assets/login/logo-animado-texajo.gif';
 
 function DbErrorWatcher() {
@@ -43,6 +44,19 @@ export default function App() {
       <AppInner />
     </PermisosProvider>
   );
+}
+
+// Bloquea el acceso a una ruta si el rol efectivo no tiene permiso sobre esa sección,
+// sin importar si se llega por URL directa, recarga, o un botón de atajo (ej. Dashboard).
+function RutaProtegida({ seccion, permisos, children }: {
+  seccion: SeccionKey;
+  permisos: PermisosRol | null;
+  children: ReactNode;
+}) {
+  if (permisos && permisos[seccion] === false) {
+    return <AccesoDenegado />;
+  }
+  return <>{children}</>;
 }
 
 function AppInner() {
@@ -223,19 +237,20 @@ function AppInner() {
                 <div className="mx-auto max-w-7xl">
                   <Routes>
                     <Route path="/" element={<Dashboard />} />
-                    <Route path="/inventario" element={<InventarioTelas />} />
-                    <Route path="/cortes" element={<Cortes />} />
-                    <Route path="/produccion" element={<ProduccionConfeccion />} />
-                    <Route path="/destajo" element={<Destajo />} />
-                    <Route path="/programas" element={<ProgramasZurzam />} />
-                    <Route path="/cobros" element={<CobrosEntregas />} />
-                    <Route path="/complementos" element={<Complementos />} />
-                    <Route path="/catalogos" element={<Catalogos />} />
-                    <Route path="/configuracion" element={<Configuracion />} />
-                    <Route path="/tarifas" element={<TablaTarifas />} />
-                    <Route path="/stock-odoo" element={<OdooStock />} />
+                    <Route path="/inventario" element={<RutaProtegida seccion="inventario" permisos={permisos}><InventarioTelas /></RutaProtegida>} />
+                    <Route path="/cortes" element={<RutaProtegida seccion="cortes" permisos={permisos}><Cortes /></RutaProtegida>} />
+                    <Route path="/produccion" element={<RutaProtegida seccion="produccion" permisos={permisos}><ProduccionConfeccion /></RutaProtegida>} />
+                    <Route path="/destajo" element={<RutaProtegida seccion="destajo" permisos={permisos}><Destajo /></RutaProtegida>} />
+                    <Route path="/programas" element={<RutaProtegida seccion="programas" permisos={permisos}><ProgramasZurzam /></RutaProtegida>} />
+                    <Route path="/cobros" element={<RutaProtegida seccion="cobros" permisos={permisos}><CobrosEntregas /></RutaProtegida>} />
+                    <Route path="/complementos" element={<RutaProtegida seccion="complementos" permisos={permisos}><Complementos /></RutaProtegida>} />
+                    <Route path="/catalogos" element={<RutaProtegida seccion="catalogos" permisos={permisos}><Catalogos /></RutaProtegida>} />
+                    <Route path="/configuracion" element={<RutaProtegida seccion="configuracion" permisos={permisos}><Configuracion /></RutaProtegida>} />
+                    <Route path="/tarifas" element={<RutaProtegida seccion="tarifas" permisos={permisos}><TablaTarifas /></RutaProtegida>} />
+                    <Route path="/stock-odoo" element={<RutaProtegida seccion="stock_odoo" permisos={permisos}><OdooStock /></RutaProtegida>} />
                     {esAdmin && <Route path="/admin" element={<PanelAdmin />} />}
                     {esSuperAdmin && <Route path="/historial" element={<HistorialGeneral />} />}
+                    <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
                 </div>
               </main>
