@@ -1,7 +1,6 @@
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import logoPdf from '../assets/branding/logo-pdf.png';
 import { registerFont } from './fonts';
 import type { PdfFont } from './fonts';
 
@@ -20,61 +19,98 @@ export function exportRowsToXlsx(
 
 // ─── PDF helpers ──────────────────────────────────────────────────────────────
 
-const BRAND_DARK = [26, 26, 26] as [number, number, number];
-const BRAND_LIGHT = [244, 242, 238] as [number, number, number];
-const BRAND_MID = [229, 226, 218] as [number, number, number];
+// Paleta Texajo — versión suavizada para documentos (menos contraste duro que la UI):
+// verde profundo pero no negro, cobre atenuado, crema en vez de blanco puro.
+const TX_G_DARK  = [42, 74, 54]   as [number, number, number]; // verde suavizado
+const TX_G_SOFT  = [232, 238, 233] as [number, number, number]; // verde muy pálido (fondos)
+const TX_G_TEXT  = [186, 210, 193] as [number, number, number]; // texto verde claro sobre oscuro
+const TX_COPPER  = [176, 148, 104] as [number, number, number]; // cobre atenuado
+const TX_INK     = [58, 54, 48]   as [number, number, number]; // casi-negro cálido, no #000
+const TX_MUTED   = [140, 130, 120] as [number, number, number];
+const TX_CREAM   = [250, 248, 244] as [number, number, number];
+
+// Monograma tipográfico "T" — reemplaza el logo de imagen por algo más discreto y editorial.
+function drawMonograma(doc: jsPDF, x: number, y: number, size: number) {
+  doc.setFillColor(...TX_G_SOFT);
+  doc.circle(x + size / 2, y + size / 2, size / 2, 'F');
+  doc.setDrawColor(...TX_COPPER);
+  doc.setLineWidth(0.35);
+  doc.circle(x + size / 2, y + size / 2, size / 2, 'S');
+  doc.setFont('times', 'bold');
+  doc.setFontSize(size * 1.55);
+  doc.setTextColor(...TX_G_DARK);
+  doc.text('T', x + size / 2, y + size / 2 + size * 0.32, { align: 'center' });
+}
 
 function addHeader(doc: jsPDF, title: string, subtitle?: string) {
   const pageW = doc.internal.pageSize.getWidth();
+  const H = 24;
+  const MONO_SIZE = 13;
+  const MONO_X = 8;
+  const MONO_Y = (H - MONO_SIZE) / 2;
 
-  doc.setFillColor(...BRAND_DARK);
-  doc.rect(0, 0, pageW, 18, 'F');
+  doc.setFillColor(...TX_CREAM);
+  doc.rect(0, 0, pageW, H, 'F');
 
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
-  doc.text('MODULO TEXAJO', 10, 7);
+  drawMonograma(doc, MONO_X, MONO_Y, MONO_SIZE);
 
+  const tx = MONO_X + MONO_SIZE + 7;
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.text('Sistema de Gestión Textil', 10, 12);
+  doc.setFontSize(5.5);
+  doc.setTextColor(...TX_MUTED);
+  doc.text('TEXAJO · SISTEMA DE GESTIÓN TEXTIL', tx, 9);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
-  doc.text(title.toUpperCase(), pageW / 2, 9, { align: 'center' });
+  doc.setFontSize(11.5);
+  doc.setTextColor(...TX_G_DARK);
+  doc.text(title.toUpperCase(), tx, 16);
 
   if (subtitle) {
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7);
-    doc.text(subtitle, pageW / 2, 14, { align: 'center' });
+    doc.setFontSize(6.5);
+    doc.setTextColor(...TX_COPPER);
+    doc.text(subtitle, tx, 21);
   }
 
   const dateStr = new Date().toLocaleDateString('es-PE', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
+    day: '2-digit', month: 'short', year: 'numeric',
   });
-  doc.setFontSize(7);
-  doc.text(dateStr, pageW - 10, 12, { align: 'right' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.5);
+  doc.setTextColor(...TX_MUTED);
+  doc.text(dateStr, pageW - 8, H - 5, { align: 'right' });
+
+  // Línea inferior fina, un solo tono cobre — sin la doble línea de alto contraste
+  doc.setDrawColor(...TX_COPPER);
+  doc.setLineWidth(0.5);
+  doc.line(0, H, pageW, H);
+  doc.setLineWidth(0.2);
 
   doc.setTextColor(0, 0, 0);
-  return 22;
+  return H + 4;
 }
 
 function addFooter(doc: jsPDF) {
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
+  const H = 8;
   const totalPages = (doc as jsPDF & { internal: { getNumberOfPages(): number } }).internal.getNumberOfPages();
 
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
-    doc.setFillColor(...BRAND_MID);
-    doc.rect(0, pageH - 8, pageW, 8, 'F');
-    doc.setTextColor(80, 80, 80);
-    doc.setFontSize(6.5);
+    doc.setFillColor(...TX_G_SOFT);
+    doc.rect(0, pageH - H, pageW, H, 'F');
+    doc.setDrawColor(...TX_COPPER);
+    doc.setLineWidth(0.4);
+    doc.line(0, pageH - H, pageW, pageH - H);
+    doc.setLineWidth(0.2);
+    doc.setTextColor(...TX_MUTED);
+    doc.setFontSize(6);
     doc.setFont('helvetica', 'normal');
-    doc.text('Documento generado por el sistema Modulo Texajo', 10, pageH - 3);
-    doc.text(`Pág. ${i} / ${totalPages}`, pageW - 10, pageH - 3, { align: 'right' });
+    doc.text('Documento generado por el sistema Texajo', 8, pageH - 3);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...TX_G_DARK);
+    doc.text(`Pág. ${i} / ${totalPages}`, pageW - 8, pageH - 3, { align: 'right' });
   }
 }
 
@@ -124,29 +160,33 @@ export function exportTableToPdf({
       : undefined,
     theme: 'grid',
     headStyles: {
-      fillColor: BRAND_DARK,
-      textColor: 255,
+      fillColor: TX_G_DARK,
+      textColor: TX_CREAM,
       fontStyle: 'bold',
       fontSize: 7.5,
       cellPadding: 2.5,
+      lineColor: TX_G_DARK,
     },
     bodyStyles: {
       fontSize: 7,
       cellPadding: 2,
-      textColor: [26, 26, 26],
+      textColor: TX_INK,
+      lineColor: [225, 221, 213],
     },
     alternateRowStyles: {
-      fillColor: BRAND_LIGHT,
+      fillColor: TX_CREAM,
     },
     footStyles: {
-      fillColor: BRAND_LIGHT,
+      fillColor: TX_G_SOFT,
       fontStyle: 'bold',
       fontSize: 7,
       cellPadding: 2,
-      textColor: [26, 26, 26],
+      textColor: TX_G_DARK,
+      lineColor: TX_COPPER,
+      lineWidth: { top: 0.5, bottom: 0, left: 0, right: 0 },
     },
     columnStyles: colStyles,
-    margin: { top: startY, left: 10, right: 10, bottom: 12 },
+    margin: { top: startY, left: 8, right: 8, bottom: 12 },
     didDrawPage: () => {
       addHeader(doc, title, subtitle);
     },
@@ -199,61 +239,69 @@ function fSoles(n: number) {
   return `S/. ${n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-// Paleta Texajo
-const G_DARK   = [23,  58,  37]  as [number, number, number]; // #173A25 verde oscuro
-const G_MID    = [37,  80,  54]  as [number, number, number]; // verde medio para sidebar
-const G_TEXT   = [140, 185, 155] as [number, number, number]; // texto verde claro
+// Paleta Texajo — misma identidad que la boleta HTML (BoletaOperario.tsx)
+const G_DARK   = [23,  58,  37]  as [number, number, number]; // #173A25 verde oscuro (identidad)
+const G_DEEP   = [15,  36,  24]  as [number, number, number]; // #0F2418 verde profundo (pie institucional)
+const G_TEXT   = [126, 170, 138] as [number, number, number]; // texto verde claro sobre fondo oscuro
 const CREAM    = [245, 242, 234] as [number, number, number]; // #F5F2EA
-const COPPER   = [184, 155,  94] as [number, number, number]; // #B89B5E
-const INK      = [26,  26,  26]  as [number, number, number]; // #1A1A1A
-const MUTED    = [122, 111, 103] as [number, number, number]; // #7A6F67
-const BORDER   = [221, 216, 207] as [number, number, number]; // #DDD8CF
+const COPPER   = [184, 155,  94] as [number, number, number]; // #B89B5E — único acento vivo del documento
+const INK      = [33,  29,  24]  as [number, number, number]; // negro cálido, no #000 puro
+const MUTED    = [138, 127, 116] as [number, number, number]; // gris cálido para labels/secundario
+const BORDER   = [220, 213, 198] as [number, number, number]; // filete fino
 const PALE     = [250, 248, 244] as [number, number, number]; // fila alterna
+const ALERT    = [163,  67,  40] as [number, number, number]; // terracota (descuentos/merma)
+const AMBER    = [138,  90,  30] as [number, number, number]; // ámbar oscuro (pendiente)
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Header de boleta
-// Layout: [LOGO CARD blanco | banda verde con título + doc info]
-// El logo tiene fondo blanco — lo usamos como una "tarjeta" intencionalmente.
+// Header de boleta — "sello" tipográfico circular + identidad institucional.
+// Composición idéntica en espíritu al header HTML de BoletaOperario.tsx:
+// sello a la izquierda, título Playfair al centro-izquierda, doc/fecha a la derecha,
+// filete cobre como cierre inferior del header.
 // ──────────────────────────────────────────────────────────────────────────────
+function drawMonogramaBoleta(doc: jsPDF, x: number, y: number, size: number) {
+  const r = size / 2;
+  // Fondo con leve degradado simulado (dos círculos concéntricos, blanco -> crema)
+  doc.setFillColor(255, 255, 255);
+  doc.circle(x + r, y + r, r, 'F');
+  doc.setDrawColor(...BORDER);
+  doc.setLineWidth(0.25);
+  doc.circle(x + r, y + r, r - 0.6, 'S');
+  doc.setDrawColor(...COPPER);
+  doc.setLineWidth(0.55);
+  doc.circle(x + r, y + r, r, 'S');
+  doc.setFont('times', 'bolditalic');
+  doc.setFontSize(size * 1.5);
+  doc.setTextColor(...G_DARK);
+  doc.text('T', x + r, y + r + size * 0.32, { align: 'center' });
+}
+
 function boletaHeader(doc: jsPDF, data: BoletaPdfData, pageW: number) {
-  // El logo tiene fondo blanco — todo el header es blanco para que case perfectamente
-  const H      = 40;
-  const LOGO_W = 48;
-  const LOGO_H = 30;
-  const LOGO_X = 10;
-  const LOGO_Y = (H - LOGO_H) / 2;
+  const H       = 34;
+  const MONO_S  = 15;
+  const MONO_X  = 12;
+  const MONO_Y  = (H - MONO_S) / 2 - 1;
 
-  // ── Fondo blanco completo ──
   doc.setFillColor(255, 255, 255);
   doc.rect(0, 0, pageW, H, 'F');
 
-  // ── Logo (encaja perfectamente sobre blanco) ──
-  doc.addImage(logoPdf, 'PNG', LOGO_X, LOGO_Y, LOGO_W, LOGO_H);
+  drawMonogramaBoleta(doc, MONO_X, MONO_Y, MONO_S);
 
-  // ── Separador vertical cobre tras el logo ──
-  const divX = LOGO_X + LOGO_W + 8;
-  doc.setDrawColor(...COPPER);
-  doc.setLineWidth(0.6);
-  doc.line(divX, 6, divX, H - 6);
-  doc.setLineWidth(0.2);
-
-  // ── Textos del documento (sobre blanco → colores oscuros) ──
-  const tx = divX + 8;
+  const tx = MONO_X + MONO_S + 8;
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6);
-  doc.setTextColor(...MUTED);
-  doc.text('SISTEMA DE GESTIÓN TEXTIL  ·  MÓDULO TEXAJO', tx, 11);
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(15);
-  doc.setTextColor(...G_DARK);
-  doc.text('BOLETA DE DESTAJO', tx, 23);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6.5);
+  doc.setFontSize(6.2);
   doc.setTextColor(...COPPER);
-  doc.text('Liquidación de pago por destajo', tx, 31);
+  doc.text('TEXAJO  ·  SISTEMA DE GESTIÓN TEXTIL', tx, 10.5);
+
+  doc.setFont('times', 'bold');
+  doc.setFontSize(15.5);
+  doc.setTextColor(...INK);
+  doc.text('Boleta de Destajo', tx, 19);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(...MUTED);
+  doc.text('Liquidación de pago por trabajo a destajo', tx, 25);
 
   // ── Bloque N°/Fecha/Período (derecha) ──
   const rx = pageW - 10;
@@ -261,22 +309,21 @@ function boletaHeader(doc: jsPDF, data: BoletaPdfData, pageW: number) {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9.5);
   doc.setTextColor(...G_DARK);
-  doc.text(data.docId, rx, 12, { align: 'right' });
+  doc.text(data.docId, rx, 11, { align: 'right' });
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6.5);
+  doc.setFontSize(6.8);
   doc.setTextColor(...MUTED);
-  doc.text(`Emitido: ${data.emitido}`, rx, 20, { align: 'right' });
-  doc.text(`Período: ${data.periodoLabel}`, rx, 28, { align: 'right' });
+  doc.text(`Emitido: ${data.emitido}`, rx, 18, { align: 'right' });
+  doc.text(`Período: ${data.periodoLabel}`, rx, 24.5, { align: 'right' });
 
-  // ── Línea inferior cobre (separa header del cuerpo) ──
-  doc.setDrawColor(...COPPER);
-  doc.setLineWidth(1);
-  doc.line(0, H, pageW, H);
-  // Línea verde más fina encima
-  doc.setDrawColor(...G_DARK);
+  // ── Cierre del header: filete fino gris + acento cobre corto ──
+  doc.setDrawColor(...BORDER);
   doc.setLineWidth(0.3);
-  doc.line(0, H - 1.5, pageW, H - 1.5);
+  doc.line(0, H, pageW, H);
+  doc.setDrawColor(...COPPER);
+  doc.setLineWidth(0.9);
+  doc.line(0, H, 26, H);
   doc.setLineWidth(0.2);
 
   doc.setTextColor(0, 0, 0);
@@ -289,116 +336,107 @@ export function exportBoletaToPdf(data: BoletaPdfData) {
   const L      = 12;   // margen izquierdo
   const R      = pageW - 12; // margen derecho
   const W      = R - L;     // ancho útil (186 mm)
-  const HEADER_H = 40;
+  const HEADER_H = 36;
   const FOOTER_H = 9;
 
   boletaHeader(doc, data, pageW);
 
   // ══════════════════════════════════════════════════════════
-  // SECCIÓN OPERARIO
+  // BLOQUE DE IDENTIDAD DEL TRABAJADOR — pieza central del documento.
+  // Fondo crema cálido, nombre en Playfair a gran tamaño (protagonismo real),
+  // el pendiente de cobro es el único valor tratado con color vivo (ámbar/cobre).
   // ══════════════════════════════════════════════════════════
-  let y = HEADER_H + 5;
-
-  // ── Info trabajador (izquierda, cream) ──
-  const INFO_W  = W * 0.56;
-  const INFO_H  = 32;
-
-  // Acento verde izquierdo
-  doc.setFillColor(...G_DARK);
-  doc.rect(L, y, 3, INFO_H, 'F');
+  let y = HEADER_H + 4;
+  const BLOCK_H = 34;
 
   doc.setFillColor(...CREAM);
+  doc.rect(L, y, W, BLOCK_H, 'F');
   doc.setDrawColor(...BORDER);
-  doc.rect(L + 3, y, INFO_W - 3, INFO_H, 'FD');
+  doc.setLineWidth(0.3);
+  doc.rect(L, y, W, BLOCK_H, 'S');
 
   // Etiqueta
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(5.5);
-  doc.setTextColor(...MUTED);
-  doc.text('TRABAJADOR', L + 8, y + 6);
+  doc.setFontSize(5.8);
+  doc.setTextColor(154, 143, 128);
+  doc.text('TRABAJADOR', L + 7, y + 8);
 
-  // Nombre grande
-  const nombreFit = doc.splitTextToSize(data.operarioNombre.toUpperCase(), INFO_W - 14);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(15);
+  // Nombre — protagonista tipográfico del documento
+  const nombreFit = doc.splitTextToSize(data.operarioNombre, W * 0.62);
+  doc.setFont('times', 'bolditalic');
+  doc.setFontSize(19);
   doc.setTextColor(...INK);
-  doc.text(nombreFit[0], L + 8, y + 16);
+  doc.text(nombreFit[0], L + 7, y + 18);
 
-  // Código
+  // Código + badge de estado, en línea
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
+  doc.setFontSize(7.5);
   doc.setTextColor(...MUTED);
-  doc.text(`Cód. ${data.operarioCodigo}`, L + 8, y + 23);
+  doc.text(`Código  ${data.operarioCodigo}`, L + 7, y + 25.5);
+  const codigoW = doc.getTextWidth(`Código  ${data.operarioCodigo}`);
 
-  // Badge de estado
-  const estadoColor = data.estado.toUpperCase().includes('ACTIV') ? G_DARK : [120, 40, 20] as [number,number,number];
-  doc.setFillColor(...estadoColor);
-  doc.roundedRect(L + 8, y + 25.5, 22, 4.5, 1, 1, 'F');
+  const estadoActivo = data.estado.toUpperCase().includes('ACTIV');
+  const estadoColor: [number, number, number] = estadoActivo ? [29, 91, 58] : ALERT;
+  const estadoBg: [number, number, number] = estadoActivo ? [231, 240, 229] : [246, 229, 223];
+  const badgeX = L + 7 + codigoW + 6;
+  const badgeW = 22;
+  doc.setFillColor(...estadoBg);
+  doc.setDrawColor(...estadoColor);
+  doc.setLineWidth(0.25);
+  doc.roundedRect(badgeX, y + 22, badgeW, 5, 0.8, 0.8, 'FD');
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(5.5);
-  doc.setTextColor(255, 255, 255);
-  doc.text(data.estado.toUpperCase(), L + 19, y + 28.5, { align: 'center' });
+  doc.setFontSize(5.3);
+  doc.setTextColor(...estadoColor);
+  doc.text(data.estado.toUpperCase(), badgeX + badgeW / 2, y + 25.3, { align: 'center' });
 
-  // ── 4 Stats (derecha) ──
-  const STATS_X  = L + INFO_W;
-  const STAT_W   = (W - INFO_W) / 4;
-  const STAT_H   = INFO_H;
+  // Pendiente de cobro — bloque derecho, único valor con color vivo
+  const pendX = L + W - 7;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(5.8);
+  doc.setTextColor(154, 143, 128);
+  doc.text('PENDIENTE DE COBRO', pendX, y + 8, { align: 'right' });
+  doc.setFont('times', 'bolditalic');
+  doc.setFontSize(16);
+  doc.setTextColor(...(data.totalesPendiente > 0 ? AMBER : INK));
+  doc.text(fSoles(data.totalesPendiente), pendX, y + 20, { align: 'right' });
 
+  // Filete separador entre identidad y stats
+  doc.setDrawColor(...BORDER);
+  doc.setLineWidth(0.25);
+  doc.line(L + 7, y + BLOCK_H - 8, L + W - 7, y + BLOCK_H - 8);
+
+  // ── 3 métricas discretas (sin bloques de color, solo tipografía + filetes) ──
+  const statsY = y + BLOCK_H - 3;
   const stats = [
-    { label: 'Cortes',      value: String(data.totalesCortes),      accent: false, dark: false },
-    { label: 'Operaciones', value: String(data.totalesOperaciones), accent: false, dark: false },
-    { label: 'Prendas',     value: String(data.totalesPrendas),     accent: false, dark: false },
-    { label: 'Pendiente',   value: fSoles(data.totalesPendiente),   accent: false, dark: true  },
+    { label: 'Cortes trabajados',        value: String(data.totalesCortes),      align: 'left' as const },
+    { label: 'Operaciones registradas',  value: String(data.totalesOperaciones), align: 'center' as const },
+    { label: 'Prendas producidas',       value: String(data.totalesPrendas),     align: 'right' as const },
   ];
-
+  const statW = (W - 14) / 3;
   stats.forEach((s, i) => {
-    const sx = STATS_X + i * STAT_W;
-    if (s.dark) {
-      doc.setFillColor(...G_DARK);
-      doc.rect(sx, y, STAT_W, STAT_H, 'F');
-      // Línea superior cobre
-      doc.setDrawColor(...COPPER);
-      doc.setLineWidth(1);
-      doc.line(sx, y, sx + STAT_W, y);
-      doc.setLineWidth(0.2);
-    } else {
-      doc.setFillColor(255, 255, 255);
-      doc.setDrawColor(...BORDER);
-      doc.rect(sx, y, STAT_W, STAT_H, 'FD');
-    }
-
-    // Label
+    const sx = s.align === 'left' ? L + 7
+             : s.align === 'right' ? L + W - 7
+             : L + 7 + statW * i + statW / 2;
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(5.5);
-    doc.setTextColor(s.dark ? G_TEXT[0] : MUTED[0], s.dark ? G_TEXT[1] : MUTED[1], s.dark ? G_TEXT[2] : MUTED[2]);
-    doc.text(s.label.toUpperCase(), sx + STAT_W / 2, y + 8, { align: 'center' });
-
-    // Valor
-    const isMonetary = s.value.startsWith('S/.');
-    const valFontSize = isMonetary ? 8 : 14;
+    doc.setFontSize(5.3);
+    doc.setTextColor(154, 143, 128);
+    doc.text(s.label.toUpperCase(), sx, statsY, { align: s.align });
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(valFontSize);
-    doc.setTextColor(s.dark ? 245 : INK[0], s.dark ? 242 : INK[1], s.dark ? 234 : INK[2]);
-    const valLines = doc.splitTextToSize(s.value, STAT_W - 3);
-    const valY = isMonetary ? y + 18 : y + 21;
-    doc.text(valLines, sx + STAT_W / 2, valY, { align: 'center' });
+    doc.setFontSize(9.5);
+    doc.setTextColor(...G_DARK);
+    doc.text(s.value, sx, statsY + 4.2, { align: s.align });
   });
 
-  y += STAT_H + 7;
+  y += BLOCK_H + 7;
 
   // ══════════════════════════════════════════════════════════
-  // LÍNEA SEPARADORA DECORATIVA
+  // TÍTULO DE SECCIÓN — TABLA
   // ══════════════════════════════════════════════════════════
-  doc.setDrawColor(...BORDER);
-  doc.setLineWidth(0.3);
-  doc.line(L, y, R, y);
-  // Acento cobre
-  doc.setDrawColor(...COPPER);
-  doc.setLineWidth(0.8);
-  doc.line(L, y, L + 20, y);
-  doc.setLineWidth(0.2);
-
-  y += 5;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.2);
+  doc.setTextColor(...G_DARK);
+  doc.text('DETALLE DE OPERACIONES LIQUIDADAS', L, y);
+  y += 3.5;
 
   // ══════════════════════════════════════════════════════════
   // TABLA DE LÍNEAS
@@ -422,16 +460,16 @@ export function exportBoletaToPdf(data: BoletaPdfData) {
     foot: data.lineas.length > 0 ? [[
       { content: 'TOTAL PERÍODO', colSpan: 3, styles: { halign: 'right', fontStyle: 'bold', fontSize: 7 } },
       { content: String(data.totalesPrendas), styles: { halign: 'center', fontStyle: 'bold', fontSize: 8 } },
-      { content: `${pendCount} pendiente${pendCount !== 1 ? 's' : ''}`, styles: { halign: 'center', fontSize: 6.5, textColor: [146, 64, 14] as [number,number,number] } },
+      { content: `${pendCount} pendiente${pendCount !== 1 ? 's' : ''}`, styles: { halign: 'center', fontSize: 6.5, fontStyle: 'bold', textColor: pendCount > 0 ? AMBER : G_DARK } },
       { content: '—', styles: { halign: 'right', textColor: MUTED } },
       { content: fSoles(data.totalesImporte), styles: { halign: 'right', fontStyle: 'bold', fontSize: 8 } },
     ]] : undefined,
     theme: 'plain',
     headStyles: {
       fillColor: G_DARK,
-      textColor: [255, 255, 255],
+      textColor: CREAM,
       fontStyle: 'bold',
-      fontSize: 7,
+      fontSize: 6.8,
       cellPadding: { top: 3, bottom: 3, left: 3, right: 3 },
       lineWidth: 0,
     },
@@ -448,8 +486,8 @@ export function exportBoletaToPdf(data: BoletaPdfData) {
       fontStyle: 'bold',
       fontSize: 7,
       cellPadding: { top: 3, bottom: 3, left: 3, right: 3 },
-      lineColor: BORDER,
-      lineWidth: { top: 0.6, bottom: 0, left: 0, right: 0 },
+      lineColor: COPPER,
+      lineWidth: { top: 0.7, bottom: 0, left: 0, right: 0 },
       textColor: INK,
     },
     columnStyles: {
@@ -461,7 +499,7 @@ export function exportBoletaToPdf(data: BoletaPdfData) {
       5: { cellWidth: 22, halign: 'right', textColor: MUTED },
       6: { cellWidth: 28, halign: 'right', fontStyle: 'bold' },
     },
-    margin: { top: HEADER_H + 5, left: L, right: 12, bottom: FOOTER_H + 4 },
+    margin: { top: HEADER_H + 4, left: L, right: 12, bottom: FOOTER_H + 4 },
     didDrawPage: () => {
       boletaHeader(doc, data, pageW);
     },
@@ -475,128 +513,110 @@ export function exportBoletaToPdf(data: BoletaPdfData) {
   const descuentosExtra = data.descuentoOverride ?? 0;
   const totalNeto       = totalBruto - mermaAmount - descuentosExtra;
 
-  let fy = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 7;
+  let fy = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
 
-  const BOX_W = 95;
+  const BOX_W = 100;
   const BOX_X = R - BOX_W;
-  const ROW_H = 9;
+  const ROW_H = 8;
 
-  const drawDescRow = (label: string, amount: number) => {
-    doc.setFillColor(255, 249, 245);
+  const drawRow = (label: string, valueText: string, color: [number, number, number], bold = false) => {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.3);
+    doc.setTextColor(...color);
+    doc.text(label, BOX_X, fy + ROW_H / 2 + 1);
+    doc.setFont('helvetica', bold ? 'bold' : 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(...color);
+    doc.text(valueText, R, fy + ROW_H / 2 + 1, { align: 'right' });
     doc.setDrawColor(...BORDER);
     doc.setLineWidth(0.25);
-    doc.rect(BOX_X, fy, BOX_W, ROW_H, 'FD');
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6.5);
-    doc.setTextColor(196, 72, 18);
-    doc.text(label, BOX_X + 5, fy + ROW_H / 2 + 1.5);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.5);
-    doc.setTextColor(196, 72, 18);
-    doc.text(`-${fSoles(amount)}`, R - 5, fy + ROW_H / 2 + 1.5, { align: 'right' });
+    doc.line(BOX_X, fy + ROW_H, R, fy + ROW_H);
     fy += ROW_H;
   };
 
   // Fila Bruto
-  doc.setFillColor(255, 255, 255);
-  doc.setDrawColor(...BORDER);
-  doc.setLineWidth(0.25);
-  doc.rect(BOX_X, fy, BOX_W, ROW_H, 'FD');
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.5);
-  doc.setTextColor(...MUTED);
-  doc.text('BRUTO', BOX_X + 5, fy + ROW_H / 2 + 1.5);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(...INK);
-  doc.text(fSoles(totalBruto), R - 5, fy + ROW_H / 2 + 1.5, { align: 'right' });
-  fy += ROW_H;
+  drawRow('TOTAL BRUTO', fSoles(totalBruto), MUTED);
 
   // Fila Merma 1%
-  drawDescRow('MERMA (1%)', mermaAmount);
+  drawRow('MERMA (1%)', `− ${fSoles(mermaAmount)}`, ALERT);
 
   // Fila descuentos manuales (si los hay)
-  if (descuentosExtra > 0) drawDescRow('DESCUENTOS', descuentosExtra);
+  if (descuentosExtra > 0) drawRow('DESCUENTOS', `− ${fSoles(descuentosExtra)}`, ALERT);
 
-  // Fila Neto — verde oscuro, tipografía grande
-  const NETO_H = 12;
-  doc.setFillColor(...G_DARK);
-  doc.rect(BOX_X, fy, BOX_W, NETO_H, 'F');
+  // Fila Neto — tratada como sello de cierre: doble filete cobre, tipografía serif itálica,
+  // sin bloque de color sólido (coherente con el HTML: único acento fuerte reservado a este dato).
+  fy += 4;
+  const NETO_H = 15;
+  doc.setDrawColor(...COPPER);
+  doc.setLineWidth(0.8);
+  doc.line(BOX_X, fy, R, fy);
+  doc.line(BOX_X, fy + NETO_H, R, fy + NETO_H);
+  doc.setLineWidth(0.2);
+
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7);
-  doc.setTextColor(...G_TEXT);
-  doc.text('NETO A PAGAR', BOX_X + 5, fy + NETO_H / 2 + 1.5);
-  doc.setFontSize(10);
-  doc.setTextColor(...CREAM);
-  doc.text(fSoles(totalNeto), R - 5, fy + NETO_H / 2 + 2, { align: 'right' });
-  fy += NETO_H + 8;
+  doc.setFontSize(6.8);
+  doc.setTextColor(...G_DARK);
+  doc.text('NETO A PAGAR', BOX_X, fy + NETO_H / 2 + 1.5);
+  doc.setFont('times', 'bolditalic');
+  doc.setFontSize(15);
+  doc.setTextColor(...G_DARK);
+  doc.text(fSoles(totalNeto), R, fy + NETO_H / 2 + 2.3, { align: 'right' });
+  fy += NETO_H + 9;
 
   // ══════════════════════════════════════════════════════════
   // FIRMAS
   // ══════════════════════════════════════════════════════════
-  if (fy + 26 < pageH - FOOTER_H - 4) {
-    const FIR_H = 26;
-    doc.setFillColor(...CREAM);
+  if (fy + 24 < pageH - FOOTER_H - 4) {
+    const FIR_H = 24;
     doc.setDrawColor(...BORDER);
-    doc.setLineWidth(0.25);
-    doc.rect(L, fy, W, FIR_H, 'FD');
-
-    // Línea acento cobre arriba
-    doc.setDrawColor(...COPPER);
-    doc.setLineWidth(0.8);
-    doc.line(L, fy, L + 30, fy);
-    doc.setLineWidth(0.2);
+    doc.setLineWidth(0.3);
+    doc.line(L, fy, R, fy);
 
     const half = W / 2;
+    const gap  = 10;
 
     // Firma izquierda
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6);
-    doc.setTextColor(...MUTED);
-    doc.text('FIRMA TRABAJADOR', L + 6, fy + 6);
     doc.setDrawColor(...INK);
-    doc.setLineWidth(0.4);
-    doc.line(L + 6, fy + 19, L + half - 8, fy + 19);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.5);
+    doc.setLineWidth(0.35);
+    doc.line(L, fy + 16, L + half - gap, fy + 16);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(5.8);
     doc.setTextColor(...MUTED);
-    doc.text(data.operarioNombre, L + 6, fy + 24);
+    doc.text('FIRMA DEL TRABAJADOR', L, fy + 20.5);
+    doc.setFont('times', 'italic');
+    doc.setFontSize(7.5);
+    doc.setTextColor(...INK);
+    doc.text(data.operarioNombre, L, fy + 24.5);
 
     // Firma derecha
+    doc.line(L + half + gap, fy + 16, R, fy + 16);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6);
+    doc.setFontSize(5.8);
     doc.setTextColor(...MUTED);
-    doc.text('FIRMA / VISTO BUENO GERENCIA', L + half + 6, fy + 6);
-    doc.line(L + half + 6, fy + 19, R - 6, fy + 19);
-    doc.setFont('helvetica', 'normal');
+    doc.text('VISTO BUENO — GERENCIA', L + half + gap, fy + 20.5);
+    doc.setFont('times', 'italic');
     doc.setFontSize(7.5);
-    doc.setTextColor(...MUTED);
-    doc.text('Modulo Texajo — Gerencia', L + half + 6, fy + 24);
+    doc.setTextColor(...INK);
+    doc.text('Módulo Texajo', L + half + gap, fy + 24.5);
 
-    fy += FIR_H + 4;
+    fy += FIR_H + 8;
   }
 
   // ══════════════════════════════════════════════════════════
-  // FOOTER en todas las páginas
+  // FOOTER en todas las páginas — banda verde profunda, coherente con el
+  // pie institucional del documento HTML (BoletaOperario.tsx)
   // ══════════════════════════════════════════════════════════
   const totalPages = (doc as jsPDF & { internal: { getNumberOfPages(): number } }).internal.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
-    // Banda inferior verde medio
-    doc.setFillColor(...G_DARK);
+    doc.setFillColor(...G_DEEP);
     doc.rect(0, pageH - FOOTER_H, pageW, FOOTER_H, 'F');
-    // Línea acento cobre
-    doc.setDrawColor(...COPPER);
-    doc.setLineWidth(0.5);
-    doc.line(0, pageH - FOOTER_H, 25, pageH - FOOTER_H);
-    doc.setLineWidth(0.2);
-    // Texto
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(6);
+    doc.setFontSize(5.8);
     doc.setTextColor(...G_TEXT);
-    doc.text('Documento generado por Modulo Texajo · Los montos corresponden a destajo según cortes registrados', L, pageH - 3);
-    doc.setTextColor(255, 255, 255);
+    doc.text('Documento generado por el sistema Texajo · Los montos corresponden a destajo según cortes registrados', L, pageH - 3);
     doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...COPPER);
     doc.text(`Pág. ${i} / ${totalPages}`, R, pageH - 3, { align: 'right' });
   }
 
