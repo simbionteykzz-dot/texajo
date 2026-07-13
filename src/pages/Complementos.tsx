@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
 import { useEsAdmin } from '../lib/useEsAdmin';
-import { Download, Plus, X, FileText, Trash2 } from 'lucide-react';
+import { Download, Plus, X, FileText, Trash2, Layers, PackageX } from 'lucide-react';
 import { TipoComplemento, TipoMovimientoComplemento, MovimientoComplemento, TIPOS_COMPLEMENTO_LIST } from '../types';
 import { ModuleInfoBox } from '../components/ModuleInfoBox';
 import { exportRowsToXlsx, exportTableToPdf } from '../lib/export';
@@ -13,6 +13,9 @@ import { mockColores } from '../data';
 const TIPOS_MOV: TipoMovimientoComplemento[] = ['INGRESO', 'CONSUMO', 'AJUSTE_POS', 'AJUSTE_NEG'];
 const MOV_LABEL: Record<TipoMovimientoComplemento, string> = {
   INGRESO: 'Ingreso', CONSUMO: 'Consumo', AJUSTE_POS: 'Ajuste +', AJUSTE_NEG: 'Ajuste −',
+};
+const MOV_COLOR: Record<TipoMovimientoComplemento, string> = {
+  INGRESO: '#2F7A4D', CONSUMO: '#4B7FA3', AJUSTE_POS: '#7B5EA7', AJUSTE_NEG: '#C0362C',
 };
 const TALLAS = ['S', 'M', 'L', 'XL'] as const;
 
@@ -214,10 +217,16 @@ export function Complementos() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.28, ease: 'easeOut' }}
     >
-      <div className="flex items-start justify-between">
-        <div>
-          <h2 className="text-2xl font-black uppercase tracking-tight">Complementos</h2>
-          <p className="text-xs text-gray-500 mt-1">Inventario de cuellos, puños y pretinas</p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <span className="hidden sm:flex h-11 w-11 flex-shrink-0 items-center justify-center" style={{ background: '#7B5EA715', border: '1px solid #7B5EA740' }}>
+            <Layers className="h-5 w-5" style={{ color: '#7B5EA7' }} />
+          </span>
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.22em]" style={{ color: '#9A8F87' }}>Almacén</p>
+            <h2 className="font-serif text-2xl font-bold leading-tight" style={{ color: '#1a1a1a' }}>Complementos</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Inventario de cuellos, puños y pretinas por color y talla</p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <ModuleInfoBox
@@ -237,30 +246,39 @@ export function Complementos() {
           <button onClick={exportarPdf} className="btn-secondary flex items-center gap-2">
             <FileText className="h-4 w-4" /> PDF
           </button>
-          <button onClick={() => setShowForm(true)} className="btn-primary flex items-center gap-2">
-            <Plus className="h-4 w-4" /> Registrar Movimiento
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-2 px-3 py-1.5 text-[11px] font-bold uppercase tracking-widest border transition-colors"
+            style={{ color: '#7B5EA7', borderColor: '#7B5EA755', background: '#7B5EA70D' }}
+          >
+            <Plus className="h-3.5 w-3.5" /> Registrar Movimiento
           </button>
         </div>
       </div>
 
       {/* Stock actual */}
       <div>
-        <h3 className="text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-3">Stock Actual</h3>
+        <p className="text-[10px] font-bold uppercase tracking-[0.22em] mb-3" style={{ color: '#9A8F87' }}>Stock Actual</p>
         {stockSummary.length === 0 ? (
-          <p className="text-sm text-gray-400 italic">Sin stock registrado.</p>
+          <div className="flex flex-col items-center justify-center gap-2 py-10 border border-dashed" style={{ borderColor: '#DDD8CF', color: '#9A8F87' }}>
+            <PackageX className="h-6 w-6" />
+            <p className="text-sm">Sin stock registrado.</p>
+          </div>
         ) : (
           <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
             {stockSummary.map(s => {
               const isCrit = s.stock <= config.umbralCritico;
               const isBajo = !isCrit && s.stock <= config.umbralBajo;
+              const accent = isCrit ? '#C0362C' : isBajo ? '#B6762A' : '#2F7A4D';
               return (
                 <div key={`${s.tipoComplemento}|${s.colorId}|${s.talla}`}
-                  className={`border p-3 ${isCrit ? 'border-red-300 bg-red-50' : isBajo ? 'border-yellow-300 bg-yellow-50' : 'border-gray-200 bg-white'}`}>
-                  <p className="text-[10px] font-bold uppercase text-gray-500">{s.tipoComplemento}</p>
+                  className="p-3 bg-white"
+                  style={{ borderLeft: `3px solid ${accent}`, border: '1px solid #EFECE5', borderLeftWidth: '3px', borderLeftColor: accent }}>
+                  <p className="text-[10px] font-bold uppercase" style={{ color: '#9A8F87' }}>{s.tipoComplemento}</p>
                   <p className="text-xs text-gray-600 truncate">{colorMap.get(s.colorId)?.nombre ?? s.colorId}</p>
                   <p className="text-[10px] text-gray-400">Talla {s.talla}</p>
-                  <p className={`text-xl font-black mt-1 ${isCrit ? 'text-red-700' : isBajo ? 'text-yellow-700' : ''}`}>
-                    {s.stock} <span className="text-xs font-normal">uds</span>
+                  <p className="text-xl font-black mt-1" style={{ color: accent }}>
+                    {s.stock} <span className="text-xs font-normal text-gray-500">uds</span>
                   </p>
                 </div>
               );
@@ -287,7 +305,10 @@ export function Complementos() {
 
       {/* Historial */}
       {movsFiltrados.length === 0 ? (
-        <p className="text-sm text-gray-400 italic">Sin movimientos registrados.</p>
+        <div className="flex flex-col items-center justify-center gap-2 py-10 border border-dashed" style={{ borderColor: '#DDD8CF', color: '#9A8F87' }}>
+          <PackageX className="h-6 w-6" />
+          <p className="text-sm">Sin movimientos registrados.</p>
+        </div>
       ) : (
         <div className="texajo-table-shell">
           <div className="texajo-table-scroll">
@@ -304,11 +325,13 @@ export function Complementos() {
                   <tr key={m.id}>
                     <td className="font-mono whitespace-nowrap">{m.fecha}</td>
                     <td>
-                      <span className={`inline-block px-2 py-0.5 text-[10px] font-bold uppercase whitespace-nowrap ${
-                        m.tipo === 'INGRESO' ? 'bg-green-100 text-green-800' :
-                        m.tipo === 'CONSUMO' ? 'bg-blue-100 text-blue-800' :
-                        'bg-purple-100 text-purple-800'
-                      }`}>{MOV_LABEL[m.tipo]}</span>
+                      <span
+                        className="inline-block px-2 py-0.5 text-[10px] font-bold uppercase whitespace-nowrap"
+                        style={{
+                          background: `${MOV_COLOR[m.tipo]}18`,
+                          color: MOV_COLOR[m.tipo],
+                        }}
+                      >{MOV_LABEL[m.tipo]}</span>
                     </td>
                     <td className="font-bold text-[10px]">{m.tipoComplemento}</td>
                     <td className="whitespace-nowrap">{colorMap.get(m.colorId)?.nombre ?? m.colorId}</td>
@@ -343,11 +366,16 @@ export function Complementos() {
 
       {/* Modal */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white border border-gray-300 w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-              <h3 className="text-sm font-black uppercase tracking-widest">Registrar Movimiento</h3>
-              <button onClick={() => setShowForm(false)}><X className="h-4 w-4" /></button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowForm(false)}>
+          <div className="bg-white w-full max-w-lg max-h-[90vh] overflow-y-auto" style={{ borderTop: '3px solid #7B5EA7' }} onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b px-6 py-4" style={{ borderColor: '#EFECE5' }}>
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center" style={{ background: '#7B5EA715', border: '1px solid #7B5EA740' }}>
+                  <Layers className="h-4 w-4" style={{ color: '#7B5EA7' }} />
+                </span>
+                <h3 className="font-serif text-base font-bold" style={{ color: '#1a1a1a' }}>Registrar Movimiento</h3>
+              </div>
+              <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">

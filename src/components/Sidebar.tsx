@@ -11,12 +11,12 @@ const NAV_ITEMS = [
   { key: 'dashboard',     name: 'Dashboard',        href: '/',            icon: LayoutDashboard },
   { key: 'stock_odoo',    name: 'Stock Odoo',       href: '/stock-odoo',  icon: Warehouse },
   { key: 'inventario',    name: 'Inventario',        href: '/inventario',  icon: PackageSearch },
+  { key: 'complementos',  name: 'Complementos',      href: '/complementos',icon: Layers },
   { key: 'cortes',        name: 'Cortes',            href: '/cortes',      icon: Scissors },
   { key: 'produccion',    name: 'Confeccion',        href: '/produccion',  icon: ClipboardList },
   { key: 'destajo',       name: 'Destajo',           href: '/destajo',     icon: CreditCard },
   { key: 'programas',     name: 'Programas Zurzam',  href: '/programas',   icon: Factory },
   { key: 'cobros',        name: 'Cobros y Entregas', href: '/cobros',      icon: Receipt },
-  { key: 'complementos',  name: 'Complementos',      href: '/complementos',icon: Layers },
   { key: 'catalogos',     name: 'Catalogos',         href: '/catalogos',   icon: Tag },
   { key: 'tarifas',       name: 'Tabla de Tarifas',  href: '/tarifas',     icon: TableProperties },
 ] as const;
