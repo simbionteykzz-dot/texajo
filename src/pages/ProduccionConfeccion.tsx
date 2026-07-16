@@ -90,19 +90,21 @@ export function ProduccionConfeccion() {
   // Fechas por corte (editadas inline en el encabezado expandido)
   const [editFechas, setEditFechas] = useState<Record<string, { inicio: string; entrega: string }>>({});
 
-  // Modal asignación operarios: { corteId, colorId } abierto + ops temporales { [tarifaId]: operarioId }
-  const [modalColor, setModalColor] = useState<{ corteId: string; colorId: string } | null>(null);
+  // Modal asignación operarios + confirmación de avance, combinados: { corteId, colorId } abierto,
+  // más una talla "foco" opcional (cuando se abre desde el botón Confirmar de una talla específica)
+  const [modalColor, setModalColor] = useState<{ corteId: string; colorId: string; tallaFoco?: string } | null>(null);
   // modalOps[tarifaId][talla] = operarioId[]  — permite operarios distintos por talla
   const [modalOps, setModalOps] = useState<Record<string, Record<string, string[]>>>({});
-  // Modal confirmar avance: { corteId, colorId, talla } + ops confirmadas { [tarifaId]: boolean }
-  const [modalAvance, setModalAvance] = useState<{ corteId: string; colorId: string; talla: string } | null>(null);
-  const [avanceOps, setAvanceOps] = useState<Record<string, boolean>>({});
+  // modalConfirmado[tarifaId][talla] = confirmado — se guarda junto con la asignación de operario
+  const [modalConfirmado, setModalConfirmado] = useState<Record<string, Record<string, boolean>>>({});
   // Operarios por operación en el modal confirmar: { [tarifaId]: { operarioId, cantidad }[] }
   const [avanceOpsIds, setAvanceOpsIds] = useState<Record<string, { operarioId: string; cantidad: number }[]>>({});
   // Menú desplegable "···" por fila (corteId+colorId+talla)
   const [menuAbierto, setMenuAbierto] = useState<string | null>(null);
   // Modal edición de operarios por talla (separado del modal confirmar)
   const [modalEditOps, setModalEditOps] = useState<{ corteId: string; colorId: string; talla: string } | null>(null);
+  // Operaciones con excepción por talla expandida en el modal "Asignar operarios" (tarifaId[])
+  const [tarifasExpandidas, setTarifasExpandidas] = useState<Set<string>>(new Set());
   // Hex overrides por colorId — persiste durante la sesión para que el PDF use el color elegido
   const [colorHexOverrides, setColorHexOverrides] = useState<Record<string, string>>({});
   const [modalHex, setModalHex] = useState<string>('#9E9E9E');
@@ -111,16 +113,19 @@ export function ProduccionConfeccion() {
   // Cantidades por operario en el modal global: { [tarifaId][talla]: number[] }
   const [modalOpsQty, setModalOpsQty] = useState<Record<string, Record<string, number[]>>>({});
 
-  const abrirModalAsignarColor = (corteId: string, colorId: string) => {
+  const abrirModalAsignarColor = (corteId: string, colorId: string, tallaFoco?: string) => {
     const filasDelColor = seguimientoFilas.filter(f => f.corteId === corteId && f.colorId === colorId);
     const ops: Record<string, Record<string, string[]>> = {};
     const qty: Record<string, Record<string, number[]>> = {};
+    const confirmado: Record<string, Record<string, boolean>> = {};
     for (const fila of filasDelColor) {
       fila.asignaciones.forEach(a => {
         if (!ops[a.tarifaId]) ops[a.tarifaId] = {};
         if (!qty[a.tarifaId]) qty[a.tarifaId] = {};
+        if (!confirmado[a.tarifaId]) confirmado[a.tarifaId] = {};
         const ids = a.operarioIds?.length ? a.operarioIds : (a.operarioId ? [a.operarioId] : ['']);
         ops[a.tarifaId][fila.talla] = ids;
+        confirmado[a.tarifaId][fila.talla] = a.confirmado ?? false;
         const validIds = ids.filter(Boolean);
         if (validIds.length > 1) {
           const base = Math.floor(fila.cantidad / validIds.length);
@@ -133,9 +138,18 @@ export function ProduccionConfeccion() {
     }
     setModalOps(ops);
     setModalOpsQty(qty);
+    setModalConfirmado(confirmado);
+    // Expandir automáticamente las operaciones que ya tienen operarios o confirmaciones distintas entre tallas
+    const expandidas = new Set<string>();
+    for (const [tarifaId, tallaMap] of Object.entries(ops)) {
+      const idsUnicos = new Set(Object.values(tallaMap).map(ids => ids[0] ?? ''));
+      const confUnicos = new Set(Object.values(confirmado[tarifaId] ?? {}));
+      if (idsUnicos.size > 1 || confUnicos.size > 1) expandidas.add(tarifaId);
+    }
+    setTarifasExpandidas(expandidas);
     const hexInicial = colorHexOverrides[colorId] ?? colorHexFromName(colorMap.get(colorId) ?? '');
     setModalHex(hexInicial);
-    setModalColor({ corteId, colorId });
+    setModalColor({ corteId, colorId, tallaFoco });
   };
 
   const guardarModalAsignar = () => {
@@ -154,15 +168,18 @@ export function ProduccionConfeccion() {
       const asignaciones: SeguimientoAsignacion[] = base.map(a => {
         const tallaOps = modalOps[a.tarifaId];
         if (!tallaOps) return a;
-        const ids = (tallaOps[fila.talla] ?? []).filter(Boolean);
+        const idsCrudos = tallaOps[fila.talla] ?? [];
+        const ids = idsCrudos.filter(Boolean);
         const tarifa = tarifasOperaciones.find(t => t.id === a.tarifaId);
         const pago = ids.length && tarifa ? fila.cantidad * tarifa.tarifa : 0;
         const idsPrevios = a.operarioIds?.length ? a.operarioIds : (a.operarioId ? [a.operarioId] : []);
         const cambiaronOperarios = ids.length > 0 &&
           (ids.length !== idsPrevios.length || ids.some(id => !idsPrevios.includes(id)));
+        // El check de confirmado se decide en el modal; si se cambió de operario, exige reconfirmar.
+        const confirmadoModal = modalConfirmado[a.tarifaId]?.[fila.talla] ?? a.confirmado ?? false;
+        const confirmado = (confirmadoModal && cambiaronOperarios) ? false : confirmadoModal;
         return {
-          ...a, operarioId: ids[0] ?? '', operarioIds: ids, pago,
-          confirmado: (a.confirmado && cambiaronOperarios) ? false : a.confirmado,
+          ...a, operarioId: ids[0] ?? '', operarioIds: ids, pago, confirmado,
         };
       });
       const totalPago = asignaciones.reduce((s, a) => s + a.pago, 0);
@@ -192,11 +209,23 @@ export function ProduccionConfeccion() {
         if (ids.length === 1) {
           cantPorOperario.set(ids[0], (cantPorOperario.get(ids[0]) ?? 0) + fila.cantidad);
         } else {
-          const base = Math.floor(fila.cantidad / ids.length);
-          const resto = fila.cantidad - base * ids.length;
-          ids.forEach((id, i) => {
-            cantPorOperario.set(id, (cantPorOperario.get(id) ?? 0) + base + (i === 0 ? resto : 0));
-          });
+          // Reparto personalizado (modo mixto): usar las cantidades del modal si suman el total de la fila;
+          // si no cuadran (dato viejo o inconsistente), caer de vuelta a reparto equitativo.
+          const idsCrudos = modalOps[t.id]?.[fila.talla] ?? [];
+          const qtyCrudos = modalOpsQty[t.id]?.[fila.talla] ?? [];
+          const sumaQty = idsCrudos.reduce((s, id, i) => s + (id ? (qtyCrudos[i] ?? 0) : 0), 0);
+          if (idsCrudos.length === ids.length && sumaQty === fila.cantidad) {
+            idsCrudos.forEach((id, i) => {
+              if (!id) return;
+              cantPorOperario.set(id, (cantPorOperario.get(id) ?? 0) + (qtyCrudos[i] ?? 0));
+            });
+          } else {
+            const base = Math.floor(fila.cantidad / ids.length);
+            const resto = fila.cantidad - base * ids.length;
+            ids.forEach((id, i) => {
+              cantPorOperario.set(id, (cantPorOperario.get(id) ?? 0) + base + (i === 0 ? resto : 0));
+            });
+          }
         }
       }
 
@@ -229,7 +258,7 @@ export function ProduccionConfeccion() {
 
     setColorHexOverrides(prev => ({ ...prev, [modalColor.colorId]: modalHex }));
     setModalColor(null);
-    addToast('Operarios guardados', 'success');
+    addToast('Operarios y avance guardados', 'success');
   };
 
   const abrirModalEditOps = (corteId: string, colorId: string, talla: string) => {
@@ -331,112 +360,6 @@ export function ProduccionConfeccion() {
 
     setModalEditOps(null);
     addToast('Operarios actualizados', 'success');
-  };
-
-  const abrirModalAvance = (corteId: string, colorId: string, talla: string) => {
-    const fila = seguimientoFilas.find(f => f.corteId === corteId && f.colorId === colorId && f.talla === talla);
-    const inicial: Record<string, boolean> = {};
-    const inicialIds: Record<string, { operarioId: string; cantidad: number }[]> = {};
-    fila?.asignaciones.forEach(a => {
-      inicial[a.tarifaId] = a.confirmado ?? false;
-      const ids = a.operarioIds?.length ? a.operarioIds : (a.operarioId ? [a.operarioId] : []);
-      const totalCant = fila.cantidad;
-      const base = ids.length > 0 ? Math.floor(totalCant / ids.length) : totalCant;
-      const resto = ids.length > 0 ? totalCant - base * ids.length : 0;
-      inicialIds[a.tarifaId] = ids.map((id, i) => ({ operarioId: id, cantidad: base + (i === 0 ? resto : 0) }));
-      if (inicialIds[a.tarifaId].length === 0) inicialIds[a.tarifaId] = [{ operarioId: '', cantidad: totalCant }];
-    });
-    setAvanceOps(inicial);
-    setAvanceOpsIds(inicialIds);
-    setModalAvance({ corteId, colorId, talla });
-  };
-
-  const guardarModalAvance = () => {
-    if (!modalAvance) return;
-    const { corteId, colorId, talla } = modalAvance;
-    const fila = seguimientoFilas.find(f => f.corteId === corteId && f.colorId === colorId && f.talla === talla);
-    if (!fila) return;
-    const tarifasCorte = tarifasDelCorte(corteId);
-    const totalOps = tarifasCorte.length;
-    const confirmadas = Object.values(avanceOps).filter(Boolean).length;
-    const pctAvance = totalOps > 0 ? Math.round((confirmadas / totalOps) * 100) : 0;
-    const estado = pctAvance === 100 ? 'LISTO' : pctAvance > 0 ? 'EN_PROCESO' : 'PENDIENTE';
-
-    // Construir asignaciones actualizadas para esta talla
-    const asignaciones = fila.asignaciones.map(a => {
-      const ops = avanceOpsIds[a.tarifaId] ?? [];
-      const ids = ops.map(o => o.operarioId).filter(Boolean);
-      return {
-        ...a,
-        confirmado: avanceOps[a.tarifaId] ?? false,
-        operarioId: ids[0] ?? a.operarioId,
-        operarioIds: ids.length > 0 ? ids : (a.operarioIds ?? []),
-      };
-    });
-    updateSeguimientoFila(fila.id, { asignaciones, pctAvance, estado });
-
-    const periodo = fila.fecha.slice(0, 7);
-
-    // Snapshot de todas las filas del color con esta talla ya actualizada
-    const todasLasFilasColor: SeguimientoFila[] = seguimientoFilas
-      .filter(f => f.corteId === corteId && f.colorId === colorId)
-      .map(f => f.id === fila.id ? { ...f, asignaciones, pctAvance, estado } : f);
-
-    // Reconstruir boletas completas del color desde cero usando el snapshot actualizado
-    const boletasViejas = boletaLineas.filter(
-      b => b.corteId === corteId && b.colorId === colorId && b.periodo === periodo
-    );
-
-    const nuevasBoletas: BoletaLinea[] = [];
-    for (const t of tarifasCorte) {
-      const filasConfirmadas = todasLasFilasColor.filter(f =>
-        f.asignaciones.some(a => a.tarifaId === t.id && a.confirmado === true)
-      );
-      if (filasConfirmadas.length === 0) continue;
-
-      const cantPorOperario = new Map<string, number>();
-      for (const filaConf of filasConfirmadas) {
-        const asig = filaConf.asignaciones.find(a => a.tarifaId === t.id);
-        if (!asig) continue;
-        // Para la talla actual usar avanceOpsIds (cantidades exactas del modal)
-        if (filaConf.id === fila.id && asig.operarioIds && asig.operarioIds.length > 1) {
-          for (const op of (avanceOpsIds[t.id] ?? []).filter(o => o.operarioId && o.cantidad > 0)) {
-            cantPorOperario.set(op.operarioId, (cantPorOperario.get(op.operarioId) ?? 0) + op.cantidad);
-          }
-        } else {
-          const ids = asig.operarioIds?.length ? asig.operarioIds : (asig.operarioId ? [asig.operarioId] : []);
-          if (ids.length === 0) continue;
-          if (ids.length === 1) {
-            cantPorOperario.set(ids[0], (cantPorOperario.get(ids[0]) ?? 0) + filaConf.cantidad);
-          } else {
-            const base = Math.floor(filaConf.cantidad / ids.length);
-            const resto = filaConf.cantidad - base * ids.length;
-            ids.forEach((id, i) => {
-              cantPorOperario.set(id, (cantPorOperario.get(id) ?? 0) + base + (i === 0 ? resto : 0));
-            });
-          }
-        }
-      }
-
-      const tarifa = tarifasOperaciones.find(tt => tt.id === t.id);
-      if (!tarifa) continue;
-      for (const [opId, cantTotal] of cantPorOperario) {
-        if (cantTotal === 0) continue;
-        nuevasBoletas.push({
-          id: newId(), operarioId: opId, corteId, nCorte: fila.nCorte,
-          productoId: fila.productoId, colorId, tarifaId: t.id,
-          operacion: tarifa.operacion, orden: tarifa.orden, tarifa: tarifa.tarifa,
-          cantPrendas: cantTotal, importe: cantTotal * tarifa.tarifa,
-          periodo, estadoPago: 'PENDIENTE',
-        });
-      }
-    }
-
-    boletasViejas.forEach(b => deleteBoletaLinea(b.id));
-    if (nuevasBoletas.length > 0) addBoletaLineas(nuevasBoletas);
-
-    setModalAvance(null);
-    addToast(estado === 'LISTO' ? `Talla ${talla} marcada como LISTO` : `Talla ${talla}: avance ${pctAvance}%`, 'success');
   };
 
   // Reconstruye desde cero todas las boletas de un corte+color basándose en el estado confirmado actual
@@ -1407,20 +1330,20 @@ export function ProduccionConfeccion() {
                                               <span className="text-[10px] font-mono font-bold" style={{ color: avanceColorFila }}>{fila.pctAvance}%</span>
                                               {fila.estado === 'LISTO' ? (
                                                 <button
-                                                  onClick={() => abrirModalAvance(corte.id, grupo.colorId, fila.talla)}
+                                                  onClick={() => abrirModalAsignarColor(corte.id, grupo.colorId, fila.talla)}
                                                   className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 transition-colors whitespace-nowrap"
                                                   style={{ color: '#2F7A4D', border: '1px solid #2F7A4D55', background: '#2F7A4D15' }}
-                                                  title="Ver/editar avance confirmado"
+                                                  title="Ver o editar operarios y avance"
                                                 >
                                                   <CheckCircle className="h-2.5 w-2.5" />
                                                   <span>Listo</span>
                                                 </button>
                                               ) : (
                                                 <button
-                                                  onClick={() => abrirModalAvance(corte.id, grupo.colorId, fila.talla)}
+                                                  onClick={() => abrirModalAsignarColor(corte.id, grupo.colorId, fila.talla)}
                                                   className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 transition-colors whitespace-nowrap"
                                                   style={{ color: '#6B6058', border: '1px solid #DDD8CF' }}
-                                                  title="Confirmar avance de operaciones para esta talla"
+                                                  title="Asignar operarios y confirmar avance de esta talla"
                                                 >
                                                   <CheckCircle className="h-2.5 w-2.5" />
                                                   <span>Confirmar</span>
@@ -1609,92 +1532,6 @@ export function ProduccionConfeccion() {
       )}
 
       {/* Modal confirmar avance de operaciones */}
-      {modalAvance && (() => {
-        const { corteId, colorId, talla } = modalAvance;
-        const tarifasModal = tarifasDelCorte(corteId);
-        const filaModal = seguimientoFilas.find(f => f.corteId === corteId && f.colorId === colorId && f.talla === talla);
-        const confirmadas = Object.values(avanceOps).filter(Boolean).length;
-        const pctPreview = tarifasModal.length > 0 ? Math.round((confirmadas / tarifasModal.length) * 100) : 0;
-        return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setModalAvance(null)}>
-            <div className="bg-white w-full max-w-sm" style={{ border: '1px solid #DDD8CF' }} onClick={e => e.stopPropagation()}>
-              <div className="flex items-center justify-between gap-3 px-5 py-4" style={{ background: '#FFFDF9', borderBottom: '3px solid #2F7A4D' }}>
-                <div className="flex items-center gap-2.5">
-                  <span className="h-8 w-8 flex-shrink-0 flex items-center justify-center" style={{ background: '#2F7A4D18' }}>
-                    <CheckCircle className="h-4 w-4" style={{ color: '#2F7A4D' }} />
-                  </span>
-                  <div>
-                    <p className="font-serif font-bold text-sm" style={{ color: '#1a1a1a' }}>Confirmar avance</p>
-                    <p className="text-[11px] text-gray-500 mt-0.5">
-                      {capWords(colorMap.get(colorId) ?? '')} — Talla {talla} — {filaModal?.cantidad ?? 0} prendas
-                    </p>
-                  </div>
-                </div>
-                <button onClick={() => setModalAvance(null)} className="text-gray-400 hover:text-gray-700 transition-colors flex-shrink-0">
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-              <div className="px-5 py-4 space-y-2 max-h-[55vh] overflow-y-auto">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Operaciones — Talla {talla}</p>
-                {tarifasModal.map(t => {
-                  const checked = avanceOps[t.id] ?? false;
-                  const asig = filaModal?.asignaciones.find(a => a.tarifaId === t.id);
-                  const ids = asig?.operarioIds?.length ? asig.operarioIds : (asig?.operarioId ? [asig.operarioId] : []);
-                  const nombresOps = ids.map(id => {
-                    const op = operarioMap.get(id);
-                    if (!op) return '';
-                    return (op.nombre ?? op.codigo).split(',')[1]?.trim().split(/\s+/)[0] ?? (op.nombre ?? op.codigo).split(/\s+/)[0];
-                  }).filter(Boolean);
-                  return (
-                    <label
-                      key={t.id}
-                      className="flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors"
-                      style={checked ? { border: '1px solid #2F7A4D55', background: '#2F7A4D0D' } : { border: '1px solid #DDD8CF', background: '#fff' }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={e => setAvanceOps(prev => ({ ...prev, [t.id]: e.target.checked }))}
-                        className="h-3.5 w-3.5 accent-[#2F7A4D] flex-shrink-0"
-                      />
-                      <span className="text-[10px] text-gray-400 font-mono w-4 flex-shrink-0">{t.orden}.</span>
-                      <span className="text-[11px] font-bold flex-1" style={{ color: checked ? '#2F7A4D' : '#3f3a35' }}>{t.operacion}</span>
-                      {nombresOps.length > 0 && (
-                        <span className="text-[10px] text-gray-400 whitespace-nowrap">{nombresOps.map(capWords).join(', ')}</span>
-                      )}
-                    </label>
-                  );
-                })}
-              </div>
-              {/* Preview avance */}
-              <div className="px-5 pb-3 flex items-center gap-3">
-                <div className="flex-1 h-1.5 overflow-hidden" style={{ background: '#EAE6DD' }}>
-                  <div
-                    className="h-full transition-all"
-                    style={{ width: `${pctPreview}%`, background: pctPreview === 100 ? '#2F7A4D' : pctPreview > 0 ? '#4B7FA3' : '#B6762A' }}
-                  />
-                </div>
-                <span className="text-[11px] font-black font-mono tabular-nums w-10 text-right">{pctPreview}%</span>
-                <span
-                  className="text-[10px] font-bold uppercase px-2 py-0.5"
-                  style={
-                    pctPreview === 100 ? { background: '#2F7A4D18', color: '#2F7A4D' } :
-                    pctPreview > 0 ? { background: '#4B7FA318', color: '#4B7FA3' } :
-                    { background: '#DDD8CF55', color: '#6B6058' }
-                  }
-                >
-                  {pctPreview === 100 ? 'Listo' : pctPreview > 0 ? 'En proceso' : 'Pendiente'}
-                </span>
-              </div>
-              <div className="flex justify-end gap-2 px-5 py-4" style={{ borderTop: '1px solid #EFECE5' }}>
-                <button onClick={() => setModalAvance(null)} className="btn-secondary text-xs">Cancelar</button>
-                <button onClick={guardarModalAvance} className="btn-primary text-xs">Confirmar</button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
       {/* Modal edición de operarios por talla */}
       {modalEditOps && (() => {
         const { corteId, colorId, talla } = modalEditOps;
@@ -1720,22 +1557,44 @@ export function ProduccionConfeccion() {
                   <X className="h-5 w-5" />
                 </button>
               </div>
-              <div className="px-5 py-4 space-y-3 max-h-[55vh] overflow-y-auto">
+              <div className="px-5 py-4 space-y-2.5 max-h-[55vh] overflow-y-auto">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Operarios por operación — Talla {talla}</p>
+                <p className="text-[10px] text-gray-400 -mt-1 mb-1">Si más de un operario trabajó la misma operación, agrégalos y ajusta cuánto hizo cada uno.</p>
                 {tarifasModal.map(t => {
                   const ops = avanceOpsIds[t.id] ?? [];
                   const totalAsignado = ops.reduce((s, o) => s + (o.cantidad || 0), 0);
-                  const descuadre = totalAsignado !== cantFila && ops.some(o => o.operarioId);
+                  const hayAlgo = ops.some(o => o.operarioId);
+                  const descuadre = totalAsignado !== cantFila && hayAlgo;
+                  const completo = totalAsignado === cantFila && hayAlgo;
                   return (
-                    <div key={t.id} className="bg-white" style={{ border: '1px solid #DDD8CF' }}>
-                      <div className="flex items-center gap-2 px-3 py-2" style={{ borderBottom: '1px solid #EFECE5', background: '#FAF8F4' }}>
+                    <div key={t.id} className="bg-white rounded-sm" style={{ border: '1px solid #DDD8CF' }}>
+                      <div className="flex items-center gap-2 px-3 py-2.5" style={{ borderBottom: '1px solid #EFECE5', background: '#FAF8F4' }}>
                         <span className="text-[10px] text-gray-400 font-mono w-4 flex-shrink-0">{t.orden}.</span>
-                        <span className="text-[11px] font-bold flex-1" style={{ color: '#1a1a1a' }}>{t.operacion}</span>
-                        {descuadre && (
-                          <span className="text-[9px] font-bold whitespace-nowrap" style={{ color: '#B6762A' }}>{totalAsignado}/{cantFila}</span>
+                        <span className="text-[12px] font-bold flex-1 min-w-0 truncate" style={{ color: '#1a1a1a' }}>{t.operacion}</span>
+                        {hayAlgo && (
+                          <span
+                            className="text-[9px] font-bold whitespace-nowrap px-1.5 py-0.5 flex-shrink-0"
+                            style={completo ? { color: '#2F7A4D', background: '#2F7A4D14' } : { color: '#B6762A', background: '#B6762A14' }}
+                          >
+                            {totalAsignado}/{cantFila}p
+                          </span>
                         )}
                       </div>
-                      <div className="px-3 py-2 space-y-1">
+                      {/* Barra de reparto entre operarios */}
+                      {ops.length > 1 && (
+                        <div className="flex h-1.5 w-full" style={{ background: '#EAE6DD' }}>
+                          {ops.map((op, i) => op.cantidad > 0 && (
+                            <div
+                              key={i}
+                              style={{
+                                width: `${(op.cantidad / cantFila) * 100}%`,
+                                background: ['#4B7FA3', '#7B5EA7', '#B6762A', '#2F7A4D'][i % 4],
+                              }}
+                            />
+                          ))}
+                        </div>
+                      )}
+                      <div className="px-3 py-2.5 space-y-1.5">
                         {ops.map((op, opIdx) => (
                           <div key={opIdx} className="flex items-center gap-1.5">
                             <select
@@ -1748,7 +1607,7 @@ export function ProduccionConfeccion() {
                                   return { ...prev, [t.id]: list };
                                 });
                               }}
-                              className="flex-1 text-[10px] px-1.5 py-0.5 bg-white min-w-0"
+                              className="flex-1 text-[11px] px-2 py-1.5 bg-white min-w-0"
                               style={{ border: '1px solid #DDD8CF' }}
                             >
                               <option value="">— sin operario —</option>
@@ -1758,34 +1617,36 @@ export function ProduccionConfeccion() {
                                 </option>
                               ))}
                             </select>
-                            <input
-                              type="number"
-                              min={0}
-                              max={cantFila}
-                              value={op.cantidad}
-                              onChange={e => {
-                                const val = Math.min(parseInt(e.target.value) || 0, cantFila);
-                                setAvanceOpsIds(prev => {
-                                  const list = [...(prev[t.id] ?? [])];
-                                  list[opIdx] = { ...list[opIdx], cantidad: val };
-                                  const otros = list.length - 1;
-                                  if (otros > 0) {
-                                    const resto = cantFila - val;
-                                    const base = Math.floor(Math.max(resto, 0) / otros);
-                                    const mod = Math.max(resto, 0) - base * otros;
-                                    let primerOtro = true;
-                                    for (let i = 0; i < list.length; i++) {
-                                      if (i === opIdx) continue;
-                                      list[i] = { ...list[i], cantidad: base + (primerOtro ? mod : 0) };
-                                      primerOtro = false;
+                            <div className="flex items-center flex-shrink-0" style={{ border: '1px solid #DDD8CF' }}>
+                              <input
+                                type="number"
+                                min={0}
+                                max={cantFila}
+                                value={op.cantidad}
+                                onChange={e => {
+                                  const val = Math.min(parseInt(e.target.value) || 0, cantFila);
+                                  setAvanceOpsIds(prev => {
+                                    const list = [...(prev[t.id] ?? [])];
+                                    list[opIdx] = { ...list[opIdx], cantidad: val };
+                                    const otros = list.length - 1;
+                                    if (otros > 0) {
+                                      const resto = cantFila - val;
+                                      const base = Math.floor(Math.max(resto, 0) / otros);
+                                      const mod = Math.max(resto, 0) - base * otros;
+                                      let primerOtro = true;
+                                      for (let i = 0; i < list.length; i++) {
+                                        if (i === opIdx) continue;
+                                        list[i] = { ...list[i], cantidad: base + (primerOtro ? mod : 0) };
+                                        primerOtro = false;
+                                      }
                                     }
-                                  }
-                                  return { ...prev, [t.id]: list };
-                                });
-                              }}
-                              className="w-14 text-[10px] px-1.5 py-0.5 text-right font-mono"
-                              style={{ border: '1px solid #DDD8CF' }}
-                            />
+                                    return { ...prev, [t.id]: list };
+                                  });
+                                }}
+                                className="w-12 text-[11px] px-1.5 py-1.5 text-right font-mono border-0 focus:outline-none"
+                              />
+                              <span className="text-[9px] text-gray-400 pr-2 flex-shrink-0">prendas</span>
+                            </div>
                             {ops.length > 1 && (
                               <button
                                 onClick={() => setAvanceOpsIds(prev => {
@@ -1800,7 +1661,7 @@ export function ProduccionConfeccion() {
                                 })}
                                 className="text-gray-300 hover:text-red-400 flex-shrink-0 transition-colors"
                               >
-                                <X className="h-3 w-3" />
+                                <X className="h-3.5 w-3.5" />
                               </button>
                             )}
                           </div>
@@ -1815,10 +1676,10 @@ export function ProduccionConfeccion() {
                             newList.push({ operarioId: '', cantidad: base });
                             return { ...prev, [t.id]: newList };
                           })}
-                          className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-gray-700 mt-0.5 transition-colors"
+                          className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-gray-400 hover:text-gray-700 mt-1 transition-colors"
                         >
                           <Plus className="h-3 w-3" />
-                          <span>Agregar operario</span>
+                          <span>Agregar otro operario</span>
                         </button>
                       </div>
                     </div>
@@ -1939,10 +1800,15 @@ export function ProduccionConfeccion() {
       )}
       {/* Modal asignación de operarios por color */}
       {modalColor && (() => {
-        const { corteId, colorId } = modalColor;
+        const { corteId, colorId, tallaFoco } = modalColor;
         const tarifasModal = tarifasDelCorte(corteId);
         const filasDelColor = seguimientoFilas.filter(f => f.corteId === corteId && f.colorId === colorId);
         const totalPrendas = filasDelColor.reduce((s, f) => s + f.cantidad, 0);
+        // Preview de avance general del color con los cambios del modal (antes de guardar)
+        const totalCeldas = tarifasModal.length * filasDelColor.length;
+        const confirmadasPreview = tarifasModal.reduce((s, t) =>
+          s + filasDelColor.filter(f => modalConfirmado[t.id]?.[f.talla]).length, 0);
+        const pctPreviewColor = totalCeldas > 0 ? Math.round((confirmadasPreview / totalCeldas) * 100) : 0;
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setModalColor(null)}>
             <div className="bg-white w-full max-w-md" style={{ border: '1px solid #DDD8CF' }} onClick={e => e.stopPropagation()}>
@@ -1952,7 +1818,7 @@ export function ProduccionConfeccion() {
                     <Users className="h-4 w-4" style={{ color: '#7B5EA7' }} />
                   </span>
                   <div>
-                    <p className="font-serif font-bold text-sm" style={{ color: '#1a1a1a' }}>Asignar operarios</p>
+                    <p className="font-serif font-bold text-sm" style={{ color: '#1a1a1a' }}>Asignar y confirmar avance</p>
                     <p className="text-[11px] text-gray-500 mt-0.5">
                       {capWords(colorMap.get(colorId) ?? '')} — {totalPrendas} prendas ({filasDelColor.map(f => f.talla).join(', ')})
                     </p>
@@ -1997,18 +1863,25 @@ export function ProduccionConfeccion() {
                   <span className="text-[10px] text-gray-500 font-mono">{modalHex}</span>
                 </div>
               </div>
-              <div className="px-5 py-3 space-y-3 max-h-[60vh] overflow-y-auto">
+              <div className="px-5 py-3 space-y-2 max-h-[55vh] overflow-y-auto">
+                <p className="text-[10px] text-gray-400 -mt-1 mb-1">
+                  Elige el operario y marca si ya terminó. Se aplica a todas las tallas, salvo que personalices alguna.
+                </p>
                 {tarifasModal.map(t => {
                   const tallasOrden = ['S','M','L','XL'] as const;
                   const tallasPresentes = tallasOrden.filter(ta => filasDelColor.some(f => f.talla === ta));
                   // Operario "global" de esta operación = el de la primera talla presente
                   const primeraT = tallasPresentes[0] ?? '';
                   const globalId = modalOps[t.id]?.[primeraT]?.[0] ?? '';
-                  // ¿Hay tallas con operario distinto al global?
+                  const globalConfirmado = modalConfirmado[t.id]?.[primeraT] ?? false;
+                  // ¿Hay tallas con operario o confirmación distinta al global?
                   const hayExcepcion = tallasPresentes.some(ta => {
                     const opTalla = modalOps[t.id]?.[ta]?.[0] ?? '';
-                    return opTalla && opTalla !== globalId;
+                    const confTalla = modalConfirmado[t.id]?.[ta] ?? false;
+                    return (opTalla && opTalla !== globalId) || confTalla !== globalConfirmado;
                   });
+                  const expandida = tarifasExpandidas.has(t.id) || hayExcepcion;
+                  const esFoco = tallaFoco && tallasPresentes.includes(tallaFoco as typeof tallasOrden[number]);
 
                   const aplicarGlobalATallas = (opId: string) => {
                     setModalOps(prev => {
@@ -2023,62 +1896,211 @@ export function ProduccionConfeccion() {
                     });
                   };
 
+                  const aplicarConfirmadoATallas = (valor: boolean) => {
+                    setModalConfirmado(prev => {
+                      const tallaMap: Record<string, boolean> = {};
+                      tallasPresentes.forEach(ta => { tallaMap[ta] = valor; });
+                      return { ...prev, [t.id]: tallaMap };
+                    });
+                  };
+
+                  const toggleExpandida = () => setTarifasExpandidas(prev => {
+                    const next = new Set(prev);
+                    if (next.has(t.id)) next.delete(t.id); else next.add(t.id);
+                    return next;
+                  });
+
                   return (
-                    <div key={t.id} className="space-y-1.5 p-2" style={{ border: '1px solid #EFECE5' }}>
-                      {/* Fila principal: operación + selector global */}
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-mono text-gray-400 w-5 text-right flex-shrink-0">{t.orden}.</span>
-                        <span className="text-[11px] font-bold w-28 truncate flex-shrink-0" style={{ color: '#1a1a1a' }}>{t.operacion}</span>
+                    <div
+                      key={t.id}
+                      className="rounded-sm"
+                      style={{
+                        border: esFoco ? '1px solid #7B5EA755' : '1px solid #EFECE5',
+                        background: expandida ? '#FAF8F4' : '#fff',
+                        boxShadow: esFoco ? 'inset 2px 0 0 #7B5EA7' : 'none',
+                      }}
+                    >
+                      {/* Fila principal: operación + confirmado global + selector global */}
+                      <div className="flex items-center gap-2 px-3 py-2.5">
+                        <button
+                          type="button"
+                          onClick={() => aplicarConfirmadoATallas(!globalConfirmado)}
+                          title="Marcar como completada en todas las tallas"
+                          className="h-5 w-5 flex-shrink-0 flex items-center justify-center transition-colors"
+                          style={globalConfirmado ? { background: '#2F7A4D', border: '1px solid #2F7A4D' } : { background: '#fff', border: '1.5px solid #C7C0B4' }}
+                        >
+                          {globalConfirmado && <CheckCircle className="h-3.5 w-3.5 text-white" strokeWidth={2.5} />}
+                        </button>
+                        <span className="text-[10px] font-mono text-gray-400 w-4 text-right flex-shrink-0">{t.orden}.</span>
+                        <span className="text-[12px] font-bold flex-1 min-w-0 truncate" style={{ color: globalConfirmado ? '#2F7A4D' : '#1a1a1a' }}>{t.operacion}</span>
                         <select
                           value={hayExcepcion ? '' : globalId}
                           onChange={e => aplicarGlobalATallas(e.target.value)}
-                          className="text-[11px] bg-white px-2 py-0.5 flex-1 min-w-0"
-                          style={{ border: '1px solid #DDD8CF' }}
+                          className="text-[11px] bg-white px-2 py-1.5 flex-shrink-0"
+                          style={{ border: '1px solid #DDD8CF', width: '8.5rem' }}
                         >
                           <option value="">{hayExcepcion ? '— mixto —' : '— sin asignar —'}</option>
                           {operarios.filter(o => o.estado === 'ACTIVO').map(o => (
                             <option key={o.id} value={o.id}>{capWords(o.nombre ?? o.codigo)}</option>
                           ))}
                         </select>
+                        {tallasPresentes.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={toggleExpandida}
+                            title="Personalizar por talla"
+                            className="flex-shrink-0 h-6 w-6 flex items-center justify-center transition-colors"
+                            style={hayExcepcion
+                              ? { color: '#4B7FA3', background: '#4B7FA318' }
+                              : { color: '#B0A896' }}
+                          >
+                            <ChevronDown className="h-3.5 w-3.5 transition-transform" style={{ transform: expandida ? 'rotate(180deg)' : 'none' }} />
+                          </button>
+                        )}
                       </div>
-                      {/* Filas por talla — siempre visibles para poder personalizar */}
-                      <div className="pl-7 space-y-1">
-                        {tallasPresentes.map(ta => {
-                          const fila = filasDelColor.find(f => f.talla === ta)!;
-                          const opId = modalOps[t.id]?.[ta]?.[0] ?? '';
-                          const esDiferente = opId && opId !== globalId;
-                          return (
-                            <div key={ta} className="flex items-center gap-1.5">
-                              <span className="text-[10px] font-black w-5" style={{ color: esDiferente ? '#4B7FA3' : '#9A8F87' }}>{ta}</span>
-                              <span className="text-[10px] text-gray-400 font-mono w-8 text-right">{fila.cantidad}p</span>
-                              <select
-                                value={opId}
-                                onChange={e => {
-                                  const newOpId = e.target.value;
-                                  setModalOps(prev => ({
-                                    ...prev,
-                                    [t.id]: { ...(prev[t.id] ?? {}), [ta]: [newOpId] },
-                                  }));
-                                  setModalOpsQty(prev => ({
-                                    ...prev,
-                                    [t.id]: { ...(prev[t.id] ?? {}), [ta]: [fila.cantidad] },
-                                  }));
-                                }}
-                                className="text-[11px] px-2 py-0.5 flex-1 min-w-0"
-                                style={esDiferente ? { border: '1px solid #4B7FA355', background: '#4B7FA30D' } : { border: '1px solid #DDD8CF', background: '#fff' }}
+                      {/* Filas por talla — solo visibles al expandir o si ya hay una excepción */}
+                      {expandida && (
+                        <div className="px-3 pb-2.5 pt-0.5 space-y-1" style={{ borderTop: '1px dashed #E5E0D6' }}>
+                          {tallasPresentes.map(ta => {
+                            const fila = filasDelColor.find(f => f.talla === ta)!;
+                            const idsTalla = modalOps[t.id]?.[ta] ?? [];
+                            const qtyTalla = modalOpsQty[t.id]?.[ta] ?? [];
+                            const opId = idsTalla[0] ?? '';
+                            const esMixto = idsTalla.length > 1;
+                            const confTalla = modalConfirmado[t.id]?.[ta] ?? false;
+                            const esDiferente = opId && opId !== globalId;
+                            const tallaEsFoco = tallaFoco === ta;
+                            const sumaAsignada = idsTalla.reduce((s, id, i) => s + (id ? (qtyTalla[i] ?? 0) : 0), 0);
+                            const cuadra = sumaAsignada === fila.cantidad;
+
+                            const setSimple = (newOpId: string) => {
+                              setModalOps(prev => ({ ...prev, [t.id]: { ...(prev[t.id] ?? {}), [ta]: [newOpId] } }));
+                              setModalOpsQty(prev => ({ ...prev, [t.id]: { ...(prev[t.id] ?? {}), [ta]: [fila.cantidad] } }));
+                            };
+                            const activarMixto = () => {
+                              const base = Math.floor(fila.cantidad / 2);
+                              setModalOps(prev => ({ ...prev, [t.id]: { ...(prev[t.id] ?? {}), [ta]: [opId, ''] } }));
+                              setModalOpsQty(prev => ({ ...prev, [t.id]: { ...(prev[t.id] ?? {}), [ta]: [fila.cantidad - base, base] } }));
+                            };
+                            const agregarOperario = () => {
+                              const ids = [...idsTalla, ''];
+                              const qty = [...qtyTalla, 0];
+                              setModalOps(prev => ({ ...prev, [t.id]: { ...(prev[t.id] ?? {}), [ta]: ids } }));
+                              setModalOpsQty(prev => ({ ...prev, [t.id]: { ...(prev[t.id] ?? {}), [ta]: qty } }));
+                            };
+                            const quitarOperario = (idx: number) => {
+                              const ids = idsTalla.filter((_, i) => i !== idx);
+                              const qty = qtyTalla.filter((_, i) => i !== idx);
+                              setModalOps(prev => ({ ...prev, [t.id]: { ...(prev[t.id] ?? {}), [ta]: ids } }));
+                              setModalOpsQty(prev => ({ ...prev, [t.id]: { ...(prev[t.id] ?? {}), [ta]: qty } }));
+                            };
+                            const cambiarOperarioIdx = (idx: number, newOpId: string) => {
+                              const ids = idsTalla.map((id, i) => i === idx ? newOpId : id);
+                              setModalOps(prev => ({ ...prev, [t.id]: { ...(prev[t.id] ?? {}), [ta]: ids } }));
+                            };
+                            const cambiarCantidadIdx = (idx: number, val: number) => {
+                              const qty = qtyTalla.map((q, i) => i === idx ? val : q);
+                              setModalOpsQty(prev => ({ ...prev, [t.id]: { ...(prev[t.id] ?? {}), [ta]: qty } }));
+                            };
+
+                            return (
+                              <div
+                                key={ta}
+                                className="pt-1.5 -mx-1 px-1"
+                                style={tallaEsFoco ? { background: '#7B5EA70D' } : undefined}
                               >
-                                <option value="">— sin asignar —</option>
-                                {operarios.filter(o => o.estado === 'ACTIVO').map(o => (
-                                  <option key={o.id} value={o.id}>{capWords(o.nombre ?? o.codigo)}</option>
-                                ))}
-                              </select>
-                            </div>
-                          );
-                        })}
-                      </div>
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => setModalConfirmado(prev => ({ ...prev, [t.id]: { ...(prev[t.id] ?? {}), [ta]: !confTalla } }))}
+                                    title={`Marcar talla ${ta} como completada`}
+                                    className="h-4.5 w-4.5 flex-shrink-0 flex items-center justify-center transition-colors"
+                                    style={confTalla ? { background: '#2F7A4D', border: '1px solid #2F7A4D' } : { background: '#fff', border: '1.5px solid #C7C0B4' }}
+                                  >
+                                    {confTalla && <CheckCircle className="h-3 w-3 text-white" strokeWidth={2.5} />}
+                                  </button>
+                                  <span className="text-[10px] font-black w-5" style={{ color: esDiferente || esMixto ? '#4B7FA3' : '#9A8F87' }}>{ta}</span>
+                                  <span className="text-[10px] text-gray-400 font-mono w-8 text-right">{fila.cantidad}p</span>
+                                  {!esMixto ? (
+                                    <select
+                                      value={opId}
+                                      onChange={e => setSimple(e.target.value)}
+                                      className="text-[11px] px-2 py-1 flex-1 min-w-0"
+                                      style={esDiferente ? { border: '1px solid #4B7FA355', background: '#4B7FA30D' } : { border: '1px solid #DDD8CF', background: '#fff' }}
+                                    >
+                                      <option value="">— sin asignar —</option>
+                                      {operarios.filter(o => o.estado === 'ACTIVO').map(o => (
+                                        <option key={o.id} value={o.id}>{capWords(o.nombre ?? o.codigo)}</option>
+                                      ))}
+                                    </select>
+                                  ) : <span className="flex-1" />}
+                                  <button
+                                    type="button"
+                                    onClick={esMixto ? agregarOperario : activarMixto}
+                                    title="Repartir entre varios operarios (mixto)"
+                                    className="flex-shrink-0 h-6 w-6 flex items-center justify-center transition-colors"
+                                    style={{ color: '#7B5EA7', background: '#7B5EA712' }}
+                                  >
+                                    <Plus className="h-3 w-3" />
+                                  </button>
+                                </div>
+                                {esMixto && (
+                                  <div className="mt-1 ml-6 space-y-1">
+                                    {idsTalla.map((id, idx) => (
+                                      <div key={idx} className="flex items-center gap-1.5">
+                                        <select
+                                          value={id}
+                                          onChange={e => cambiarOperarioIdx(idx, e.target.value)}
+                                          className="text-[11px] px-2 py-1 flex-1 min-w-0"
+                                          style={{ border: '1px solid #4B7FA355', background: '#4B7FA30D' }}
+                                        >
+                                          <option value="">— sin asignar —</option>
+                                          {operarios.filter(o => o.estado === 'ACTIVO').map(o => (
+                                            <option key={o.id} value={o.id}>{capWords(o.nombre ?? o.codigo)}</option>
+                                          ))}
+                                        </select>
+                                        <input
+                                          type="number"
+                                          min={0}
+                                          value={qtyTalla[idx] ?? 0}
+                                          onChange={e => cambiarCantidadIdx(idx, Number(e.target.value))}
+                                          className="text-[11px] px-1.5 py-1 w-14 text-right font-mono"
+                                          style={{ border: '1px solid #DDD8CF' }}
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => quitarOperario(idx)}
+                                          title="Quitar operario"
+                                          className="flex-shrink-0 h-6 w-6 flex items-center justify-center"
+                                          style={{ color: '#C0362C' }}
+                                        >
+                                          <X className="h-3 w-3" />
+                                        </button>
+                                      </div>
+                                    ))}
+                                    <p className="text-[9px] font-mono" style={{ color: cuadra ? '#2F7A4D' : '#C0362C' }}>
+                                      {sumaAsignada} / {fila.cantidad} prendas asignadas
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
+              </div>
+              {/* Preview de avance general del color */}
+              <div className="px-5 pb-3 flex items-center gap-3">
+                <div className="flex-1 h-1.5 overflow-hidden" style={{ background: '#EAE6DD' }}>
+                  <div
+                    className="h-full transition-all"
+                    style={{ width: `${pctPreviewColor}%`, background: pctPreviewColor === 100 ? '#2F7A4D' : pctPreviewColor > 0 ? '#4B7FA3' : '#B6762A' }}
+                  />
+                </div>
+                <span className="text-[11px] font-black font-mono tabular-nums w-10 text-right">{pctPreviewColor}%</span>
               </div>
               <div className="flex justify-end gap-2 px-5 py-4" style={{ borderTop: '1px solid #EFECE5' }}>
                 <button onClick={() => setModalColor(null)} className="btn-secondary text-xs">Cancelar</button>
