@@ -1,10 +1,12 @@
 import React, { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { motion } from 'motion/react';
 import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
-import { Download, Plus, X, ChevronDown, ChevronRight, FileText, Trash2, CheckCircle, RotateCcw, MoreHorizontal, Shirt, Scissors, Users, Calendar, Clock, PackageSearch } from 'lucide-react';
+import { Download, Plus, X, Eye, ChevronDown, FileText, Trash2, CheckCircle, RotateCcw, MoreHorizontal, Shirt, Scissors, Users, Calendar, Clock, PackageSearch } from 'lucide-react';
 import { SeguimientoFila, SeguimientoAsignacion, BoletaLinea } from '../types';
 import { ModuleInfoBox } from '../components/ModuleInfoBox';
+import { ConfirmModal } from '../components/ConfirmModal';
 import { exportRowsToXlsx, exportTableToPdf, exportHojaSeguimientoPdf, exportHojaSeguimientoXlsx } from '../lib/export';
 import type { PdfFont } from '../lib/fonts';
 import { newId } from '../lib/storage';
@@ -79,7 +81,10 @@ export function ProduccionConfeccion() {
   const { addToast } = useToast();
   const esAdmin = useEsAdmin();
   const [activeTab, setActiveTab] = useState<'seguimiento' | 'porProducto'>('seguimiento');
-  const [expandedCorte, setExpandedCorte] = useState<string | null>(null);
+  // corteId con el modal de detalle abierto (null = ningún modal abierto)
+  const [modalCorteDetalle, setModalCorteDetalle] = useState<string | null>(null);
+  // colorId activo dentro del modal de detalle (switch de colores); null = ver todos los colores juntos
+  const [colorActivoModal, setColorActivoModal] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [filterCorteId, setFilterCorteId] = useState('');
   const [filterDesde, setFilterDesde] = useState('');
@@ -1070,7 +1075,7 @@ export function ProduccionConfeccion() {
         <div className="space-y-3">
           {cortesConSeguimiento.map(corte => {
             const filas = filasPorCorte.get(corte.id) ?? [];
-            const isOpen = expandedCorte === corte.id;
+            const isOpen = modalCorteDetalle === corte.id;
             const avgAvance = filas.length > 0 ? Math.round(filas.reduce((s, f) => s + f.pctAvance, 0) / filas.length) : 0;
             // Fechas del corte — tomadas de la primera fila o del estado de edición
             const fechaRef = filas[0];
@@ -1091,10 +1096,9 @@ export function ProduccionConfeccion() {
               <div key={corte.id} className="bg-white" style={{ border: '1px solid #DDD8CF', borderLeft: `3px solid ${avanceColor}` }}>
                 <div
                   className="w-full flex flex-wrap items-center justify-between gap-3 px-5 py-4 hover:bg-gray-50 cursor-pointer transition-colors"
-                  onClick={() => setExpandedCorte(isOpen ? null : corte.id)}
+                  onClick={() => { setModalCorteDetalle(corte.id); setColorActivoModal(null); }}
                 >
                   <div className="flex items-center gap-4 flex-wrap">
-                    {isOpen ? <ChevronDown className="h-4 w-4 flex-shrink-0" style={{ color: '#7B5EA7' }} /> : <ChevronRight className="h-4 w-4 flex-shrink-0 text-gray-400" />}
                     <span className="font-mono font-black text-sm" style={{ color: '#1a1a1a' }}>{corte.nCorte}</span>
                     <span className="text-xs font-bold text-gray-600">{capWords(productoMap.get(corte.productoId)?.nombre ?? '')}</span>
                     <span className="text-xs text-gray-400">{capWords(colorMap.get(corte.colorId) ?? '')}</span>
@@ -1115,66 +1119,79 @@ export function ProduccionConfeccion() {
                   </div>
                   <div className="flex items-center gap-3 flex-wrap">
                     <span className="text-[11px] text-gray-400 font-mono">{filas.length} filas</span>
-                    <div className="flex items-center gap-2">
-                      <div className="w-24 h-1.5 overflow-hidden" style={{ background: '#EAE6DD' }}>
-                        <div className="h-full transition-all" style={{ width: `${avgAvance}%`, background: avanceColor }} />
-                      </div>
-                      <span className="text-xs font-bold font-mono tabular-nums" style={{ color: avanceColor }}>{avgAvance}%</span>
-                    </div>
-                    {filas.length > 0 && (
-                      <>
-                      <button
-                        onClick={e => { e.stopPropagation(); const d = buildHojaData(corte.id); if (d) exportHojaSeguimientoPdf(d, pdfFont); }}
-                        className="flex items-center gap-1 text-[11px] text-gray-500 hover:text-gray-800 px-1.5 py-0.5 transition-colors"
-                        title="Exportar hoja de seguimiento PDF"
-                      >
-                        <FileText className="h-3 w-3" /><span>PDF</span>
-                      </button>
-                      <button
-                        onClick={e => { e.stopPropagation(); const d = buildHojaData(corte.id); if (d) exportHojaSeguimientoXlsx(d); }}
-                        className="flex items-center gap-1 text-[11px] text-gray-500 hover:text-gray-800 px-1.5 py-0.5 transition-colors"
-                        title="Exportar hoja de seguimiento Excel"
-                      >
-                        <Download className="h-3 w-3" /><span>Excel</span>
-                      </button>
-                      </>
-                    )}
-                    {esAdmin && filas.length > 0 && (
-                      confirmDeleteCorte === corte.id ? (
-                        <span className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
-                          <span className="text-[11px] font-bold" style={{ color: '#C0362C' }}>¿Eliminar {filas.length} fila{filas.length > 1 ? 's' : ''}?</span>
-                          <button
-                            onClick={() => {
-                              filas.forEach(f => deleteSeguimientoFila(f.id));
-                              boletaLineas.filter(b => b.corteId === corte.id).forEach(b => deleteBoletaLinea(b.id));
-                              setConfirmDeleteCorte(null);
-                              addToast(`Seguimiento de corte eliminado (${filas.length} filas)`, 'success');
-                            }}
-                            className="text-[11px] font-bold uppercase px-1"
-                            style={{ color: '#C0362C' }}
-                          >Sí</button>
-                          <button
-                            onClick={() => setConfirmDeleteCorte(null)}
-                            className="text-[11px] text-gray-400 hover:text-gray-600 px-1"
-                          >No</button>
-                        </span>
-                      ) : (
-                        <button
-                          onClick={e => { e.stopPropagation(); setConfirmDeleteCorte(corte.id); }}
-                          className="flex items-center gap-1 text-[11px] px-1.5 py-0.5 transition-colors"
-                          style={{ color: '#C0362C99' }}
-                          title="Eliminar todo el seguimiento de este corte"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                          <span>Eliminar seguimiento</span>
-                        </button>
-                      )
-                    )}
+                    <span className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-widest" style={{ color: '#7B5EA7' }}>
+                      <Eye className="h-3.5 w-3.5" /> Ver detalle
+                    </span>
                   </div>
                 </div>
 
-                {isOpen && (
-                  <div style={{ borderTop: '1px solid #DDD8CF' }}>
+                {isOpen && createPortal(
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setModalCorteDetalle(null)}>
+                    <div
+                      className="bg-white w-full max-w-5xl max-h-[90vh] flex flex-col"
+                      style={{ border: '1px solid #DDD8CF' }}
+                      onClick={e => e.stopPropagation()}
+                    >
+                      {/* Header del modal: identificación, progreso y acciones */}
+                      <div
+                        className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 flex-shrink-0"
+                        style={{ background: '#FFFDF9', borderBottom: `3px solid ${avanceColor}` }}
+                      >
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <span className="h-8 w-8 flex-shrink-0 flex items-center justify-center" style={{ background: '#7B5EA718' }}>
+                            <Scissors className="h-4 w-4" style={{ color: '#7B5EA7' }} />
+                          </span>
+                          <div>
+                            <p className="font-serif font-bold text-sm flex items-center gap-2 flex-wrap" style={{ color: '#1a1a1a' }}>
+                              <span className="font-mono font-black">{corte.nCorte}</span>
+                              <span>{capWords(productoMap.get(corte.productoId)?.nombre ?? '')}</span>
+                              <span className="text-gray-400 font-normal">{capWords(colorMap.get(corte.colorId) ?? '')}</span>
+                            </p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <div className="w-24 h-1.5 overflow-hidden" style={{ background: '#EAE6DD' }}>
+                                <div className="h-full transition-all" style={{ width: `${avgAvance}%`, background: avanceColor }} />
+                              </div>
+                              <span className="text-xs font-bold font-mono tabular-nums" style={{ color: avanceColor }}>{avgAvance}%</span>
+                              <span className="text-[11px] text-gray-400 font-mono">{filas.length} filas</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 flex-wrap">
+                          {filas.length > 0 && (
+                            <>
+                            <button
+                              onClick={() => { const d = buildHojaData(corte.id); if (d) exportHojaSeguimientoPdf(d, pdfFont); }}
+                              className="flex items-center gap-1 text-[11px] text-gray-500 hover:text-gray-800 px-1.5 py-0.5 transition-colors"
+                              title="Exportar hoja de seguimiento PDF"
+                            >
+                              <FileText className="h-3 w-3" /><span>PDF</span>
+                            </button>
+                            <button
+                              onClick={() => { const d = buildHojaData(corte.id); if (d) exportHojaSeguimientoXlsx(d); }}
+                              className="flex items-center gap-1 text-[11px] text-gray-500 hover:text-gray-800 px-1.5 py-0.5 transition-colors"
+                              title="Exportar hoja de seguimiento Excel"
+                            >
+                              <Download className="h-3 w-3" /><span>Excel</span>
+                            </button>
+                            </>
+                          )}
+                          {esAdmin && filas.length > 0 && (
+                            <button
+                              onClick={() => setConfirmDeleteCorte(corte.id)}
+                              className="flex items-center gap-1 text-[11px] px-1.5 py-0.5 transition-colors"
+                              style={{ color: '#C0362C99' }}
+                              title="Eliminar todo el seguimiento de este corte"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                              <span>Eliminar seguimiento</span>
+                            </button>
+                          )}
+                          <button onClick={() => setModalCorteDetalle(null)} className="text-gray-400 hover:text-gray-700 transition-colors flex-shrink-0">
+                            <X className="h-5 w-5" />
+                          </button>
+                        </div>
+                      </div>
+                      <div className="overflow-y-auto flex-1">
                     {/* Barra de fechas */}
                     <div className="flex flex-wrap items-center gap-4 px-5 py-2.5" style={{ background: '#FAF8F4', borderBottom: '1px solid #EFECE5' }} onClick={e => e.stopPropagation()}>
                       <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-400">
@@ -1238,17 +1255,56 @@ export function ProduccionConfeccion() {
                         });
                       })();
                       // Agrupar filas por color (manteniendo el orden)
-                      const gruposPorColor: { colorId: string; filas: SeguimientoFila[] }[] = [];
+                      const gruposPorColorTodos: { colorId: string; filas: SeguimientoFila[] }[] = [];
                       for (const fila of filasOrdenadas) {
-                        const ultimo = gruposPorColor[gruposPorColor.length - 1];
+                        const ultimo = gruposPorColorTodos[gruposPorColorTodos.length - 1];
                         if (ultimo && ultimo.colorId === fila.colorId) {
                           ultimo.filas.push(fila);
                         } else {
-                          gruposPorColor.push({ colorId: fila.colorId, filas: [fila] });
+                          gruposPorColorTodos.push({ colorId: fila.colorId, filas: [fila] });
                         }
                       }
+                      const verTodos = colorActivoModal === null;
+                      const colorSel = (colorActivoModal && gruposPorColorTodos.some(g => g.colorId === colorActivoModal))
+                        ? colorActivoModal
+                        : null;
+                      const gruposPorColor = verTodos || !colorSel
+                        ? gruposPorColorTodos
+                        : gruposPorColorTodos.filter(g => g.colorId === colorSel);
                       return (
                         <>
+                          {gruposPorColorTodos.length > 1 && (
+                            <div className="flex flex-wrap gap-1.5 px-5 py-3" style={{ background: '#FAF8F4', borderBottom: '1px solid #EFECE5' }}>
+                              <button
+                                onClick={() => setColorActivoModal(null)}
+                                className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-bold transition-colors"
+                                style={verTodos
+                                  ? { background: '#1a1a1a', color: '#fff', border: '1px solid #1a1a1a' }
+                                  : { background: '#fff', color: '#1a1a1a', border: '1px solid #DDD8CF' }}
+                              >
+                                Todos los colores
+                              </button>
+                              {gruposPorColorTodos.map(g => {
+                                const activo = !verTodos && g.colorId === colorSel;
+                                const avgColor = Math.round(g.filas.reduce((s, f) => s + f.pctAvance, 0) / g.filas.length);
+                                const hex = colorHexFromName(colorMap.get(g.colorId) ?? '');
+                                return (
+                                  <button
+                                    key={g.colorId}
+                                    onClick={() => setColorActivoModal(g.colorId)}
+                                    className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-bold transition-colors"
+                                    style={activo
+                                      ? { background: '#1a1a1a', color: '#fff', border: '1px solid #1a1a1a' }
+                                      : { background: '#fff', color: '#1a1a1a', border: '1px solid #DDD8CF' }}
+                                  >
+                                    <span className="h-2.5 w-2.5 flex-shrink-0" style={{ background: hex, border: '1px solid rgba(0,0,0,0.15)' }} />
+                                    {capWords(colorMap.get(g.colorId) ?? g.colorId)}
+                                    <span className="font-mono font-normal" style={{ color: activo ? '#ffffffaa' : '#9A8F87' }}>{avgColor}%</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
                           <div className="overflow-x-auto">
                           <table className="min-w-full text-xs" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
                             <thead>
@@ -1395,23 +1451,9 @@ export function ProduccionConfeccion() {
                                     <td className="px-3 py-2.5 font-mono text-right font-bold" style={{ color: '#1a1a1a' }}>S/ {fila.totalPago.toFixed(2)}</td>
                                     {esAdmin && (
                                     <td className="px-3 py-2.5">
-                                      {confirmDelete === fila.id ? (
-                                        <span className="flex items-center gap-1 whitespace-nowrap">
-                                          <button onClick={() => {
-                                            deleteSeguimientoFila(fila.id);
-                                            const restantes = filas.filter(f => f.id !== fila.id);
-                                            if (restantes.length === 0) boletaLineas.filter(b => b.corteId === fila.corteId).forEach(b => deleteBoletaLinea(b.id));
-                                            setConfirmDelete(null);
-                                            addToast('Fila eliminada', 'success');
-                                          }} className="text-[10px] font-bold uppercase" style={{ color: '#C0362C' }}>Sí</button>
-                                          <span className="text-gray-300">/</span>
-                                          <button onClick={() => setConfirmDelete(null)} className="text-[10px] font-bold text-gray-400 hover:text-gray-600 uppercase">No</button>
-                                        </span>
-                                      ) : (
-                                        <button onClick={() => setConfirmDelete(fila.id)} className="text-gray-300 hover:text-red-500 transition-colors">
-                                          <Trash2 className="h-3.5 w-3.5" />
-                                        </button>
-                                      )}
+                                      <button onClick={() => setConfirmDelete(fila.id)} className="text-gray-300 hover:text-red-500 transition-colors">
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </button>
                                     </td>
                                     )}
                                   </tr>
@@ -1424,7 +1466,11 @@ export function ProduccionConfeccion() {
                         </>
                       );
                     })()}
-                  </div>
+                      </div>
+                    </div>
+                  </div>,
+                  document.body,
+                  `corte-detalle-${corte.id}`
                 )}
               </div>
             );
@@ -1538,8 +1584,8 @@ export function ProduccionConfeccion() {
         const tarifasModal = tarifasDelCorte(corteId);
         const filaModal = seguimientoFilas.find(f => f.corteId === corteId && f.colorId === colorId && f.talla === talla);
         const cantFila = filaModal?.cantidad ?? 0;
-        return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setModalEditOps(null)}>
+        return createPortal(
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4" onClick={() => setModalEditOps(null)}>
             <div className="bg-white w-full max-w-sm" style={{ border: '1px solid #DDD8CF' }} onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between gap-3 px-5 py-4" style={{ background: '#FFFDF9', borderBottom: '3px solid #4B7FA3' }}>
                 <div className="flex items-center gap-2.5">
@@ -1691,7 +1737,8 @@ export function ProduccionConfeccion() {
                 <button onClick={guardarModalEditOps} className="btn-primary text-xs">Guardar</button>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
         );
       })()}
 
@@ -1809,8 +1856,8 @@ export function ProduccionConfeccion() {
         const confirmadasPreview = tarifasModal.reduce((s, t) =>
           s + filasDelColor.filter(f => modalConfirmado[t.id]?.[f.talla]).length, 0);
         const pctPreviewColor = totalCeldas > 0 ? Math.round((confirmadasPreview / totalCeldas) * 100) : 0;
-        return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setModalColor(null)}>
+        return createPortal(
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4" onClick={() => setModalColor(null)}>
             <div className="bg-white w-full max-w-md" style={{ border: '1px solid #DDD8CF' }} onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between gap-3 px-5 py-4" style={{ background: '#FFFDF9', borderBottom: '3px solid #7B5EA7' }}>
                 <div className="flex items-center gap-2.5">
@@ -2107,7 +2154,46 @@ export function ProduccionConfeccion() {
                 <button onClick={guardarModalAsignar} className="btn-primary text-xs">Guardar</button>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
+        );
+      })()}
+
+      {/* Confirmar eliminar todo el seguimiento de un corte */}
+      {confirmDeleteCorte && (() => {
+        const filas = filasPorCorte.get(confirmDeleteCorte) ?? [];
+        return (
+          <ConfirmModal
+            mensaje={`¿Eliminar ${filas.length} fila${filas.length > 1 ? 's' : ''} de seguimiento?`}
+            detalle="Se eliminará todo el seguimiento de este corte y sus boletas de pago asociadas. Esta acción no se puede deshacer."
+            onConfirmar={() => {
+              filas.forEach(f => deleteSeguimientoFila(f.id));
+              boletaLineas.filter(b => b.corteId === confirmDeleteCorte).forEach(b => deleteBoletaLinea(b.id));
+              setConfirmDeleteCorte(null);
+              setModalCorteDetalle(null);
+              addToast(`Seguimiento de corte eliminado (${filas.length} filas)`, 'success');
+            }}
+            onCancelar={() => setConfirmDeleteCorte(null)}
+          />
+        );
+      })()}
+
+      {/* Confirmar eliminar una fila de seguimiento individual */}
+      {confirmDelete && (() => {
+        const fila = seguimientoFilas.find(f => f.id === confirmDelete);
+        return (
+          <ConfirmModal
+            mensaje={`¿Eliminar la fila de talla ${fila?.talla ?? ''}?`}
+            detalle="Se eliminará esta fila de seguimiento. Esta acción no se puede deshacer."
+            onConfirmar={() => {
+              deleteSeguimientoFila(confirmDelete);
+              const restantes = seguimientoFilas.filter(f => f.id !== confirmDelete && f.corteId === fila?.corteId);
+              if (restantes.length === 0 && fila) boletaLineas.filter(b => b.corteId === fila.corteId).forEach(b => deleteBoletaLinea(b.id));
+              setConfirmDelete(null);
+              addToast('Fila eliminada', 'success');
+            }}
+            onCancelar={() => setConfirmDelete(null)}
+          />
         );
       })()}
     </motion.div>
