@@ -654,17 +654,18 @@ export async function exportHojaSeguimientoPdf(data: HojaSeguimientoData, font: 
 
   // Usar helvetica para estética más suave y redondeada
   doc.setFont('helvetica', 'normal');
-  doc.setDrawColor(200, 200, 200);
+  doc.setDrawColor(210, 214, 220);
   doc.setLineWidth(0.2);
 
-  // Paleta refinada
-  const AMBER:    [number,number,number] = [251, 191,  36];
-  const AMBER_LT: [number,number,number] = [254, 243, 199];
-  const SLATE:    [number,number,number] = [ 71,  85, 105];
-  const SLATE_LT: [number,number,number] = [241, 245, 249];
+  // Paleta institucional Texajo (copper + verde), reemplaza el ámbar genérico anterior
+  const AMBER:    [number,number,number] = TX_COPPER as [number,number,number];
+  const AMBER_LT: [number,number,number] = TX_G_SOFT as [number,number,number];
+  const SLATE:    [number,number,number] = TX_G_DARK as [number,number,number];
+  const SLATE_LT: [number,number,number] = TX_CREAM as [number,number,number];
   const WHITE:    [number,number,number] = [255, 255, 255];
-  const INK:      [number,number,number] = [ 30,  41,  59];
-  const GRAY_ROW: [number,number,number] = [248, 250, 252];
+  const INK:      [number,number,number] = TX_INK as [number,number,number];
+  const GRAY_ROW: [number,number,number] = [250, 248, 244];
+  const TX_CREAM_TXT: [number,number,number] = [250, 248, 244];
 
   // ── Helper: celda con borde suave ────────────────────────────────────────
   const rowH  = 6.5;
@@ -710,7 +711,8 @@ export async function exportHojaSeguimientoPdf(data: HojaSeguimientoData, font: 
   const drawPageHeader = (startY: number) => {
     const hdr1H = 8.5, hdr2H = 5.5;
     const nCorteW = 22, fLabelW = 18, fechaW = 28;
-    const midStart = L + nCorteW;
+    const monoW = hdr1H + 3;
+    const midStart = L + monoW + nCorteW;
     const midEnd   = R - fLabelW - fechaW;
     const midW     = midEnd - midStart;
     const prodW    = Math.min(100, midW * 0.7);
@@ -724,52 +726,55 @@ export async function exportHojaSeguimientoPdf(data: HojaSeguimientoData, font: 
     doc.setFillColor(...WHITE);
     doc.rect(L, startY, usableW, hdr1H, 'F');
 
-    // Caja N° — amber redondeada
-    doc.setFillColor(...AMBER);
-    doc.setDrawColor(209, 157, 20);
-    doc.setLineWidth(0.3);
-    doc.roundedRect(L, startY, nCorteW, hdr1H, 2, 2, 'FD');
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(5);
-    doc.setTextColor(...INK);
-    doc.text('CORTE N°', L + nCorteW / 2, startY + 2.8, { align: 'center' });
-    doc.setFontSize(14);
-    doc.text(String(data.nCorte), L + nCorteW / 2, startY + 7.2, { align: 'center' });
+    // Monograma institucional
+    drawMonograma(doc, L, startY, hdr1H);
 
-    // Caja PRODUCTO — amber redondeada
-    doc.setFillColor(...AMBER);
-    doc.setDrawColor(209, 157, 20);
-    doc.roundedRect(prodX, startY, prodW, hdr1H, 2, 2, 'FD');
+    // Caja N° — verde institucional, texto crema
+    doc.setFillColor(...SLATE);
+    doc.setDrawColor(...SLATE);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(L + monoW, startY, nCorteW, hdr1H, 1.2, 1.2, 'FD');
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    doc.setTextColor(...INK);
+    doc.setFontSize(4.8);
+    doc.setTextColor(...TX_CREAM_TXT);
+    doc.text('CORTE N°', L + monoW + nCorteW / 2, startY + 2.8, { align: 'center' });
+    doc.setFontSize(13);
+    doc.text(String(data.nCorte), L + monoW + nCorteW / 2, startY + 7.2, { align: 'center' });
+
+    // Caja PRODUCTO — copper, texto crema
+    doc.setFillColor(...AMBER);
+    doc.setDrawColor(...AMBER);
+    doc.roundedRect(prodX, startY, prodW, hdr1H, 1.2, 1.2, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
+    doc.setTextColor(...TX_CREAM_TXT);
     doc.text(String(data.producto).toUpperCase(), prodX + prodW / 2, startY + 5.8, { align: 'center' });
 
-    // Caja F.CORTE — slate suave
+    // Caja F.CORTE — crema suave
     doc.setFillColor(...SLATE_LT);
-    doc.setDrawColor(200, 210, 220);
-    doc.roundedRect(R - fLabelW - fechaW, startY, fLabelW, hdr1H, 2, 2, 'FD');
+    doc.setDrawColor(224, 218, 205);
+    doc.roundedRect(R - fLabelW - fechaW, startY, fLabelW, hdr1H, 1.2, 1.2, 'FD');
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(5.5);
+    doc.setFontSize(5.2);
     doc.setTextColor(...SLATE);
     doc.text('F. CORTE', R - fLabelW - fechaW + fLabelW / 2, startY + 5.2, { align: 'center' });
 
-    // Caja fecha — amber
-    doc.setFillColor(...AMBER);
-    doc.setDrawColor(209, 157, 20);
-    doc.roundedRect(R - fechaW, startY, fechaW, hdr1H, 2, 2, 'FD');
+    // Caja fecha — verde institucional
+    doc.setFillColor(...SLATE);
+    doc.setDrawColor(...SLATE);
+    doc.roundedRect(R - fechaW, startY, fechaW, hdr1H, 1.2, 1.2, 'FD');
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(12);
-    doc.setTextColor(...INK);
+    doc.setFontSize(11.5);
+    doc.setTextColor(...TX_CREAM_TXT);
     doc.text(fechaLabel, R - fechaW / 2, startY + 6, { align: 'center' });
 
     // Fila 2: badge cliente
     doc.setFillColor(...WHITE);
     doc.rect(L, startY + hdr1H, usableW, hdr2H, 'F');
     doc.setFillColor(...AMBER_LT);
-    doc.setDrawColor(251, 191, 36);
+    doc.setDrawColor(...AMBER);
     doc.setLineWidth(0.25);
-    doc.roundedRect(L, startY + hdr1H, nCorteW + 38, hdr2H, 1.5, 1.5, 'FD');
+    doc.roundedRect(L, startY + hdr1H, nCorteW + monoW + 38, hdr2H, 1.2, 1.2, 'FD');
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(5);
     doc.setTextColor(...SLATE);
@@ -790,7 +795,7 @@ export async function exportHojaSeguimientoPdf(data: HojaSeguimientoData, font: 
 
   const drawTableHeader = (ty: number) => {
     let cx = L;
-    const ho = { fill: AMBER, bold: true, align: 'center' as const, fs: 6, textColor: INK };
+    const ho = { fill: SLATE, bold: true, align: 'center' as const, fs: 6, textColor: TX_CREAM_TXT };
     drawCell(cx, ty, spanW, tblHdrH, '§', ho); cx += spanW;
     drawCell(cx, ty, colorW, tblHdrH, 'COLOR', ho); cx += colorW;
     drawCell(cx, ty, tallaW, tblHdrH, 'T', ho); cx += tallaW;
@@ -889,7 +894,7 @@ export async function exportHojaSeguimientoPdf(data: HojaSeguimientoData, font: 
   let cx = L;
   drawCell(cx, rowY, spanW, rowH, '', { fill: AMBER_LT }); cx += spanW;
   drawCell(cx, rowY, colorW + tallaW, rowH, 'TOTAL', { fill: AMBER_LT, bold: true, align: 'center', fs: 7, textColor: INK }); cx += colorW + tallaW;
-  drawCell(cx, rowY, cantW, rowH, String(totalCant), { fill: AMBER, bold: true, align: 'center', fs: 7, textColor: INK }); cx += cantW;
+  drawCell(cx, rowY, cantW, rowH, String(totalCant), { fill: AMBER, bold: true, align: 'center', fs: 7, textColor: TX_CREAM_TXT }); cx += cantW;
   for (let i = 0; i < nOps; i++) { drawCell(cx, rowY, opW, rowH, '', { fill: AMBER_LT }); cx += opW; }
   drawCell(cx, rowY, mermaW, rowH, '', { fill: AMBER_LT }); cx += mermaW;
   drawCell(cx, rowY, entregadoW, rowH, '', { fill: AMBER_LT });

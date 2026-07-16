@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion } from 'motion/react';
 import { useAppContext } from '../store/AppContext';
 import { useToast } from '../components/ToastProvider';
-import { Download, Plus, X, Eye, ChevronDown, FileText, Trash2, CheckCircle, RotateCcw, MoreHorizontal, Shirt, Scissors, Users, Calendar, Clock, PackageSearch } from 'lucide-react';
+import { Download, Plus, X, Eye, ChevronDown, FileText, Trash2, CheckCircle, RotateCcw, MoreHorizontal, Shirt, Scissors, Users, Calendar, Clock, PackageSearch, Search } from 'lucide-react';
 import { SeguimientoFila, SeguimientoAsignacion, BoletaLinea } from '../types';
 import { ModuleInfoBox } from '../components/ModuleInfoBox';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -87,6 +87,8 @@ export function ProduccionConfeccion() {
   const [colorActivoModal, setColorActivoModal] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [filterCorteId, setFilterCorteId] = useState('');
+  const [buscadorCorte, setBuscadorCorte] = useState('');
+  const [buscadorCorteAbierto, setBuscadorCorteAbierto] = useState(false);
   const [filterDesde, setFilterDesde] = useState('');
   const [filterHasta, setFilterHasta] = useState('');
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -1035,14 +1037,64 @@ export function ProduccionConfeccion() {
 
       {activeTab === 'seguimiento' && <>
       <div className="flex flex-wrap gap-3 items-end">
-        <div>
+        <div className="relative">
           <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Corte</label>
-          <select value={filterCorteId} onChange={e => setFilterCorteId(e.target.value)} className="input-base text-xs w-48">
-            <option value="">Todos los cortes</option>
-            {cortes.filter(c => c.estado !== 'ANULADO').map(c => (
-              <option key={c.id} value={c.id}>{c.nCorte}</option>
-            ))}
-          </select>
+          {(() => {
+            const corteSel = filterCorteId ? cortes.find(c => c.id === filterCorteId) : null;
+            const query = buscadorCorte.trim().toLowerCase();
+            const resultados = query
+              ? cortes.filter(c => c.estado !== 'ANULADO' && (
+                  c.nCorte.toLowerCase().includes(query) ||
+                  (productoMap.get(c.productoId)?.nombre ?? '').toLowerCase().includes(query) ||
+                  (colorMap.get(c.colorId) ?? '').toLowerCase().includes(query)
+                )).slice(0, 20)
+              : cortes.filter(c => c.estado !== 'ANULADO').slice(0, 20);
+            return (
+              <>
+                <div className="relative w-56">
+                  <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={corteSel && !buscadorCorteAbierto ? corteSel.nCorte : buscadorCorte}
+                    onChange={e => { setBuscadorCorte(e.target.value); setBuscadorCorteAbierto(true); if (filterCorteId) setFilterCorteId(''); }}
+                    onFocus={() => { setBuscadorCorteAbierto(true); setBuscadorCorte(''); }}
+                    placeholder="Todos los cortes"
+                    className="input-base text-xs w-56 pl-8"
+                  />
+                </div>
+                {buscadorCorteAbierto && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setBuscadorCorteAbierto(false)} />
+                    <div
+                      className="absolute left-0 top-full mt-1 z-20 bg-white w-72 max-h-72 overflow-y-auto"
+                      style={{ border: '1px solid #DDD8CF', boxShadow: '0 8px 24px -8px rgba(26,26,26,0.25)' }}
+                    >
+                      <button
+                        onClick={() => { setFilterCorteId(''); setBuscadorCorte(''); setBuscadorCorteAbierto(false); }}
+                        className="w-full text-left px-3 py-2 text-xs font-bold text-gray-500 hover:bg-gray-50 whitespace-nowrap"
+                        style={{ borderBottom: '1px solid #EFECE5' }}
+                      >
+                        Todos los cortes
+                      </button>
+                      {resultados.length === 0 ? (
+                        <p className="px-3 py-2.5 text-xs text-gray-400 italic">Sin coincidencias.</p>
+                      ) : resultados.map(c => (
+                        <button
+                          key={c.id}
+                          onClick={() => { setFilterCorteId(c.id); setBuscadorCorte(''); setBuscadorCorteAbierto(false); }}
+                          className="w-full text-left px-3 py-2 text-xs hover:bg-gray-50 flex items-center gap-2"
+                        >
+                          <span className="font-mono font-black flex-shrink-0" style={{ color: '#1a1a1a' }}>{c.nCorte}</span>
+                          <span className="text-gray-600 truncate">{capWords(productoMap.get(c.productoId)?.nombre ?? '')}</span>
+                          <span className="text-gray-400 truncate">{capWords(colorMap.get(c.colorId) ?? '')}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </>
+            );
+          })()}
         </div>
         <div>
           <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Desde</label>
@@ -1054,7 +1106,7 @@ export function ProduccionConfeccion() {
         </div>
         {(filterCorteId || filterDesde || filterHasta) && (
           <button
-            onClick={() => { setFilterCorteId(''); setFilterDesde(''); setFilterHasta(''); }}
+            onClick={() => { setFilterCorteId(''); setFilterDesde(''); setFilterHasta(''); setBuscadorCorte(''); setBuscadorCorteAbierto(false); }}
             className="text-[11px] font-bold uppercase tracking-widest px-2 self-end h-8"
             style={{ color: '#9A8F87' }}
           >
@@ -1119,6 +1171,12 @@ export function ProduccionConfeccion() {
                   </div>
                   <div className="flex items-center gap-3 flex-wrap">
                     <span className="text-[11px] text-gray-400 font-mono">{filas.length} filas</span>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-16 h-1.5 overflow-hidden" style={{ background: '#EAE6DD' }}>
+                        <div className="h-full transition-all" style={{ width: `${avgAvance}%`, background: avanceColor }} />
+                      </div>
+                      <span className="text-[10px] font-bold font-mono tabular-nums" style={{ color: avanceColor }}>{avgAvance}%</span>
+                    </div>
                     <span className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-widest" style={{ color: '#7B5EA7' }}>
                       <Eye className="h-3.5 w-3.5" /> Ver detalle
                     </span>
